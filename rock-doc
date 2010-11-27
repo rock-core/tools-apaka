@@ -46,39 +46,51 @@ def package_set_header(pkg_set)
     imports = pkg_set.each_imported_set.to_a
     if !imports.empty?
         imports.each do |imported_set|
-            result << ["imports", package_set_link(imported_set.name)]
+            result << ["imports", package_set_link(imported_set.name, 1)]
         end
     end
 
 
     set_packages = pkg_set.each_package.sort_by(&:name)
     set_packages = set_packages.map do |pkg|
-        package_link(pkg.name)
+        package_link(pkg.name, 1)
     end
     result << ['packages', set_packages.join(", ")]
-    result << ['osdeps', pkg_set.each_osdep.map(&:first).sort.map { |name| osdeps_link(name) }.join(", ")]
+    result << ['osdeps', pkg_set.each_osdep.map(&:first).sort.map { |name| osdeps_link(name, 1) }.join(", ")]
 
     result.map { |v| render_item(*v) }
 end
 
-def package_set_link(name)
-    link = "../package_sets_#{name.gsub(/[^\w]/, '_')}/index.html"
+def package_set_link(name, depth)
+    relative =
+        if depth > 0
+            "../" * depth
+        end
+    link = "#{relative}package_sets/#{name.gsub(/[^\w]/, '_')}.html"
     "<a href=\"#{link}\">#{name}</a>"
 end
-def package_link(name)
-    link = "../#{name.gsub(/[^\w]/, '_')}/index.html"
+def package_link(name, depth)
+    relative =
+        if depth > 0
+            "../" * depth
+        end
+    link = "#{relative}packages/#{name.gsub(/[^\w]/, '_')}/index.html"
     "<a href=\"#{link}\">#{name}</a>"
 end
-def osdeps_link(name)
-    link = "../osdeps_#{name.gsub(/[^\w]/, '_')}/index.html"
+def osdeps_link(name, depth)
+    relative =
+        if depth > 0
+            "../" * depth
+        end
+    link = "#{relative}osdeps/#{name.gsub(/[^\w]/, '_')}.html"
     "<a href=\"#{link}\">#{name}</a>"
 end
-def file_link(file)
+def file_link(file, depth)
     if file == Autoproj::OSDependencies::AUTOPROJ_OSDEPS
         "autoproj's default OSdeps file"
     elsif file =~ /autoproj\/remotes\/([^\/]+)\/(.*)/
         pkg_set_name, file_name = $1, $2
-        "#{package_set_link($1)}/#{$2}"
+        "#{package_set_link(pkg_set_name, depth)}/#{file_name}"
     end
 end
 
@@ -103,12 +115,9 @@ sort_info: #{sort_order += 1}
 </div>
     EOT
 
-    pkg_set_dir = File.join('package_sets_' + pkg_set.name.gsub(/[^\w]/, '_'))
-    root_metainfo << [pkg_set_dir, pkg_set.name, sort_order]
-
-    pkg_set_dir = File.join(output_dir, pkg_set_dir)
+    pkg_set_dir = File.join(output_dir, 'package_sets')
     FileUtils.mkdir_p(pkg_set_dir)
-    File.open(File.join(pkg_set_dir, 'index.page'), 'w') do |io|
+    File.open(File.join(pkg_set_dir, "#{pkg_set.name.gsub(/[^\w]/, '_')}.page"), 'w') do |io|
         io.puts page
     end
 end
@@ -126,17 +135,17 @@ def package_header(pkg, pkg_set)
     vcs_def = Autoproj.manifest.importer_definition_for(pkg.name)
 
     result = []
-    result << ['defined in', package_set_link(pkg_set)]
+    result << ['defined in', package_set_link(pkg_set, 2)]
     result << ["from", render_vcs(vcs_def)]
 
     opt_deps = pkg.optional_dependencies.to_set
     real_deps = pkg.dependencies.find_all { |dep_name| !opt_deps.include?(dep_name) }
 
     real_deps = real_deps.sort.map do |name|
-        package_link(name)
+        package_link(name, 2)
     end
     opt_deps = opt_deps.sort.map do |name|
-        package_link(name)
+        package_link(name, 2)
     end
 
     if real_deps.empty?
@@ -152,7 +161,7 @@ def package_header(pkg, pkg_set)
 
     osdeps = pkg.os_packages.sort.
         map do |name|
-            osdeps_link(name)
+            osdeps_link(name, 2)
         end
     if osdeps.empty?
         result << ['OS dependencies', 'none']
@@ -194,7 +203,7 @@ Documentation
 #{documentation}
     EOT
 
-    pkg_dir = File.join(pkg.name.gsub(/[^\w]/, '_'))
+    pkg_dir = File.join('packages', pkg.name.gsub(/[^\w]/, '_'))
     root_metainfo << [pkg_dir, pkg.name, sort_order]
     pkg_dir = File.join(output_dir, pkg_dir)
 
@@ -212,7 +221,7 @@ osdeps.all_definitions.sort_by(&:first).each do |name, data|
             info.shift
             info = info.join("\n      ")
         end
-        "**Defined in** #{files.map { |f| file_link(f) }.join(", ")} **as**\n\n    #{name}:\n      #{info}"
+        "**Defined in** #{files.map { |f| file_link(f, 1) }.join(", ")} **as**\n\n    #{name}:\n      #{info}"
     end
 
     page = <<-EOT
@@ -223,11 +232,9 @@ sort_info: #{sort_order += 1}
 #{data.join("\n")}
     EOT
 
-    dir = "osdeps_#{name.gsub(/[^\w]/, '_')}"
-    root_metainfo << [dir, name, sort_order]
-    dir = File.join(output_dir, dir)
+    dir = File.join(output_dir, 'osdeps')
     FileUtils.mkdir_p dir
-    File.open(File.join(dir, "index.page"), 'w') do |io|
+    File.open(File.join(dir, "#{name.gsub(/[^\w]/, '_')}.page"), 'w') do |io|
         io.puts page
     end
 end
