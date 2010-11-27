@@ -1,0 +1,60 @@
+#! /usr/bin/env ruby
+
+base_dir = File.expand_path('../lib', File.dirname(__FILE__))
+$LOAD_PATH.unshift base_dir
+
+require 'autoproj'
+require 'autoproj/cmdline'
+require 'rock/autoproj_webgen'
+
+Autoproj::CmdLine.initialize_and_load
+manifest = Autoproj.manifest
+
+output_dir = ARGV.shift
+if !output_dir
+    exit(1)
+end
+
+root_metainfo = []
+sort_order = 0
+
+render = Rock::Doc::Render.new(output_dir)
+
+all_packages = Hash.new
+manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
+    next if pkg_set.local?
+    if metainfo = render.package_set(pkg_set, (sort_order += 1))
+        root_metainfo << metainfo
+    end
+
+    pkg_set.each_package.each do |pkg|
+        all_packages[pkg.name] = [pkg, pkg_set.name]
+    end
+end
+
+all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
+    if File.exists?(File.join(pkg.srcdir, "manifest.xml"))
+        manifest.load_package_manifest(pkg.name)
+        manifest.resolve_optional_dependencies
+    end
+    if metainfo = render.package(pkg, pkg_set, (sort_order += 1))
+        root_metainfo << metainfo
+    end
+end
+
+Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
+    if metainfo = render.osdeps(name, data, (sort_order += 1))
+        root_metainfo << metainfo
+    end
+end
+
+File.open(File.join(output_dir, 'htmldoc.metainfo'), 'w') do |io|
+    root_metainfo.each do |dir, title, sort|
+        io.puts "#{dir}:"
+        io.puts "  title: #{title}"
+        io.puts "  routed_title: #{title}"
+        io.puts "  sort_info: #{sort}"
+        io.puts
+    end
+end
+
