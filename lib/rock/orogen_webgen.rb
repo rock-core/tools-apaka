@@ -112,7 +112,7 @@ module Rock
                 all_types.sort_by(&:first).each do |type_name, autoproj_name, fragment|
                     page = <<-EOPAGE
 ---
-title: #{type_name}
+title: #{Doc.escape_html(type_name)}
 sort_info: #{sort_order += 1}
 ---
 Defined in the typekit of #{Doc.package_link(autoproj_name, 1)}
