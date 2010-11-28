@@ -5,6 +5,13 @@ usage() {
     exit 1
 }
 
+is_absolute() {
+    case $1 in
+        /*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 autoproj_dir=$PWD
 target_dir=$1
 
@@ -14,6 +21,11 @@ fi
 
 if test -z "$target_dir"; then
     usage
+fi
+
+if ! is_absolute "$target_dir"; then
+    echo "$target_dir must be an absolute path"
+    exit 1
 fi
 
 if test -d "$target_dir"; then
