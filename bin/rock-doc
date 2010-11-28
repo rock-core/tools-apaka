@@ -64,13 +64,13 @@ end
 
 Rock::Doc::OrogenRender.render_all(output_dir, true)
 
-File.open(File.join(output_dir, 'htmldoc.metainfo'), 'w') do |io|
-    root_metainfo.each do |dir, title, sort|
-        io.puts "#{dir}:"
-        io.puts "  title: #{title}"
-        io.puts "  routed_title: #{title}"
-        io.puts "  sort_info: #{sort}"
-        io.puts
-    end
-end
+metainfo = root_metainfo.map do |dir, title, sort|
+        ["#{dir}:",
+         "  title: #{title}",
+         "  routed_title: #{title}",
+         "  sort_info: #{sort}",
+         ""].join("\n")
+    end.join("\n")
+
+Rock::Doc.render_page(File.join(output_dir, 'htmldoc.metainfo'), metainfo)
 

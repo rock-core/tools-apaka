@@ -8,6 +8,16 @@ module Rock
             end
         end
 
+        def self.render_page(path, content)
+            if File.file?(path)
+                return if File.read(path) == content
+            end
+
+            File.open(path, 'w') do |io|
+                io.puts content
+            end
+        end
+
         def self.name_to_path(name)
             name.gsub(/[^\w]/, '_')
         end
@@ -148,9 +158,7 @@ sort_info: #{sort_order}
 
                 pkg_set_dir = File.join(output_dir, 'package_sets')
                 FileUtils.mkdir_p(pkg_set_dir)
-                File.open(File.join(pkg_set_dir, "#{Doc.name_to_path(pkg_set.name)}.page"), 'w') do |io|
-                    io.puts page
-                end
+                Doc.render_page(File.join(pkg_set_dir, "#{Doc.name_to_path(pkg_set.name)}.page"), page)
                 return nil
             end
             
@@ -190,9 +198,7 @@ Documentation
                 pkg_dir = File.join(output_dir, pkg_dir)
 
                 FileUtils.mkdir_p(pkg_dir)
-                File.open(File.join(pkg_dir, 'index.page'), 'w') do |io|
-                    io.puts page
-                end
+                Doc.render_page(File.join(pkg_dir, 'index.page'), page)
 
                 return metainfo
             end
@@ -223,9 +229,7 @@ sort_info: #{sort_order}
 
                 dir = File.join(output_dir, 'osdeps')
                 FileUtils.mkdir_p dir
-                File.open(File.join(dir, "#{Doc.name_to_path(name)}.page"), 'w') do |io|
-                    io.puts page
-                end
+                Doc.render_page(File.join(dir, "#{Doc.name_to_path(name)}.page"), page)
                 nil
             end
         end
