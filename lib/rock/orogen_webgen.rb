@@ -82,7 +82,6 @@ module Rock
 
                     project = load_orogen_project(master_project, project_name, debug)
                     if project.typekit
-                        puts "#{project.name} #{master_project} #{project.typekit.main_project}"
                         types = project.typekit.self_types
                         types.each do |t|
                             Doc.type_to_autoproj[t.name] = autoproj_name
