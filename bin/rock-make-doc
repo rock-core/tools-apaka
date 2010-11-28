@@ -1,0 +1,49 @@
+#! /bin/sh
+
+usage() {
+    echo "usage: rock-make-doc target_dir"
+    echo "you must run it from within the autoproj installation that you want"
+    echo "to generate the documentation for"
+    exit 1
+}
+
+autoproj_dir=$PWD
+target_dir=$1
+
+if ! test -d "$autoproj_dir/autoproj"; then
+    echo "$autoproj_dir is not an autoproj installation"
+    echo
+    usage
+fi
+
+if test -z "$target_dir"; then
+    echo "no target dir given"
+    echo
+    usage
+fi
+
+if test -d "$target_dir"; then
+    echo "$target_dir already exists"
+    exit 1
+fi
+
+set -e
+
+tempdir=$(mktemp -d)
+echo "generating documentation in $tempdir"
+
+cd $tempdir
+git clone git://gitorious.com/rock/doc.git main
+cd main
+rake
+
+echo "moving main documentation in $target_dir"
+mkdir -p $target_dir
+mv out/* $target_dir
+
+cd $autoproj_dir
+rock-directory "$target_dir/package_directory"
+
+echo "deleting $tempdir"
+rm -rf $tempdir
+
