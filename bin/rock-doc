@@ -6,6 +6,7 @@ $LOAD_PATH.unshift base_dir
 require 'autoproj'
 require 'autoproj/cmdline'
 require 'rock/autoproj_webgen'
+require 'rock/orogen_webgen'
 
 Autoproj::CmdLine.initialize_and_load
 manifest = Autoproj.manifest
@@ -37,6 +38,19 @@ all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
         manifest.load_package_manifest(pkg.name)
         manifest.resolve_optional_dependencies
     end
+
+    if pkg.kind_of?(Autobuild::Orogen)
+        orogen_file = File.join(pkg.srcdir, pkg.orogen_file)
+        name = File.readlines(orogen_file).grep(/^name\s/).to_a.first
+        if name
+            name =~ /^name[^\w]+(\w+)/
+            name = $1
+            Rock::Doc.orogen_to_autoproj[name] = pkg.name
+        else
+            STDERR.puts "WARN: cannot extract the oroGen project name from #{orogen_file} (package: #{pkg.name})"
+        end
+    end
+
     if metainfo = render.package(pkg, pkg_set, (sort_order += 1))
         root_metainfo << metainfo
     end
@@ -47,6 +61,8 @@ Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
         root_metainfo << metainfo
     end
 end
+
+Rock::Doc::OrogenRender.render_all(output_dir, true)
 
 File.open(File.join(output_dir, 'htmldoc.metainfo'), 'w') do |io|
     root_metainfo.each do |dir, title, sort|

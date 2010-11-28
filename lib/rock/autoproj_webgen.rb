@@ -8,6 +8,10 @@ module Rock
             end
         end
 
+        def self.name_to_path(name)
+            name.gsub(/[^\w]/, '_')
+        end
+
         def self.render_vcs(vcs)
             value = [['type', vcs.type], ['url', vcs.url]].concat(vcs.options.to_a.sort_by { |k, _| k.to_s })
             value = value.map do |key, value|
@@ -55,7 +59,7 @@ module Rock
                 if depth > 0
                     "../" * depth
                 end
-            link = "#{relative}package_sets/#{name.gsub(/[^\w]/, '_')}.html"
+            link = "#{relative}package_sets/#{name_to_path(name)}.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
         def self.package_link(name, depth)
@@ -63,7 +67,7 @@ module Rock
                 if depth > 0
                     "../" * depth
                 end
-            link = "#{relative}packages/#{name.gsub(/[^\w]/, '_')}/index.html"
+            link = "#{relative}packages/#{name_to_path(name)}/index.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
         def self.osdeps_link(name, depth)
@@ -71,7 +75,7 @@ module Rock
                 if depth > 0
                     "../" * depth
                 end
-            link = "#{relative}osdeps/#{name.gsub(/[^\w]/, '_')}.html"
+            link = "#{relative}osdeps/#{name_to_path(name)}.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
         def self.file_link(file, depth)
@@ -134,7 +138,7 @@ module Rock
 ---
 title: #{pkg_set.name}
 sort_info: #{sort_order}
----
+--- name:content
 <div class="body-header-list" markdown="1">
 <ul>
     #{Doc.render_package_set_header(pkg_set).join("\n    ")}
@@ -144,7 +148,7 @@ sort_info: #{sort_order}
 
                 pkg_set_dir = File.join(output_dir, 'package_sets')
                 FileUtils.mkdir_p(pkg_set_dir)
-                File.open(File.join(pkg_set_dir, "#{pkg_set.name.gsub(/[^\w]/, '_')}.page"), 'w') do |io|
+                File.open(File.join(pkg_set_dir, "#{Doc.name_to_path(pkg_set.name)}.page"), 'w') do |io|
                     io.puts page
                 end
                 return nil
@@ -163,9 +167,13 @@ sort_info: #{sort_order}
 
                 page = <<-EOT
 ---
-title: #{pkg.name}
+title: Overview
 sort_info: #{sort_order}
----
+--- name:local_nav
+<ul><li class="title">#{pkg.name}</li>
+{menu: {max_levels: 3, start_level: 3, show_current_subtree_only: true, nested: true, used_nodes: files}}
+</ul>
+--- name:content
 <div class="body-header-list" markdown="1">
 <ul>
     #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
@@ -177,7 +185,7 @@ Documentation
 #{documentation}
                 EOT
 
-                pkg_dir = File.join('packages', pkg.name.gsub(/[^\w]/, '_'))
+                pkg_dir = File.join('packages', Doc.name_to_path(pkg.name))
                 metainfo = [pkg_dir, pkg.name, sort_order]
                 pkg_dir = File.join(output_dir, pkg_dir)
 
@@ -196,7 +204,13 @@ Documentation
                         info.shift
                         info = info.join("\n      ")
                     end
-                    "**Defined in** #{files.map { |f| Doc.file_link(f, 1) }.join(", ")} **as**\n\n    #{name}:\n      #{info}"
+                    files = files.map { |f| Doc.file_link(f, 1) }
+                    if files.size > 1
+                        files = files[0..-2].join(", ") + " **and** " + files.last
+                    else
+                        files = files.first
+                    end
+                    "**Defined in** #{files} **as**\n\n    #{name}:\n      #{info}"
                 end
 
                 page = <<-EOT
@@ -209,7 +223,7 @@ sort_info: #{sort_order}
 
                 dir = File.join(output_dir, 'osdeps')
                 FileUtils.mkdir_p dir
-                File.open(File.join(dir, "#{name.gsub(/[^\w]/, '_')}.page"), 'w') do |io|
+                File.open(File.join(dir, "#{Doc.name_to_path(name)}.page"), 'w') do |io|
                     io.puts page
                 end
                 nil
