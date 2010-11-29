@@ -53,7 +53,7 @@ all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
         end
     end
 
-    if File.directory?(File.join(api_dir, pkg.name))
+    if api_dir && File.directory?(File.join(api_dir, pkg.name))
         pkg_api = "../../../api/#{pkg.name}/index.html"
     end
 
