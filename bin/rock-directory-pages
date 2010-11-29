@@ -16,6 +16,8 @@ if !output_dir
     exit(1)
 end
 
+api_dir = ARGV.shift
+
 root_metainfo = []
 sort_order = 0
 
@@ -51,7 +53,11 @@ all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
         end
     end
 
-    if metainfo = render.package(pkg, pkg_set, (sort_order += 1))
+    if File.directory?(File.join(api_dir, pkg.name))
+        pkg_api = "../../../api/#{pkg.name}/index.html"
+    end
+
+    if metainfo = render.package(pkg, pkg_set, pkg_api, (sort_order += 1))
         root_metainfo << metainfo
     end
 end

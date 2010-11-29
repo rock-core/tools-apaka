@@ -44,13 +44,18 @@ set -e
 tempdir=$(mktemp -d)
 echo "generating documentation in $tempdir"
 
+echo "generating documentation from the autoproj packages"
+cd $autoproj_dir
+autoproj doc
+mkdir -p $target_dir
+mv install/doc $target_dir/api
+
 cd $tempdir
 git clone git://gitorious.com/rock/doc.git main
 cd main
 rake
 
 echo "moving main documentation in $target_dir"
-mkdir -p $target_dir
 mv out/* $target_dir
 
 cd $autoproj_dir

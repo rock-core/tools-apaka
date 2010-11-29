@@ -162,7 +162,7 @@ sort_info: #{sort_order}
                 return nil
             end
             
-            def package(pkg, pkg_set, sort_order)
+            def package(pkg, pkg_set, pkg_api, sort_order)
                 pkg_manifest = Autoproj.manifest.package_manifests[pkg.name];
                 documentation =
                     if pkg_manifest
@@ -177,13 +177,10 @@ sort_info: #{sort_order}
 ---
 title: Overview
 sort_info: #{sort_order}
---- name:local_nav
-<ul><li class="title">#{pkg.name}</li>
-{menu: {max_levels: 3, start_level: 3, show_current_subtree_only: true, nested: true, used_nodes: files}}
-</ul>
 --- name:content
 <div class="body-header-list" markdown="1">
 <ul>
+    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
     #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
 </ul>
 </div>
