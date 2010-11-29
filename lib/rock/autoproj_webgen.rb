@@ -90,10 +90,17 @@ module Rock
         end
         def self.file_link(file, depth)
             if file == Autoproj::OSDependencies::AUTOPROJ_OSDEPS
-                "autoproj's default OSdeps file"
-            elsif file =~ /autoproj\/remotes\/([^\/]+)\/(.*)/
-                pkg_set_name, file_name = $1, $2
-                "#{Doc.package_set_link(pkg_set_name, depth)}/#{file_name}"
+                return "autoproj's default OSdeps file"
+            end
+
+            pkg_set = Autoproj.manifest.each_package_set.
+                find do |pkg_set|
+                    File.dirname(file) == pkg_set.user_local_dir ||
+                        File.dirname(file) == pkg_set.raw_local_dir
+                end
+
+            if pkg_set
+                "#{Doc.package_set_link(pkg_set.name, depth)}/#{File.basename(file)}"
             end
         end
 
