@@ -187,8 +187,8 @@ sort_info: #{sort_order}
 --- name:content
 <div class="body-header-list" markdown="1">
 <ul>
-    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
     #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
+    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
 </ul>
 </div>
 
