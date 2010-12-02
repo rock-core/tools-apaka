@@ -108,6 +108,7 @@ module Rock
             vcs_def = Autoproj.manifest.importer_definition_for(pkg.name)
 
             result = []
+            result << ['name', pkg.name]
             result << ['defined in', Doc.package_set_link(pkg_set, 2)]
             result << ["from", render_vcs(vcs_def)]
 
