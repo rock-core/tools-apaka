@@ -42,19 +42,36 @@ fi
 set -e
 
 tempdir=$(mktemp -d)
-echo "generating documentation in $tempdir"
-
-echo "generating documentation from the autoproj packages"
+echo "generating the API documentation from the autoproj packages"
 cd $autoproj_dir
 autoproj doc
 mkdir -p $target_dir
+echo "moving API documentation to $target_dir/api"
 mv install/doc $target_dir/api
 
+autoproj_version=`$GEM_HOME/bin/autoproj --version 2>1 | sed 's/autoproj.*v//'`
+autoproj_api_dir=$GEM_HOME/doc/autoproj-$autoproj_version
+if test -d $autoproj_api_dir; then
+    echo "copying autoproj API documentation to $target_dir/api/autoproj"
+    cp -r $autoproj_api_dir $target_dir/api/autoproj
+else
+    echo "could not find the autoproj API in $autoproj_api_dir"
+fi
+
+autobuild_version=`$GEM_HOME/bin/autobuild --version | sed 's/autobuild.*v//'`
+autobuild_api_dir=$GEM_HOME/doc/autobuild-$autobuild_version
+if test -d $autobuild_api_dir; then
+    echo "copying autobuild API documentation to $target_dir/api/autobuild"
+    cp -r $autobuild_api_dir $target_dir/api/autobuild
+else
+    echo "could not find the autobuild API in $autobuild_api_dir"
+fi
+
+echo "creating rock's main documentation"
 cd $tempdir
 git clone git://gitorious.com/rock/doc.git main
 cd main
 rake
-
 echo "moving main documentation in $target_dir"
 mv out/* $target_dir
 
