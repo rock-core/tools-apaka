@@ -1,0 +1,8 @@
+<package>
+  <description brief="scripts that are specific to the administration of the
+      Rock project">
+  </description>
+  <author>Sylvain Joyeux/sylvain.joyeux@dfki.de</author>
+  <license>GPLv2 or later</license>
+
+</package>

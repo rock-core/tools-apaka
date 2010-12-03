@@ -1,0 +1,43 @@
+#! /usr/bin/env ruby
+
+from   = ARGV.shift
+to     = ARGV.shift
+sets   = ARGV.dup
+
+if !from || !to
+    STDERR.puts "usage: rock-update-branch from_branch to_branch [package set names]"
+    exit 1
+end
+
+require 'autoproj'
+require 'autoproj/cmdline'
+
+Autoproj::CmdLine.initialize_and_load
+manifest = Autoproj.manifest
+
+all_packages = Hash.new
+package_sets = manifest.each_package_set
+package_sets.each do |pkg_set|
+    if !sets.empty? && !sets.include?(pkg_set.name)
+        next
+    end
+
+    pkg_set.each_package.each do |pkg|
+        all_packages[pkg.name] = [pkg, pkg_set.name]
+    end
+end
+
+all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
+    next if !manifest.package_enabled?(pkg.name)
+    next if !pkg.importer.kind_of?(Autobuild::Git)
+    pkg.importer.branch = from
+    pkg.importer.local_branch = to
+    pkg.importer.push_to_branch = to
+    puts "  updating #{pkg.name}"
+    begin
+        pkg.importer.update(pkg)
+    rescue Exception => e
+        STDERR.puts "WARN: could not update #{pkg.name}: #{e.message}"
+    end
+end
+
