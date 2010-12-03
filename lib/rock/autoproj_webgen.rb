@@ -108,6 +108,7 @@ module Rock
             vcs_def = Autoproj.manifest.importer_definition_for(pkg.name)
 
             result = []
+            result << ['name', pkg.name]
             result << ['defined in', Doc.package_set_link(pkg_set, 2)]
             result << ["from", render_vcs(vcs_def)]
 
@@ -187,8 +188,8 @@ sort_info: #{sort_order}
 --- name:content
 <div class="body-header-list" markdown="1">
 <ul>
-    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
     #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
+    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
 </ul>
 </div>
 

@@ -47,7 +47,6 @@ cd $tempdir
 git clone "$template_source" package_directory
 cd $autoproj_dir
 mkdir -p $target_dir/
-ls $target_dir/../api
 rock-directory-pages $tempdir/package_directory/src "$target_dir/../api"
 cd $tempdir/package_directory
 rake
