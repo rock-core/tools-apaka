@@ -36,6 +36,8 @@ manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
 end
 
 all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
+    next if !File.directory?(pkg.srcdir)
+
     if File.exists?(File.join(pkg.srcdir, "manifest.xml"))
         manifest.load_package_manifest(pkg.name)
         manifest.resolve_optional_dependencies
