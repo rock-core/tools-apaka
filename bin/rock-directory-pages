@@ -8,13 +8,14 @@ require 'autoproj/cmdline'
 require 'rock/autoproj_webgen'
 require 'rock/orogen_webgen'
 
-Autoproj::CmdLine.initialize_and_load
-manifest = Autoproj.manifest
-
 output_dir = ARGV.shift
 if !output_dir
+    STDERR.puts "usage: rock-directory-pages output_dir"
     exit(1)
 end
+
+Autoproj::CmdLine.initialize_and_load
+manifest = Autoproj.manifest
 
 api_dir = ARGV.shift
 
