@@ -35,7 +35,7 @@ fi
 
 template_source=$2
 if test -z "$template_source"; then
-    template_source=git://gitorious.com/rock/template-directory.git
+    template_source=git://gitorious.org/rock/template-directory.git
 fi
 
 set -e

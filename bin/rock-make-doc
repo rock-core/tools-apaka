@@ -69,7 +69,7 @@ fi
 
 echo "creating rock's main documentation"
 cd $tempdir
-git clone git://gitorious.com/rock/doc.git main
+git clone git://gitorious.org/rock/doc.git main
 cd main
 rake
 echo "moving main documentation in $target_dir"
