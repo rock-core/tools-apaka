@@ -36,6 +36,8 @@ manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
     end
 end
 
+Rock::Doc.autoproj_packages = all_packages.values
+
 all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
     next if !File.directory?(pkg.srcdir)
 
@@ -71,7 +73,7 @@ Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
     end
 end
 
-Rock::Doc::OrogenRender.render_all(output_dir, true)
+Rock::Doc::OrogenRender.render_all(output_dir, api_dir, true)
 
 metainfo = root_metainfo.map do |dir, title, sort|
         ["#{dir}:",
