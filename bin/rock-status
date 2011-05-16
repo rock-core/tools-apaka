@@ -1,0 +1,147 @@
+#! /usr/bin/env ruby
+
+def package_status(pkg)
+    pkg_name =
+        if pkg.respond_to?(:text_name)
+            pkg.text_name
+        else pkg.autoproj_name
+        end
+
+    result = [pkg_name, [], []]
+
+    if !File.directory?(pkg.srcdir)
+        Autoproj.warn "#{pkg.name} not checked out (expected to be in #{pkg.srcdir})"
+        raise ArgumentError, "#{pkg_name} is not checked out yet"
+    elsif !pkg.importer
+        raise ArgumentError, "configuration error: #{pkg_name} has no VCS"
+    elsif !pkg.importer.respond_to?(:status)
+        raise ArgumentError, "the #{pkg.importer.class.name.gsub(/.*::/, '')} importer does not support status display"
+    else
+        status = pkg.importer.status(pkg)
+        if status.uncommitted_code
+            Autoproj.warn "the #{pkg_name} package contains uncommitted modifications"
+        end
+
+        case status.status
+        when Autobuild::Importer::Status::UP_TO_DATE
+            result[0] = "#{pkg_name}: in sync"
+        else
+            result[1] = status.local_commits
+            result[2] = status.remote_commits
+        end
+    end
+
+    result
+end
+require 'autoproj'
+
+parser = OptionParser.new do |opt|
+    opt.banner = "rock-push-flavor from_flavor to_flavor"
+    opt.on('--push-new', 'pushes new packages (creates a new branch for the target flavor') do
+        push_new = true
+    end
+end
+remaining = parser.parse(ARGV)
+
+from_flavor = ARGV.shift
+to_flavor = ARGV.shift
+dest_path = ARGV.shift
+
+if !from_flavor || !to_flavor || !dest_path
+    STDERR.puts "rock-status from_flavor to_flavor dest_path"
+    exit 1
+end
+
+io = File.open(dest_path, 'w')
+
+ENV['ROCK_FORCE_FLAVOR'] = from_flavor
+Autoproj::CmdLine.initialize_and_load(["--update"])
+manifest = Autoproj.manifest
+source_packages = manifest.each_package.to_a
+source_package_names = source_packages.map(&:name)
+
+ENV['ROCK_FORCE_FLAVOR'] = to_flavor
+Autoproj::CmdLine.initialize_and_load(["--update"])
+manifest = Autoproj.manifest
+target_packages = manifest.each_package.to_a
+target_package_names = target_packages.map(&:name)
+
+io.puts "---"
+io.puts "title: Status - #{from_flavor} to #{to_flavor}"
+io.puts "---"
+
+new_packages = (source_package_names - target_package_names)
+if !new_packages.empty?
+    io.puts "<h1>New packages: in #{from_flavor} but not in #{to_flavor}</h1>"
+    io.puts "<ul>"
+    new_packages.each do |pkg_name|
+        io.puts "  <li>#{pkg_name}</li>"
+    end
+    io.puts "</ul>"
+    io.puts
+end
+
+obsolete_packages = (target_package_names - source_package_names)
+if !obsolete_packages.empty?
+    io.puts "<h1>Obsoleted packages: in #{to_flavor} but not in #{from_flavor}</h1>"
+    io.puts "<ul>"
+    obsolete_packages.each do |pkg_name|
+        io.puts "  <li>#{pkg_name}</li>"
+    end
+    io.puts "</ul>"
+    io.puts
+end
+
+in_from, in_to = 0, 0
+errors, needs_push, needs_merge = [], [], []
+
+result = []
+
+result << "<table class=\"package_status\">"
+target_packages.sort_by { |pkg| pkg.name }.each do |pkg|
+    next if !source_package_names.include?(pkg.name)
+    begin
+        main, from_commits, to_commits = package_status(pkg)
+    rescue Exception => status_error
+        errors << pkg
+    end
+
+    if main
+        result << "<tr class=\"name\" id=\"#{pkg.name}\"><th>#{main}</th></tr>"
+        result << "<tr class=\"from_commits\"><th>in #{from_flavor} but not in #{to_flavor}</th></tr>"
+        in_from += from_commits.size
+        if !from_commits.empty?
+            needs_push << pkg
+        end
+        from_commits.each do |line|
+            line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;")
+            result << "<tr class=\"from_commits\"><td>#{line}</td></tr>"
+        end
+        in_to += to_commits.size
+        if !to_commits.empty?
+            needs_merge << pkg
+        end
+        result << "<tr class=\"to_commits\"><th>in #{to_flavor} but not in #{from_flavor}</th></tr>"
+        to_commits.each do |line|
+            line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;")
+            result << "<tr class=\"to_commits\"><td>#{line}</td></tr>"
+        end
+    else
+        status_error = status_error.message.gsub(/</, "&lt;").gsub(/>/, "&gt;").split("\n").join("<br/>\n")
+        result << "<tr class=\"name\" id=\"#{pkg.name}\"><th class=\"error\">#{pkg.name}: failed to get status<br/><p class=\"error_message\">#{status_error}</p></th></tr>"
+    end
+end
+result << "</table>"
+
+io.puts "<h1>Package status</h1>"
+io.puts "<p>#{in_from} commits in #{needs_push.size} packages are in #{from_flavor} and not pushed to #{to_flavor}<br/>"
+io.puts "Affected packages: #{needs_push.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
+
+io.puts "<p>#{in_to} commits in #{needs_merge.size} packages are in #{to_flavor} and not yet merged back to #{from_flavor}<br/>"
+io.puts "Affected packages: #{needs_merge.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
+
+io.puts "<p>#{errors.size} packages failed to fetch status: "
+io.puts "#{errors.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
+
+io.puts "  " + result.join("\n  ")
+

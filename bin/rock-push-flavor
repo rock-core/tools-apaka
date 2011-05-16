@@ -1,0 +1,106 @@
+#! /usr/bin/env ruby
+require 'autoproj'
+
+push_new = false
+do_update = true
+parser = OptionParser.new do |opt|
+    opt.banner = "rock-push-flavor from_flavor to_flavor"
+    opt.on('--push-new', 'pushes new packages (creates a new branch for the target flavor') do
+        push_new = true
+    end
+    opt.on('--no-update', 'do not update the current checkouts to the source flavor') do
+        do_update = false
+    end
+end
+remaining = parser.parse!(ARGV)
+
+from_flavor = remaining.shift
+to_flavor = remaining.shift
+if !from_flavor || !to_flavor
+    puts opt
+    exit 1
+end
+
+Autoproj::CmdLine.initialize_and_load([])
+
+ENV['ROCK_FORCE_FLAVOR'] = from_flavor
+Autoproj::CmdLine.initialize_and_load(["--update"])
+manifest = Autoproj.manifest
+# De-exclude and de-ignore all packages
+manifest.clear_exclusions
+manifest.clear_ignored
+source_packages = Hash.new
+manifest.each_package do |pkg|
+    source_packages[pkg.name] = pkg
+end
+
+if do_update
+    Autoproj::CmdLine.import_packages(source_packages.keys)
+end
+
+ENV['ROCK_FORCE_FLAVOR'] = to_flavor
+Autoproj::CmdLine.initialize_and_load(["--update"])
+manifest = Autoproj.manifest
+target_packages = Hash.new
+manifest.each_package do |pkg|
+    target_packages[pkg.name] = pkg
+end
+
+wrong_importer = []
+new_packages = []
+not_in_target = []
+not_checked_out = []
+not_in_rock = []
+source_packages.keys.sort.each do |pkg_name|
+    source = source_packages.delete(pkg_name)
+    target = target_packages.delete(pkg_name)
+
+    if !source.importer.kind_of?(Autobuild::Git)
+        wrong_importer << pkg_name
+        next
+    elsif !target
+        not_in_target << pkg_name
+        next
+    elsif source.importer.repository !~ /rock/ || target.importer.repository !~ /rock/
+        not_in_rock << pkg_name
+        next
+    elsif !File.directory?(source.srcdir)
+        not_checked_out << pkg_name
+        next
+    end
+
+    # If push_new is false, check if the remote branch already exists
+    begin
+        status = target.importer.status(target)
+    rescue Autobuild::SubcommandFailed
+        new_packages << pkg_name
+        next
+    end
+
+    # Finally, push if needed
+    if status.status == Autobuild::Git::Status::UP_TO_DATE
+        STDERR.puts "  #{pkg_name} is up-to-date in #{to_flavor}"
+    else
+        STDERR.puts "  pushing #{pkg_name}"
+        Dir.chdir(source.srcdir) do
+            Autobuild::Subprocess.run target, "push", 'git', 'push', 'autobuild', "#{from_flavor}:#{to_flavor}"
+        end
+    end
+end
+
+if !not_in_rock.empty?
+    STDERR.puts Autoproj.color("#{not_in_rock.size} packages have not been pushed because they are not part of rock", :bold)
+    STDERR.puts not_in_rock.sort.join(", ")
+end
+if !wrong_importer.empty?
+    STDERR.puts Autoproj.color("#{wrong_importer.size} packages have not been pushed because their are not using git", :bold)
+    STDERR.puts wrong_importer.sort.join(", ")
+end
+if !new_packages.empty?
+    STDERR.puts Autoproj.color("#{new_packages.size} packages do not yet have a #{to_flavor} branch and --push-new was not given", :bold)
+    STDERR.puts new_packages.sort.join(", ")
+end
+if !not_in_target.empty?
+    STDERR.puts Autoproj.color("#{not_in_target.size} packages are not yet part of #{to_flavor}", :bold)
+    STDERR.puts not_in_target.sort.join(", ")
+end
