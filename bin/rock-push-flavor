@@ -3,6 +3,9 @@ require 'autoproj'
 
 push_new = false
 do_update = true
+dry_run = false
+accept_package_sets = []
+accept_urls = []
 parser = OptionParser.new do |opt|
     opt.banner = "rock-push-flavor from_flavor to_flavor"
     opt.on('--push-new', 'pushes new packages (creates a new branch for the target flavor') do
@@ -11,8 +14,24 @@ parser = OptionParser.new do |opt|
     opt.on('--no-update', 'do not update the current checkouts to the source flavor') do
         do_update = false
     end
+    opt.on('--package-sets=LIST', String, 'comma-separated list of package set names whose packages will be pushed, defaults to rock.*') do |list|
+        accept_package_sets = list.split(',')
+    end
+    opt.on('--urls=LIST', String, 'comma-separated list of words matches against the git URLs. Matching URLs will be pushed.') do |list|
+        accept_urls = list.split(',')
+    end
+    opt.on('--dry-run', 'do not actually push') do
+        dry_run = true
+    end
 end
 remaining = parser.parse!(ARGV)
+
+if accept_package_sets.empty?
+    accept_package_sets << 'rock'
+end
+if accept_urls.empty?
+    accept_urls << /\/rock(?:-\w+)?(\/|\.git$)/
+end
 
 from_flavor = remaining.shift
 to_flavor = remaining.shift
@@ -46,6 +65,19 @@ manifest.each_package do |pkg|
     target_packages[pkg.name] = pkg
 end
 
+accept_package_sets.map! do |name|
+    if !name.kind_of?(Regexp)
+        Regexp.new(name)
+    else name
+    end
+end
+accept_urls.map! do |name|
+    if !name.kind_of?(Regexp)
+        Regexp.new(name)
+    else name
+    end
+end
+
 wrong_importer = []
 new_packages = []
 not_in_target = []
@@ -61,11 +93,21 @@ source_packages.keys.sort.each do |pkg_name|
     elsif !target
         not_in_target << pkg_name
         next
-    elsif source.importer.repository !~ /rock/ || target.importer.repository !~ /rock/
-        not_in_rock << pkg_name
-        next
     elsif !File.directory?(source.srcdir)
         not_checked_out << pkg_name
+        next
+    end
+
+    matching_url = (accept_urls.any? { |rx| source.importer.repository =~ rx } && accept_urls.any? { |rx| target.importer.repository =~ rx })
+    package_set = Autoproj.manifest.definition_source(pkg_name)
+    matching_package_set =
+        if package_set
+            accept_package_sets.any? { |rx| package_set.name =~ rx }
+        else true
+        end
+
+    if !matching_package_set && !matching_url
+        not_in_rock << pkg_name
         next
     end
 
@@ -83,9 +125,11 @@ source_packages.keys.sort.each do |pkg_name|
     if status && status.status == Autobuild::Git::Status::UP_TO_DATE
         STDERR.puts "  #{pkg_name} is up-to-date in #{to_flavor}"
     else
-        STDERR.puts "  pushing #{pkg_name}"
-        Dir.chdir(source.srcdir) do
-            Autobuild::Subprocess.run target, "push", 'git', 'push', 'autobuild', "#{from_flavor}:#{to_flavor}"
+        STDERR.puts "  pushing #{pkg_name} to #{target.importer.repository_id}"
+        if !dry_run
+            Dir.chdir(source.srcdir) do
+                Autobuild::Subprocess.run target, "push", 'git', 'push', 'autobuild', "#{from_flavor}:#{to_flavor}"
+            end
         end
     end
 end
