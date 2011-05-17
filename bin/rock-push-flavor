@@ -73,12 +73,14 @@ source_packages.keys.sort.each do |pkg_name|
     begin
         status = target.importer.status(target)
     rescue Autobuild::SubcommandFailed
-        new_packages << pkg_name
-        next
+        if !push_new
+            new_packages << pkg_name
+            next
+        end
     end
 
     # Finally, push if needed
-    if status.status == Autobuild::Git::Status::UP_TO_DATE
+    if status && status.status == Autobuild::Git::Status::UP_TO_DATE
         STDERR.puts "  #{pkg_name} is up-to-date in #{to_flavor}"
     else
         STDERR.puts "  pushing #{pkg_name}"
