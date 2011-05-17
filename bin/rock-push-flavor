@@ -17,7 +17,7 @@ remaining = parser.parse!(ARGV)
 from_flavor = remaining.shift
 to_flavor = remaining.shift
 if !from_flavor || !to_flavor
-    puts opt
+    puts parser
     exit 1
 end
 
