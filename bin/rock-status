@@ -49,8 +49,8 @@ parser = OptionParser.new do |opt|
 end
 remaining = parser.parse(ARGV)
 
-from_flavor = ARGV.shift
-to_flavor = ARGV.shift
+from_flavor = remaining.shift
+to_flavor = remaining.shift
 
 if !from_flavor || !to_flavor
     puts parser
@@ -69,14 +69,16 @@ io = if webgen_output
 ENV['ROCK_FORCE_FLAVOR'] = from_flavor
 Autoproj::CmdLine.initialize_and_load(["--update"])
 manifest = Autoproj.manifest
-source_packages = manifest.each_package.to_a
-source_package_names = source_packages.map(&:name)
+source_package_names = manifest.all_selected_packages.to_a
+Autoproj::CmdLine.import_packages(source_package_names)
 
 ENV['ROCK_FORCE_FLAVOR'] = to_flavor
 Autoproj::CmdLine.initialize_and_load(["--update"])
 manifest = Autoproj.manifest
-target_packages = manifest.each_package.to_a
-target_package_names = target_packages.map(&:name)
+target_package_names = manifest.all_selected_packages.to_a
+target_packages = target_package_names.map do |pkg_name|
+    Autobuild::Package[pkg_name]
+end
 
 if webgen_output
     io.puts "---"
