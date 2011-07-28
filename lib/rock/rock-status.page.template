@@ -1,0 +1,88 @@
+---
+title: Status - <%= from_flavor %> to <%= to_flavor %>
+---
+
+<script type="text/javascript">
+$(document).ready(function () {
+    $("a.commit_event_toggler").click(function (event) {
+            var eventId = $(this).attr("id");
+
+            $("#commits_" + eventId).toggle();
+            event.preventDefault();
+            });
+});
+</script>
+
+<% if !new_packages.empty? %>
+<h1>New packages: in <%= from_flavor %> but not in <%= to_flavor %></h1>
+<ul>
+<% new_packages.each do |pkg_name| %>
+    <li><%= pkg_name %></li>
+<% end %>
+</ul>
+<% end %>
+<% if !obsolete_packages.empty? %>
+<h1>Obsoleted packages: in <%= to_flavor %> but not in <%= from_flavor %></h1>
+<ul>
+<% obsolete_packages.each do |pkg_name| %>
+    <li><%= pkg_name %></li>
+<% end %>
+</ul>
+<% end %>
+
+<% needs_push = needs_push.map(&:name).sort %>
+<h1>Package status</h1>
+<p><%= in_from %> commits in <%= needs_push.size %> packages are in <%= from_flavor %> and not pushed to <%= to_flavor %> <br/>
+Affected packages: <% needs_push.each do |pkg_name| %>
+  <a href="#<%= pkg_name %>"><%= pkg_name %></a>
+<% end %></p>
+
+<% needs_merge = needs_merge.map(&:name).sort %>
+<p><%= in_to %> commits in <%= needs_merge.size %> packages are in <%= to_flavor %> and not yet merged back to <%= from_flavor %> <br/>
+Affected packages: <% needs_merge.each do |pkg_name| %>
+  <a href="#<%= pkg_name %>"><%= pkg_name %></a>
+<% end %></p>
+
+<% errors = errors.map(&:name).sort %>
+<p><%= errors.size %> packages failed to fetch status: <% errors.each do |pkg_name| %>
+  <a href="#<%= pkg_name %>"><%= pkg_name %></a>
+<% end %></p>
+
+<table class="package_status">
+<% status.each do |pkg, main, from_commits, to_commits| %>
+<%   if main.kind_of?(Exception) %>
+       <% status_error = main.message.gsub(/</, "&lt;").gsub(/>/, "&gt;").split("\n").join("<br/>\n") %>
+       <tr class="name" id="<%= pkg.name %>">
+         <th class="error">
+           <%= pkg.name %>: failed to get status
+           <p class="error_message"><%= status_error %></p>
+         </th>
+       </tr>
+<%   else %>
+       <tr class="name" id="<%= pkg.name %>">
+         <th><%= pkg.name %></th>
+       </tr>
+       <% if !from_commits.empty? %>
+         <tr class="from_commits_header">
+           <td><a class="commit_event_toggler" id="<%= id += 1 %>"> <%= from_commits.size %> commits</a> in <%= from_flavor %> but not in <%= to_flavor %></td>
+         </tr>
+         <tr class="from_commits" id="commits_<%= id %>"><td>
+         <% from_commits.each do |line|
+           line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;") %>
+           <%= line %><br/>
+         <% end %>
+         </td></tr>
+       <% end %>
+       <% if !to_commits.empty? %>
+         <tr class="to_commits_header">
+           <td><a class="commit_event_toggler" id="<%= id += 1 %>"> <%= to_commits.size %> commits</a> in <%= to_flavor %> but not in <%= from_flavor %></td>
+         </tr>
+         <tr class="to_commits" id="commits_<%= id %>"><td>
+         <% to_commits.each do |line|
+           line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;") %>
+           <%= line %><br/>
+         <% end %></td></tr>
+       <% end %>
+<%   end %>
+<% end %>
+</table>

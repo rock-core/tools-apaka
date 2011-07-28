@@ -1,5 +1,7 @@
 #! /usr/bin/env ruby
 
+BASE_DIR = File.expand_path('..', File.dirname(__FILE__))
+
 def package_status(pkg)
     pkg_name =
         if pkg.respond_to?(:text_name)
@@ -34,95 +36,47 @@ def package_status(pkg)
     result
 end
 require 'autoproj'
+require 'erb'
 
-webgen_output = false
 dest_path = nil
 parser = OptionParser.new do |opt|
-    opt.banner = "rock-status from_flavor to_flavor"
-    opt.on('--push-new', 'pushes new packages (creates a new branch for the target flavor') do
-        push_new = true
-    end
-    opt.on('--webgen=FILE', 'generate a webgen-compatible page in FILE') do |path|
-        webgen_output = true
-        dest_path = path
-    end
+    opt.banner = "rock-status from_flavor to_flavor dest_path"
 end
 remaining = parser.parse(ARGV)
 
-from_flavor = remaining.shift
-to_flavor = remaining.shift
+from_flavor = ARGV.shift
+to_flavor   = ARGV.shift
+dest_path   = ARGV.shift
 
 if !from_flavor || !to_flavor
     puts parser
     exit 1
-elsif webgen_output && !dest_path
+elsif !dest_path
     puts parser
     exit 1
 end
 
-io = if webgen_output
-         File.open(dest_path, 'w')
-     else
-         STDOUT
-     end
+io = File.open(dest_path, 'w')
 
 ENV['ROCK_FORCE_FLAVOR'] = from_flavor
 Autoproj::CmdLine.initialize_and_load(["--update"])
 manifest = Autoproj.manifest
-source_package_names = manifest.all_selected_packages.to_a
-Autoproj::CmdLine.import_packages(source_package_names)
+source_packages = manifest.each_package.to_a
+source_package_names = source_packages.map(&:name)
 
 ENV['ROCK_FORCE_FLAVOR'] = to_flavor
-Autoproj::CmdLine.initialize_and_load(["--update"])
+Autoproj::CmdLine.parse_arguments(['--update'], false)
+Autoproj::CmdLine.update_os_dependencies = false
+Autoproj::CmdLine.initialize
+Autoproj::CmdLine.update_configuration
+Autoproj::CmdLine.load_configuration
+Autoproj::CmdLine.setup_all_package_directories
 manifest = Autoproj.manifest
-target_package_names = manifest.all_selected_packages.to_a
-target_packages = target_package_names.map do |pkg_name|
-    Autobuild::Package[pkg_name]
-end
-
-if webgen_output
-    io.puts "---"
-    io.puts "title: Status - #{from_flavor} to #{to_flavor}"
-    io.puts "---"
-else
-    io.puts
-    io.puts
-end
+target_packages = manifest.each_package.to_a
+target_package_names = target_packages.map(&:name)
 
 new_packages = (source_package_names - target_package_names)
-if !new_packages.empty?
-    title = "New packages: in #{from_flavor} but not in #{to_flavor}"
-    if webgen_output
-        io.puts "<h1>#{title}</h1>"
-        io.puts "<ul>"
-        new_packages.each do |pkg_name|
-            io.puts "  <li>#{pkg_name}</li>"
-        end
-        io.puts "</ul>"
-        io.puts
-    else
-        io.puts Autoproj.color(title, :bold)
-        io.puts new_packages.join(", ")
-    end
-end
-
 obsolete_packages = (target_package_names - source_package_names)
-if !obsolete_packages.empty?
-    title = "Obsoleted packages: in #{to_flavor} but not in #{from_flavor}"
-    if webgen_output
-        io.puts "<h1>#{title}</h1>"
-        io.puts "<ul>"
-        obsolete_packages.each do |pkg_name|
-            io.puts "  <li>#{pkg_name}</li>"
-        end
-        io.puts "</ul>"
-        io.puts
-    else
-        io.puts Autoproj.color(title, :bold)
-        io.puts obsolete_packages.join(", ")
-    end
-end
-
 in_from, in_to = 0, 0
 errors, needs_push, needs_merge = [], [], []
 
@@ -148,64 +102,8 @@ status = target_packages.sort_by { |pkg| pkg.name }.map do |pkg|
     [pkg, main, from_commits, to_commits]
 end
 
-if webgen_output
-    result = []
-    result << "<table class=\"package_status\">"
-    status.each do |pkg, main, from_commits, to_commits|
-        if main.kind_of?(Exception)
-            status_error = main.message.gsub(/</, "&lt;").gsub(/>/, "&gt;").split("\n").join("<br/>\n")
-            result << "<tr class=\"name\" id=\"#{pkg.name}\"><th class=\"error\">#{pkg.name}: failed to get status<br/><p class=\"error_message\">#{status_error}</p></th></tr>"
-        else
-            result << "<tr class=\"name\" id=\"#{pkg.name}\"><th>#{main}</th></tr>"
-            if !from_commits.empty?
-                result << "<tr class=\"from_commits\"><th>in #{from_flavor} but not in #{to_flavor}</th></tr>"
-                from_commits.each do |line|
-                    line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;")
-                    result << "<tr class=\"from_commits\"><td>#{line}</td></tr>"
-                end
-            end
-            if !to_commits.empty?
-                result << "<tr class=\"to_commits\"><th>in #{to_flavor} but not in #{from_flavor}</th></tr>"
-                to_commits.each do |line|
-                    line = line.gsub(/</, "&lt;").gsub(/>/, "&gt;")
-                    result << "<tr class=\"to_commits\"><td>#{line}</td></tr>"
-                end
-            end
-        end
-    end
-    result << "</table>"
-
-    io.puts "<h1>Package status</h1>"
-    io.puts "<p>#{in_from} commits in #{needs_push.size} packages are in #{from_flavor} and not pushed to #{to_flavor}<br/>"
-    io.puts "Affected packages: #{needs_push.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
-
-    io.puts "<p>#{in_to} commits in #{needs_merge.size} packages are in #{to_flavor} and not yet merged back to #{from_flavor}<br/>"
-    io.puts "Affected packages: #{needs_merge.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
-
-    io.puts "<p>#{errors.size} packages failed to fetch status: "
-    io.puts "#{errors.map(&:name).sort.map { |pkg_name| "<a href=\"##{pkg_name}\">#{pkg_name}</a>" }.join(", ")}</p>"
-
-    io.puts "  " + result.join("\n  ")
-else
-    status.each do |pkg, main, from_commits, to_commits|
-        if main.kind_of?(Exception)
-            io.puts Autoproj.color("failed to fetch #{pkg.name}", :bold)
-            io.puts main.message
-        else
-            io.puts Autoproj.color(main, :bold)
-            if !from_commits.empty?
-                io.puts "in #{from_flavor} but not in #{to_flavor}"
-                from_commits.each do |line|
-                    io.puts "  #{line}"
-                end
-            end
-            if !to_commits.empty?
-                io.puts "in #{to_flavor} but not in #{from_flavor}"
-                to_commits.each do |line|
-                    io.puts "  #{line}"
-                end
-            end
-        end
-    end
-end
+id = 0
+template = File.join(BASE_DIR, 'lib', 'rock', 'rock-status.page.template')
+erb = ERB.new(File.read(template))
+io.puts erb.result(binding)
 
