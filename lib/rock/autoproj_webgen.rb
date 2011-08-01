@@ -1,5 +1,21 @@
 module Rock
     module Doc
+        class << self
+            # If set, this is the base directory under which the API
+            # documentation for the packages is present
+            #
+            # The documentation of a given package is expected to be in
+            # api_dir/package_name. For instance, the documentation for
+            # drivers/hokuyo is supposed to be in
+            #
+            #   api_dir/drivers/hokuyo/index.html
+            #
+            attr_accessor :api_dir
+
+            # api_dir, but usable in links in the generated HTML
+            attr_accessor :link_api_dir
+        end
+
         def self.render_item(name, value = nil)
             if value
                 "<li><b>#{name}</b>: #{value}</li>"
@@ -88,6 +104,9 @@ module Rock
             link = "#{relative}osdeps/#{name_to_path(name)}.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
+        def self.api_link(name)
+            "<a href=\"#{link_api_dir}/#{name}\">API</a>"
+        end
         def self.file_link(file, depth)
             if file == Autoproj::OSDependencies::AUTOPROJ_OSDEPS
                 return "autoproj's default OSdeps file"
@@ -146,6 +165,17 @@ module Rock
             return result.map { |v| render_item(*v) }
         end
 
+        def self.render_package_list(packages)
+            result = []
+            result << "<table>"
+            packages.each do |pkg|
+                result << "<tr><td>#{package_link(pkg.name, 1)}</td<td rowspan=\"2\">#{pkg.short_doc}</td></tr>"
+                result << "<tr><td>#{if pkg.has_api? then api_link(pkg.name) end}</td></tr>"
+            end
+            result << "</table>"
+            result.join("\n")
+        end
+
         class Render
             attr_reader :output_dir
             def initialize(output_dir)
@@ -170,7 +200,7 @@ sort_info: #{sort_order}
                 return nil
             end
             
-            def package(pkg, pkg_set, pkg_api, sort_order)
+            def package(pkg, sort_order)
                 pkg_manifest = Autoproj.manifest.package_manifests[pkg.name];
                 documentation =
                     if pkg_manifest
@@ -189,7 +219,7 @@ sort_info: #{sort_order}
 <div class="body-header-list" markdown="1">
 <ul>
     #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
-    #{if pkg_api then "<li><a href=\"#{pkg_api}\">API Documentation</a></li>" end}
+    #{if pkg.has_api? then "<li><a href=\"#{api_link(pkg.name)}\">API Documentation</a></li>" end}
 </ul>
 </div>
 

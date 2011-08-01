@@ -66,8 +66,8 @@ module Rock
                 STDERR.puts "WARN:     #{e.message}"
             end
 
-            def self.render_all(output_dir, api_dir, debug)
-                render = OrogenRender.new(output_dir, api_dir)
+            def self.render_all(output_dir, debug)
+                render = OrogenRender.new(output_dir, Autoproj.api_dir)
 
                 require 'orocos'
 

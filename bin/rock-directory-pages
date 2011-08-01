@@ -24,9 +24,35 @@ sort_order = 0
 
 render = Rock::Doc::Render.new(output_dir)
 
+class Package
+    # The Autobuild::Package instance that describes this package
+    attr_reader :pkg
+
+    # The PackageSet instance which defines this package
+    attr_reader :pkg_set
+
+    # If true, this package has some HTML documentation generated in
+    # API_ROOT/package_name/index.html
+    attr_predicate :has_api?
+
+    # If this package is an orogen package, this is the name of the orogen
+    # project
+    attr_reader :orogen_name
+
+    def name
+        pkg.name
+    end
+
+    def initialize(pkg, pkg_set, has_api, orogen_name)
+        @pkg, @pkg_set, @has_api, @orogen_name =
+            pkg, pkg_set, has_api, orogen_name
+    end
+end
+
 all_packages = Hash.new
 manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
     next if pkg_set.local?
+
     if metainfo = render.package_set(pkg_set, (sort_order += 1))
         root_metainfo << metainfo
     end
@@ -36,10 +62,11 @@ manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
     end
 end
 
-Rock::Doc.autoproj_packages = all_packages.values
-
-all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
-    next if !File.directory?(pkg.srcdir)
+all_packages = all_packages.each_value.map do |pkg, pkg_set|
+    if !File.directory?(pkg.srcdir)
+        Autoproj.warn "#{pkg.srcdir} does not exist, skipping #{pkg.name}"
+        next
+    end
 
     if File.exists?(File.join(pkg.srcdir, "manifest.xml"))
         manifest.load_package_manifest(pkg.name)
@@ -48,21 +75,29 @@ all_packages.to_a.sort_by(&:first).map(&:last).each do |pkg, pkg_set|
 
     if pkg.kind_of?(Autobuild::Orogen)
         orogen_file = File.join(pkg.srcdir, pkg.orogen_file)
-        name = File.readlines(orogen_file).grep(/^name\s/).to_a.first
-        if name
-            name =~ /^name[^\w]+(\w+)/
-            name = $1
-            Rock::Doc.orogen_to_autoproj[name] = pkg.name
+        orogen_name = File.readlines(orogen_file).grep(/^name\s/).to_a.first
+        if orogen_name
+            orogen_name =~ /^name[^\w]+(\w+)/
+            orogen_name = $1
+            Rock::Doc.orogen_to_autoproj[orogen_name] = pkg.name
         else
             STDERR.puts "WARN: cannot extract the oroGen project name from #{orogen_file} (package: #{pkg.name})"
         end
     end
 
     if api_dir && File.directory?(File.join(api_dir, pkg.name))
-        pkg_api = "../../../api/#{pkg.name}/index.html"
+        has_api = true
     end
 
-    if metainfo = render.package(pkg, pkg_set, pkg_api, (sort_order += 1))
+    Package.new(pkg, pkg_set, has_api, orogen_name)
+end
+
+Rock::Doc.api_dir = api_dir
+Rock::Doc.link_api_dir = "/api/"
+Rock::Doc.autoproj_packages = all_packages
+
+all_packages.sort_by(&:name).each do |pkg|
+    if metainfo = render.package(pkg, (sort_order += 1))
         root_metainfo << metainfo
     end
 end
@@ -73,7 +108,7 @@ Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
     end
 end
 
-Rock::Doc::OrogenRender.render_all(output_dir, api_dir, true)
+Rock::Doc::OrogenRender.render_all(output_dir, true)
 
 metainfo = root_metainfo.map do |dir, title, sort|
         ["#{dir}:",
