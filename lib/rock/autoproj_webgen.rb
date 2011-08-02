@@ -25,6 +25,9 @@ module Rock
         end
 
         def self.render_page(path, content)
+            if File.file?(content)
+                content = File.read(content)
+            end
             if File.file?(path)
                 return if File.read(path) == content
             end
@@ -104,8 +107,8 @@ module Rock
             link = "#{relative}osdeps/#{name_to_path(name)}.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
-        def self.api_link(name)
-            "<a href=\"#{link_api_dir}/#{name}\">API</a>"
+        def self.api_link(name, link_name = "API")
+            "<a href=\"#{link_api_dir}/#{name}\">#{link_name}</a>"
         end
         def self.file_link(file, depth)
             if file == Autoproj::OSDependencies::AUTOPROJ_OSDEPS
@@ -123,7 +126,8 @@ module Rock
             end
         end
 
-        def self.render_package_header(pkg, pkg_set)
+        def self.render_package_header(pkg)
+            pkg, pkg_set = pkg.pkg, pkg.pkg_set
             vcs_def = Autoproj.manifest.importer_definition_for(pkg.name)
 
             result = []
@@ -165,12 +169,17 @@ module Rock
             return result.map { |v| render_item(*v) }
         end
 
-        def self.render_package_list(packages)
+        def self.render_package_list(packages, level)
             result = []
+            result << "---"
+            result << "title: Package Index"
+            result << "sort_info: 0"
+            result << "---"
+
             result << "<table>"
-            packages.each do |pkg|
-                result << "<tr><td>#{package_link(pkg.name, 1)}</td<td rowspan=\"2\">#{pkg.short_doc}</td></tr>"
-                result << "<tr><td>#{if pkg.has_api? then api_link(pkg.name) end}</td></tr>"
+            packages.sort_by(&:name).each do |pkg|
+                result << "<tr><td>#{package_link(pkg.name, level)}</td><td>#{if pkg.has_api? then api_link(pkg.name, "[API]") end}</td></tr>"
+                result << "<tr><td colspan=\"2\">#{pkg.short_documentation}</td></tr>"
             end
             result << "</table>"
             result.join("\n")
@@ -201,14 +210,7 @@ sort_info: #{sort_order}
             end
             
             def package(pkg, sort_order)
-                pkg_manifest = Autoproj.manifest.package_manifests[pkg.name];
-                documentation =
-                    if pkg_manifest
-                        pkg_manifest.documentation
-                    end
-                if !documentation || documentation.empty?
-                    documentation = "#{pkg.name} has no manifest"
-                end
+                documentation = pkg.documentation
                 documentation = documentation.split("\n").map(&:strip).join("\n")
 
                 page = <<-EOT
@@ -218,8 +220,8 @@ sort_info: #{sort_order}
 --- name:content
 <div class="body-header-list" markdown="1">
 <ul>
-    #{Doc.render_package_header(pkg, pkg_set).join("\n    ")}
-    #{if pkg.has_api? then "<li><a href=\"#{api_link(pkg.name)}\">API Documentation</a></li>" end}
+    #{Doc.render_package_header(pkg).join("\n    ")}
+    #{if pkg.has_api? then "<li>#{Doc.api_link(pkg.name, "API Documentation")}</li>" end}
 </ul>
 </div>
 

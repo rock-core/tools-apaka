@@ -3,6 +3,8 @@
 base_dir = File.expand_path('../lib', File.dirname(__FILE__))
 $LOAD_PATH.unshift base_dir
 
+PAGES_DIR = File.join(base_dir, 'rock', 'pages', 'package_directory')
+
 require 'autoproj'
 require 'autoproj/cmdline'
 require 'rock/autoproj_webgen'
@@ -24,28 +26,62 @@ sort_order = 0
 
 render = Rock::Doc::Render.new(output_dir)
 
-class Package
-    # The Autobuild::Package instance that describes this package
-    attr_reader :pkg
+module Rock
+    module Doc
+        class Package
+            # The Autobuild::Package instance that describes this package
+            attr_reader :pkg
 
-    # The PackageSet instance which defines this package
-    attr_reader :pkg_set
+            # The PackageSet instance which defines this package
+            attr_reader :pkg_set
 
-    # If true, this package has some HTML documentation generated in
-    # API_ROOT/package_name/index.html
-    attr_predicate :has_api?
+            # If true, this package has some HTML documentation generated in
+            # API_ROOT/package_name/index.html
+            attr_predicate :has_api?
 
-    # If this package is an orogen package, this is the name of the orogen
-    # project
-    attr_reader :orogen_name
+            # If this package is an orogen package, this is the name of the orogen
+            # project
+            attr_reader :orogen_name
 
-    def name
-        pkg.name
-    end
+            def name
+                pkg.name
+            end
 
-    def initialize(pkg, pkg_set, has_api, orogen_name)
-        @pkg, @pkg_set, @has_api, @orogen_name =
-            pkg, pkg_set, has_api, orogen_name
+            def initialize(pkg, pkg_set, has_api, orogen_name)
+                @pkg, @pkg_set, @has_api, @orogen_name =
+                    pkg, pkg_set, has_api, orogen_name
+            end
+
+            def manifest
+                Autoproj.manifest.package_manifests[pkg.name]
+            end
+
+            def documentation
+                if m = manifest
+                    doc = m.documentation
+                else
+                    doc = "#{name} has no manifest"
+                end
+
+                if !doc || doc.empty?
+                    doc = "#{name} has no documentation in its manifest"
+                end
+                doc
+            end
+
+            def short_documentation
+                if m = manifest
+                    doc = m.short_documentation
+                else
+                    doc = "#{name} has no manifest"
+                end
+
+                if !doc || doc.empty?
+                    doc = "#{name} has no documentation in its manifest"
+                end
+                doc
+            end
+        end
     end
 end
 
@@ -89,8 +125,8 @@ all_packages = all_packages.each_value.map do |pkg, pkg_set|
         has_api = true
     end
 
-    Package.new(pkg, pkg_set, has_api, orogen_name)
-end
+    Rock::Doc::Package.new(pkg, pkg_set, has_api, orogen_name)
+end.compact
 
 Rock::Doc.api_dir = api_dir
 Rock::Doc.link_api_dir = "/api/"
@@ -101,6 +137,11 @@ all_packages.sort_by(&:name).each do |pkg|
         root_metainfo << metainfo
     end
 end
+package_list = Rock::Doc.render_package_list(all_packages)
+Rock::Doc.render_page(File.join(output_dir, 'packages', 'index.page'), package_list)
+
+
+Rock::Doc.render_page(File.join(output_dir, 'index.page'), File.join(PAGES_DIR, 'index.page'))
 
 Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
     if metainfo = render.osdeps(name, data, (sort_order += 1))
@@ -110,6 +151,11 @@ end
 
 Rock::Doc::OrogenRender.render_all(output_dir, true)
 
+root_metainfo << ["package_sets", "Package Sets", 0]
+root_metainfo << ["packages", "Packages", 1]
+root_metainfo << ["orogen_tasks", "oroGen Tasks", 2]
+root_metainfo << ["orogen_types", "oroGen Types", 3]
+root_metainfo << ["osdeps",   "OS Dependencies", 4]
 metainfo = root_metainfo.map do |dir, title, sort|
         ["#{dir}:",
          "  title: #{title}",

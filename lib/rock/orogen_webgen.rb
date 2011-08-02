@@ -66,8 +66,28 @@ module Rock
                 STDERR.puts "WARN:     #{e.message}"
             end
 
+            def self.render_task_list(tasks)
+                result = []
+                result << "<table>"
+                tasks.sort_by(&:name).each do |task|
+                    result << "<tr><td>#{Doc.orogen_task_link(task, :orogen_tasks)}</td></tr>"
+                end
+                result << "</table>"
+                result.join("\n")
+            end
+
+            def self.render_type_list(types)
+                result = []
+                result << "<table>"
+                types.sort_by(&:name).each do |type|
+                    result << "<tr><td>#{Doc.orogen_type_link(type, :orogen_types)}</td></tr>"
+                end
+                result << "</table>"
+                result.join("\n")
+            end
+
             def self.render_all(output_dir, debug)
-                render = OrogenRender.new(output_dir, Autoproj.api_dir)
+                render = OrogenRender.new(output_dir, Doc.api_dir)
 
                 require 'orocos'
 
@@ -131,7 +151,7 @@ module Rock
 
                 types_dir   = File.join(output_dir, "orogen_types")
                 FileUtils.mkdir_p(types_dir)
-                all_types.sort_by(&:first).each do |type_name, autoproj_name, fragment, type_class|
+                all_types.sort_by(&:first).each do |type_name, autoproj_name, fragment, type_class, intermediate_type|
                     page = <<-EOPAGE
 ---
 title: #{Doc.escape_html(type_name)}
@@ -144,10 +164,27 @@ Defined in the typekit of #{Doc.package_link(autoproj_name, 1)}
 
                     Doc.render_page(File.join(types_dir, "#{Doc.name_to_path(type_name)}.page"), page)
                 end
+                type_list = render_type_list(all_types.map { |inter| inter[-2] })
+                page = <<-EOPAGE
+---
+title: oroGen Types
+sort_info: 0
+---
+This page lists all the types that have been exported through oroGen, i.e. that are being used in oroGen tasks.
+
+For each type, three informations are given:
+
+ * <b>the C++ type definition</b>, that is the definition of the type in C++ (as given to oroGen). [Opaque types](../../documentation/orogen/opaque_types.html) are not explicitely represented in oroGen and are therefore not displayed.
+ * <b>Logging</b> is the type definition as saved in log files. It differs from the C++ type only for opaque types.
+ * <b>Ruby</b> is the type definition as manipulated in Ruby. It differs from the C++ type for opaque types, and in cases where [custom convertions](../../documentation/runtime/ruby_and_types.html) have been defined.
+
+#{type_list}
+                EOPAGE
+                Doc.render_page(File.join(types_dir, "index.page"), page)
 
                 tasks_dir   = File.join(output_dir, "orogen_tasks")
                 FileUtils.mkdir_p(tasks_dir)
-                all_tasks.sort_by(&:first).each do |task_name, autoproj_name, fragment|
+                all_tasks.sort_by(&:first).each do |task_name, autoproj_name, fragment, task_model|
                     page = <<-EOPAGE
 ---
 title: #{task_name}
@@ -160,6 +197,17 @@ Defined in the task library of #{Doc.package_link(autoproj_name, 1)}
 
                     Doc.render_page(File.join(tasks_dir, "#{Doc.name_to_path(task_name)}.page"), page)
                 end
+                task_list = render_task_list(all_tasks.map(&:last))
+                page = <<-EOPAGE
+---
+title: oroGen Tasks
+sort_info: 0
+---
+This is the list of all tasks defined in oroGen projects, i.e. all the components that are available in the system.
+
+#{task_list}
+                EOPAGE
+                Doc.render_page(File.join(tasks_dir, "index.page"), page)
             end
 
             attr_reader :output_dir
@@ -172,17 +220,17 @@ Defined in the task library of #{Doc.package_link(autoproj_name, 1)}
 
             def index_api_dir
                 @rdoc_dirs = Array.new
-                Doc.autoproj_packages.each do |pkg, pkg_set|
-                    rdoc_dir = Find.enum_for(:find, pkg.doc_dir).find_all do |dir|
+                Doc.autoproj_packages.each do |pkg|
+                    rdoc_dir = Find.enum_for(:find, pkg.pkg.doc_dir).find_all do |dir|
                         File.directory?(dir) && File.exists?(File.join(dir, "rdoc.css"))
                     end
-                    @rdoc_dirs << [pkg, pkg_set, rdoc_dir]
+                    @rdoc_dirs << [pkg, rdoc_dir]
                 end
             end
 
             def ruby_class_doc_path(klass)
                 name = File.join(*klass.name.split('::')) + ".html"
-                @rdoc_dirs.each do |pkg, pkg_set, dirs|
+                @rdoc_dirs.each do |pkg, dirs|
                     dirs.each do |dir|
                         path = File.join(dir, name)
                         if File.file?(path)
@@ -418,7 +466,7 @@ sort_info: 100
                         else
                             intermediate = type
                         end
-                        all_types << [type.name, package_name, fragment, intermediate]
+                        all_types << [type.name, package_name, fragment, type, intermediate]
                     end
                 end
 
@@ -444,7 +492,7 @@ sort_info: 200
                     tasks.to_a.sort_by(&:name).each do |task|
                         fragment = render_task_fragment(task, :orogen_tasks)
                         next if !fragment
-                        all_tasks << [task.name, package_name, fragment]
+                        all_tasks << [task.name, package_name, fragment, task]
                     end
                 end
 
