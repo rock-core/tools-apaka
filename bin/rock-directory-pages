@@ -86,9 +86,11 @@ module Rock
 end
 
 all_packages = Hash.new
-manifest.each_package_set.to_a.sort_by(&:name).each do |pkg_set|
-    next if pkg_set.local?
 
+all_package_sets = manifest.each_package_set.find_all { |pkg_set| !pkg_set.local? }
+Rock::Doc.render_page(File.join(output_dir, 'package_sets', 'index.page'),
+                      Rock::Doc.render_package_set_list(all_package_sets, 1))
+all_package_sets.sort_by(&:name).each do |pkg_set|
     if metainfo = render.package_set(pkg_set, (sort_order += 1))
         root_metainfo << metainfo
     end
@@ -132,17 +134,32 @@ Rock::Doc.api_dir = api_dir
 Rock::Doc.link_api_dir = "/api/"
 Rock::Doc.autoproj_packages = all_packages
 
+Rock::Doc.render_page(File.join(output_dir, 'packages', 'index.page'),
+                      Rock::Doc.render_package_list(all_packages, 1, sort_order))
+sorted = Hash.new { |h, k| h[k] = Array.new }
+all_packages.each do |pkg|
+    elements = Pathname(pkg.name).enum_for(:each_filename).to_a
+    if elements.size > 1
+        sorted[elements.first] << pkg
+    end
+end
+sorted.keys.sort.each do |dirname|
+    if dirname != '.'
+        Rock::Doc.render_page(File.join(output_dir, 'packages', dirname, 'index.page'),
+                              Rock::Doc.render_package_list(sorted[dirname], 2))
+    end
+    root_metainfo << ["packages/#{dirname}", "#{dirname}/", sort_order += 1]
+end
 all_packages.sort_by(&:name).each do |pkg|
     if metainfo = render.package(pkg, (sort_order += 1))
         root_metainfo << metainfo
     end
 end
-package_list = Rock::Doc.render_package_list(all_packages)
-Rock::Doc.render_page(File.join(output_dir, 'packages', 'index.page'), package_list)
-
 
 Rock::Doc.render_page(File.join(output_dir, 'index.page'), File.join(PAGES_DIR, 'index.page'))
 
+Rock::Doc.render_page(File.join(output_dir, 'osdeps', 'index.page'),
+                      Rock::Doc.render_osdeps_list(Autoproj.osdeps.all_definitions, 1))
 Autoproj.osdeps.all_definitions.sort_by(&:first).each do |name, data|
     if metainfo = render.osdeps(name, data, (sort_order += 1))
         root_metainfo << metainfo
@@ -151,11 +168,11 @@ end
 
 Rock::Doc::OrogenRender.render_all(output_dir, true)
 
-root_metainfo << ["package_sets", "Package Sets", 0]
-root_metainfo << ["packages", "Packages", 1]
-root_metainfo << ["orogen_tasks", "oroGen Tasks", 2]
-root_metainfo << ["orogen_types", "oroGen Types", 3]
-root_metainfo << ["osdeps",   "OS Dependencies", 4]
+root_metainfo << ["package_sets", "Package Sets", 1]
+root_metainfo << ["packages", "Packages", 2]
+root_metainfo << ["orogen_tasks", "oroGen Tasks", 3]
+root_metainfo << ["orogen_types", "oroGen Types", 4]
+root_metainfo << ["osdeps",   "OS Dependencies", 5]
 metainfo = root_metainfo.map do |dir, title, sort|
         ["#{dir}:",
          "  title: #{title}",

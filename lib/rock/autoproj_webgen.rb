@@ -96,7 +96,7 @@ module Rock
                 if depth > 0
                     "../" * depth
                 end
-            link = "#{relative}packages/#{name_to_path(name)}/index.html"
+            link = "#{relative}packages/#{package_name_to_path(name)}/index.html"
             "<a href=\"#{link}\">#{name}</a>"
         end
         def self.osdeps_link(name, depth)
@@ -169,19 +169,55 @@ module Rock
             return result.map { |v| render_item(*v) }
         end
 
-        def self.render_package_list(packages, level)
+        def self.render_package_set_list(package_sets, level, sort_info = 0)
+            result = []
+            result << "---"
+            result << "title: Package Set Index"
+            result << "sort_info: #{sort_info}"
+            result << "---"
+
+            index = 0
+            package_sets.sort_by(&:name).each do |pkg_set|
+                index += 1
+                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
+                result << "<tr><td>#{package_set_link(pkg_set.name, level)}</td></tr>"
+                result << "</table>"
+            end
+            result.join("\n")
+        end
+
+        def self.render_package_list(packages, level, sort_info = 0)
             result = []
             result << "---"
             result << "title: Package Index"
-            result << "sort_info: 0"
+            result << "sort_info: #{sort_info}"
             result << "---"
 
-            result << "<table>"
+            index = 0
             packages.sort_by(&:name).each do |pkg|
-                result << "<tr><td>#{package_link(pkg.name, level)}</td><td>#{if pkg.has_api? then api_link(pkg.name, "[API]") end}</td></tr>"
-                result << "<tr><td colspan=\"2\">#{pkg.short_documentation}</td></tr>"
+                index += 1
+                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
+                result << "<tr><td>#{package_link(pkg.name, level)}</td><td class=\"align-right\">#{if pkg.has_api? then api_link(pkg.name, "[API]") end}</td></tr>"
+                result << "<tr><td colspan=\"2\" class=\"short_doc\">#{pkg.short_documentation}</td></tr>"
+                result << "</table>"
             end
-            result << "</table>"
+            result.join("\n")
+        end
+
+        def self.render_osdeps_list(osdeps, level, sort_info = 0)
+            result = []
+            result << "---"
+            result << "title: OS Dependencies Index"
+            result << "sort_info: #{sort_info}"
+            result << "---"
+
+            index = 0
+            osdeps.sort.each do |osdeps_name, osdep_def|
+                index += 1
+                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
+                result << "<tr><td>#{osdeps_link(osdeps_name, level)}</td></tr>"
+                result << "</table>"
+            end
             result.join("\n")
         end
 
@@ -230,7 +266,7 @@ Documentation
 #{documentation}
                 EOT
 
-                pkg_dir = File.join('packages', Doc.name_to_path(pkg.name))
+                pkg_dir = File.join('packages', Doc.package_name_to_path(pkg.name))
                 metainfo = [pkg_dir, pkg.name, sort_order]
                 pkg_dir = File.join(output_dir, pkg_dir)
 

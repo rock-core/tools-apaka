@@ -40,7 +40,7 @@ module Rock
         end
 
         def self.orogen_task_link(task, from)
-            if !(autoproj_name = type_to_autoproj[task.name])
+            if !(autoproj_name = task_to_autoproj[task.name])
                 return escape_html(task.name)
             end
 
@@ -48,11 +48,41 @@ module Rock
                 link = "../orogen_tasks/#{name_to_path(task.name)}.html"
                 return "<a href=\"#{link}\">#{escape_html(task.name)}</a>"
             elsif from == :autoproj_packages
-                link = "../#{name_to_path(autoproj_name)}/tasks.html##{name_to_path(task.name)}"
-                return "<a href=\"#{link}\">#{escape_html(task.name)}</a>"
+                return autoproj_package_link(autoproj_name, from, "tasks.html##{name_to_path(task.name)}")
             else
                 raise ArgumentError, "#{from} was expected to be one of :orogen_types, :autoproj_packages"
             end
+        end
+
+        def self.package_name_to_path(path)
+            elements = Pathname(path).enum_for(:each_filename).to_a
+            if elements.size == 1
+                return elements.first
+            else
+                dirname  = elements.first
+                filename = File.join(*elements)
+                File.join(dirname, name_to_path(filename))
+            end
+        end
+
+        def self.autoproj_package_link(pkg, from, additional = nil)
+            if pkg.respond_to?(:name)
+                pkg = pkg.name
+            end
+
+            path = package_name_to_path(pkg)
+            if from == :orogen_types || from == :orogen_tasks
+                link = "../#{path}.html"
+            elsif from == :autoproj_packages
+                link = "#{path}"
+                if additional
+                    link = "#{link}/#{additional}"
+                end
+            else
+                raise ArgumentError, "#{from} was expected to be one of :orogen_types, :autoproj_packages"
+            end
+
+            return "<a href=\"#{link}\">#{escape_html(task.name)}</a>"
         end
 
         class OrogenRender
@@ -68,11 +98,14 @@ module Rock
 
             def self.render_task_list(tasks)
                 result = []
-                result << "<table>"
+                index = 0
                 tasks.sort_by(&:name).each do |task|
-                    result << "<tr><td>#{Doc.orogen_task_link(task, :orogen_tasks)}</td></tr>"
+                    index += 1
+                    result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
+                    result << "<tr><td>#{Doc.orogen_task_link(task.model, :orogen_tasks)}</td>"
+                    result << "<td class=\"short_doc\">#{task.model.doc}</td></tr>"
+                    result << "</table>"
                 end
-                result << "</table>"
                 result.join("\n")
             end
 
@@ -80,10 +113,85 @@ module Rock
                 result = []
                 result << "<table>"
                 types.sort_by(&:name).each do |type|
-                    result << "<tr><td>#{Doc.orogen_type_link(type, :orogen_types)}</td></tr>"
+                    result << "<tr><td>#{Doc.orogen_type_link(type.type, :orogen_types)}</td></tr>"
                 end
                 result << "</table>"
                 result.join("\n")
+            end
+
+            class ObjectDefinition
+                attr_reader :package_name
+                attr_reader :fragment
+
+                def initialize(package_name, fragment)
+                    @package_name = package_name
+                    @fragment = fragment
+                end
+            end
+
+            class TypeDefinition < ObjectDefinition
+                attr_reader :type
+                attr_reader :intermediate_type
+
+                def opaque?; !!@intermediate_type end
+
+                def initialize(type, intermediate_type, package_name, fragment)
+                    super(package_name, fragment)
+                    @type = type
+                    @intermediate_type = intermediate_type
+                end
+
+                def name; type.name end
+
+                def to_webgen_page(depth, sort_order, inputs, outputs)
+                    page = <<-EOPAGE
+---
+title: #{Doc.escape_html(name)}
+sort_info: #{sort_order}
+---
+Defined in the typekit of #{Doc.package_link(package_name, depth)}
+                    EOPAGE
+
+                    inputs = inputs.map do |task|
+                        Doc.orogen_task_link(task.model, :orogen_types)
+                    end
+                    if !inputs.empty?
+                        page << "\n\n<b>Produced by</b>: #{inputs.join(", ")}"
+                    end
+
+                    outputs = outputs.map do |task|
+                        Doc.orogen_task_link(task.model, :orogen_types)
+                    end
+                    if !outputs.empty?
+                        page << "\n\n<b>Consumed by</b>: #{outputs.join(", ")}"
+                    end
+                    page << "\n\n#{fragment}"
+                    page
+                end
+            end
+
+
+            class TaskDefinition < ObjectDefinition
+                attr_reader :model
+
+                def initialize(model, package_name, fragment)
+                    super(package_name, fragment)
+                    @model = model
+                end
+
+                def name; model.name end
+
+                def to_webgen_page(depth, sort_order)
+                    result = <<-EOPAGE
+---
+title: #{name}
+sort_info: #{sort_order}
+---
+Defined in the task library of #{Doc.package_link(package_name, depth)}
+
+#{fragment}
+                    EOPAGE
+                end
             end
 
             def self.render_all(output_dir, debug)
@@ -139,6 +247,7 @@ module Rock
                 # end
                 # @type_mappings = type_mappings
 
+                ## Discover all tasks and types registered on this system
                 all_types, all_tasks = [], []
                 all.each do |project|
                     types, tasks = render.render_project(project)
@@ -146,25 +255,69 @@ module Rock
                     all_tasks.concat(tasks)
                 end
 
+                # Sort the task models by their input/output types
+                # (for display in the type pages)
+                input_ports = Hash.new { |h, k| h[k] = ValueSet.new }
+                output_ports = Hash.new { |h, k| h[k] = ValueSet.new }
+                all_tasks.each do |task|
+                    task.model.each_input_port do |p|
+                        input_ports[p.type.name] << task
+                    end
+                    task.model.each_dynamic_input_port do |p|
+                        if p.type
+                            input_ports[p.type.name] << task
+                        end
+                    end
+                    task.model.each_output_port do |p|
+                        output_ports[p.type.name] << task
+                    end
+                    task.model.each_dynamic_output_port do |p|
+                        if p.type
+                            output_ports[p.type.name] << task
+                        end
+                    end
+                end
 
+                # Local variable used to sort the pages from the pov of webgen
                 sort_order = 0
 
+                ## Generate all standalone type pages, and the oroGen type index
+                ## page
                 types_dir   = File.join(output_dir, "orogen_types")
                 FileUtils.mkdir_p(types_dir)
-                all_types.sort_by(&:first).each do |type_name, autoproj_name, fragment, type_class, intermediate_type|
-                    page = <<-EOPAGE
----
-title: #{Doc.escape_html(type_name)}
-sort_info: #{sort_order += 1}
----
-Defined in the typekit of #{Doc.package_link(autoproj_name, 1)}
-
-#{fragment}
-                    EOPAGE
-
-                    Doc.render_page(File.join(types_dir, "#{Doc.name_to_path(type_name)}.page"), page)
+                all_types.sort_by(&:name).each do |type|
+                    page = type.to_webgen_page(1, sort_order += 1, input_ports[type.name], output_ports[type.name])
+                    Doc.render_page(File.join(types_dir, "#{Doc.name_to_path(type.name)}.page"), page)
                 end
-                type_list = render_type_list(all_types.map { |inter| inter[-2] })
+                render_type_index(all_types, types_dir)
+
+                ## Generate all standalone task pages, and the oroGen task index
+                ## page
+                tasks_dir   = File.join(output_dir, "orogen_tasks")
+                FileUtils.mkdir_p(tasks_dir)
+                all_tasks.sort_by(&:name).each do |taskdef|
+                    page = taskdef.to_webgen_page(1, sort_order += 1)
+                    Doc.render_page(File.join(tasks_dir, "#{Doc.name_to_path(taskdef.name)}.page"), page)
+                end
+                render_task_index(all_tasks, tasks_dir)
+            end
+
+            def self.render_task_index(tasks, tasks_dir)
+                task_list = render_task_list(tasks)
+                page = <<-EOPAGE
+---
+title: oroGen Tasks
+sort_info: 0
+---
+This is the list of all tasks defined in oroGen projects, i.e. all the components that are available in the system.
+
+#{task_list}
+                EOPAGE
+                Doc.render_page(File.join(tasks_dir, "index.page"), page)
+            end
+
+            def self.render_type_index(types, types_dir)
+                type_list = render_type_list(types)
                 page = <<-EOPAGE
 ---
 title: oroGen Types
@@ -181,33 +334,6 @@ For each type, three informations are given:
 #{type_list}
                 EOPAGE
                 Doc.render_page(File.join(types_dir, "index.page"), page)
-
-                tasks_dir   = File.join(output_dir, "orogen_tasks")
-                FileUtils.mkdir_p(tasks_dir)
-                all_tasks.sort_by(&:first).each do |task_name, autoproj_name, fragment, task_model|
-                    page = <<-EOPAGE
----
-title: #{task_name}
-sort_info: #{sort_order += 1}
----
-Defined in the task library of #{Doc.package_link(autoproj_name, 1)}
-
-#{fragment}
-                    EOPAGE
-
-                    Doc.render_page(File.join(tasks_dir, "#{Doc.name_to_path(task_name)}.page"), page)
-                end
-                task_list = render_task_list(all_tasks.map(&:last))
-                page = <<-EOPAGE
----
-title: oroGen Tasks
-sort_info: 0
----
-This is the list of all tasks defined in oroGen projects, i.e. all the components that are available in the system.
-
-#{task_list}
-                EOPAGE
-                Doc.render_page(File.join(tasks_dir, "index.page"), page)
             end
 
             attr_reader :output_dir
@@ -254,6 +380,7 @@ This is the list of all tasks defined in oroGen projects, i.e. all the component
                     result << "-----------"
                 end
                 result << "<ul class=\"body-header-list\">"
+                result << Doc.render_item("doc", task.doc)
                 result << Doc.render_item("subclassed from", Doc.orogen_task_link(task.superclass, from))
 
                 states = task.each_state.to_a
@@ -436,7 +563,7 @@ This is the list of all tasks defined in oroGen projects, i.e. all the component
                     STDERR.puts "WARN: cannot find the autoproj package for the oroGen project #{project.name}"
                     return
                 end
-                project_dir = File.join(output_dir, "packages", Doc.name_to_path(package_name))
+                project_dir = File.join(output_dir, "packages", Doc.package_name_to_path(package_name))
 
                 all_types = []
                 if typekit = project.typekit
@@ -463,10 +590,8 @@ sort_info: 100
 
                         if type.contains_opaques?
                             intermediate = typekit.intermediate_type_for(type)
-                        else
-                            intermediate = type
                         end
-                        all_types << [type.name, package_name, fragment, type, intermediate]
+                        all_types << TypeDefinition.new(type, intermediate, package_name, fragment)
                     end
                 end
 
@@ -492,7 +617,7 @@ sort_info: 200
                     tasks.to_a.sort_by(&:name).each do |task|
                         fragment = render_task_fragment(task, :orogen_tasks)
                         next if !fragment
-                        all_tasks << [task.name, package_name, fragment, task]
+                        all_tasks << TaskDefinition.new(task, package_name, fragment)
                     end
                 end
 
