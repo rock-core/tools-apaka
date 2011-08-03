@@ -169,56 +169,98 @@ module Rock
             return result.map { |v| render_item(*v) }
         end
 
-        def self.render_package_set_list(package_sets, level, sort_info = 0)
+        def self.render_main_list(title, sort_info, elements, additional_header = nil, attributes = Hash.new)
             result = []
             result << "---"
-            result << "title: Package Set Index"
+            result << "title: #{title}"
             result << "sort_info: #{sort_info}"
             result << "---"
+            result << "<script type=\"text/javascript\" src=\"{relocatable: /scripts/jquery.selectfilter.js}\"></script>"
+            result << "<script type=\"text/javascript\">"
+            result << "  jQuery(document).ready(function(){"
+            result << "  $.tagcloud.defaults.type = 'list';"
+            result << "  $.tagcloud.defaults.sizemin = 10;"
+            result << "  jQuery(\"div#index-table\").selectFilter();"
+            result << "});"
+            result << "</script>"
 
+            result.concat(additional_header) if additional_header
+
+            result << "<div name=\"index_filter\" id=\"index-table\">"
             index = 0
-            package_sets.sort_by(&:name).each do |pkg_set|
+            elements.each do |el|
                 index += 1
-                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
-                result << "<tr><td>#{package_set_link(pkg_set.name, level)}</td></tr>"
+                data, attributes = yield(el)
+                if attributes
+                    table_attributes = attributes.map { |k, v| " #{k}=\"#{v}\"" }.join("")
+                end
+                result << "<table class=\"short_doc#{" list_alt" if index % 2 == 0}\"#{table_attributes}>"
+                result << data
                 result << "</table>"
             end
-            result.join("\n")
+            result << "</div>"
+            result.flatten.join("\n")
+        end
+
+        def self.render_package_set_list(package_sets, level, sort_info = 0)
+            render_main_list("Package Set Index", sort_info, package_sets.sort_by(&:name)) do |pkg_set|
+                "<tr><td>#{package_set_link(pkg_set.name, level)}</td></tr>"
+            end
         end
 
         def self.render_package_list(packages, level, sort_info = 0)
-            result = []
-            result << "---"
-            result << "title: Package Index"
-            result << "sort_info: #{sort_info}"
-            result << "---"
-
-            index = 0
-            packages.sort_by(&:name).each do |pkg|
-                index += 1
-                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
-                result << "<tr><td>#{package_link(pkg.name, level)}</td><td class=\"align-right\">#{if pkg.has_api? then api_link(pkg.name, "[API]") end}</td></tr>"
-                result << "<tr><td colspan=\"2\" class=\"short_doc\">#{pkg.short_documentation}</td></tr>"
-                result << "</table>"
+            tags = Hash.new(0)
+            packages.each do |pkg|
+                if pkg.manifest
+                    pkg.manifest.tags.each do |tag|
+                        tags[tag] += 1
+                    end
+                end
             end
-            result.join("\n")
+            tagcloud = []
+            tagcloud << "<script type=\"text/javascript\" src=\"{relocatable: /scripts/jquery.tagcloud.min.js}\"></script>"
+            tagcloud << <<-EOSCRIPT
+<script type="text/javascript">
+jQuery(document).ready(function(){
+  $("ul#tags").children("li").click(function(){
+     var el = $(this);
+     $("input.index_filter").each(function(i, filter){
+         if (filter.value) {
+             filter.value = filter.value + " tag:" + el.text();
+         } else {
+             filter.value = "tag:" + el.text();
+         }
+        $("input.index_filter").keyup();
+     });
+  });
+  $("ul#tags").tagcloud();
+});
+</script>
+            EOSCRIPT
+            tagcloud << "<div class=\"tagcloud\">"
+            tagcloud << "<ul id=\"tags\">"
+            tags.to_a.sort_by(&:first).each do |tag, value|
+                tagcloud << "<li value=\"#{value}\">#{tag}</li>"
+            end
+            tagcloud << "</ul>"
+            tagcloud << "</div>"
+            render_main_list("Package Index", sort_info, packages.sort_by(&:name), tagcloud) do |pkg|
+                tags =
+                    if m = pkg.manifest
+                        m.tags.sort
+                    else []
+                    end
+
+                html = ["<tr><td>#{package_link(pkg.name, level)}</td><td class=\"align-right\">#{if pkg.has_api? then api_link(pkg.name, "[API]") end}</td></tr>",
+                    "<tr><td colspan=\"2\" class=\"short_doc\">#{pkg.short_documentation}</td></tr>"]
+                [html, Hash['tags' => tags]]
+            end
         end
 
         def self.render_osdeps_list(osdeps, level, sort_info = 0)
-            result = []
-            result << "---"
-            result << "title: OS Dependencies Index"
-            result << "sort_info: #{sort_info}"
-            result << "---"
-
-            index = 0
-            osdeps.sort.each do |osdeps_name, osdep_def|
-                index += 1
-                result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
-                result << "<tr><td>#{osdeps_link(osdeps_name, level)}</td></tr>"
-                result << "</table>"
+            render_main_list("OS Dependencies Index", sort_info, osdeps.sort) do |osdeps_name, osdeps_def|
+                "<tr><td>#{osdeps_link(osdeps_name, level)}</td></tr>"
             end
-            result.join("\n")
         end
 
         class Render
