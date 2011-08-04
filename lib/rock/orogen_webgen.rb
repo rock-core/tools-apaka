@@ -144,16 +144,29 @@ Defined in the typekit of #{Doc.package_link(package_name, depth)}
                     inputs = inputs.map do |task|
                         Doc.orogen_task_link(task.model, :orogen_types)
                     end
-                    if !inputs.empty?
-                        page << "\n\n<b>Produced by</b>: #{inputs.join(", ")}"
-                    end
-
                     outputs = outputs.map do |task|
                         Doc.orogen_task_link(task.model, :orogen_types)
                     end
+
+                    page << "<table><tr>"
                     if !outputs.empty?
-                        page << "\n\n<b>Consumed by</b>: #{outputs.join(", ")}"
+                        page << "<td><ul class=\"body-header-list\" style=\"width=45%;\">"
+                        page << Doc.render_item("Produced by")
+                        outputs.sort.each do |task|
+                            page << "<li>#{task}</li>"
+                        end
+                        page << "</ul></td>"
                     end
+                    if !inputs.empty?
+                        page << "<td><ul class=\"body-header-list\" style=\"width=45%;\">"
+                        page << Doc.render_item("Consumed by")
+                        inputs.sort.each do |task|
+                            page << "<li>#{task}</li>"
+                        end
+                        page << "</ul></td>"
+                    end
+                    page << "</tr></table>"
+
                     page << "\n\n#{fragment}"
                     page
                 end
