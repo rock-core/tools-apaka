@@ -32,6 +32,7 @@ module Rock
                 return if File.read(path) == content
             end
 
+            FileUtils.mkdir_p(File.dirname(path))
             File.open(path, 'w') do |io|
                 io.puts content
             end
