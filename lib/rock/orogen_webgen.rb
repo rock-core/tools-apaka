@@ -97,26 +97,15 @@ module Rock
             end
 
             def self.render_task_list(tasks)
-                result = []
-                index = 0
-                tasks.sort_by(&:name).each do |task|
-                    index += 1
-                    result << "<table class=\"short_doc #{"list_alt" if index % 2 == 0}\">"
-                    result << "<tr><td>#{Doc.orogen_task_link(task.model, :orogen_tasks)}</td>"
-                    result << "<td class=\"short_doc\">#{task.model.doc}</td></tr>"
-                    result << "</table>"
+                Doc.render_main_list(nil, 0, tasks.sort_by(&:name)) do |task|
+                    "<tr><td>#{Doc.orogen_task_link(task.model, :orogen_tasks)}</td></tr>"
                 end
-                result.join("\n")
             end
 
             def self.render_type_list(types)
-                result = []
-                result << "<table>"
-                types.sort_by(&:name).each do |type|
-                    result << "<tr><td>#{Doc.orogen_type_link(type.type, :orogen_types)}</td></tr>"
+                Doc.render_main_list(nil, 0, types.sort_by(&:name)) do |type|
+                    "<tr><td>#{Doc.orogen_type_link(type.type, :orogen_types)}</td></tr>"
                 end
-                result << "</table>"
-                result.join("\n")
             end
 
             class ObjectDefinition
