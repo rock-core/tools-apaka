@@ -172,10 +172,12 @@ module Rock
 
         def self.render_main_list(title, sort_info, elements, additional_header = nil, attributes = Hash.new)
             result = []
-            result << "---"
-            result << "title: #{title}"
-            result << "sort_info: #{sort_info}"
-            result << "---"
+            if title
+                result << "---"
+                result << "title: #{title}"
+                result << "sort_info: #{sort_info}"
+                result << "---"
+            end
             result << "<script type=\"text/javascript\" src=\"{relocatable: /scripts/jquery.selectfilter.js}\"></script>"
             result << "<script type=\"text/javascript\">"
             result << "  jQuery(document).ready(function(){"
