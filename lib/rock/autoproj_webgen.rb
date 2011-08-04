@@ -179,8 +179,6 @@ module Rock
             result << "<script type=\"text/javascript\" src=\"{relocatable: /scripts/jquery.selectfilter.js}\"></script>"
             result << "<script type=\"text/javascript\">"
             result << "  jQuery(document).ready(function(){"
-            result << "  $.tagcloud.defaults.type = 'list';"
-            result << "  $.tagcloud.defaults.sizemin = 10;"
             result << "  jQuery(\"div#index-table\").selectFilter();"
             result << "});"
             result << "</script>"
@@ -222,6 +220,8 @@ module Rock
             tagcloud << "<script type=\"text/javascript\" src=\"{relocatable: /scripts/jquery.tagcloud.min.js}\"></script>"
             tagcloud << <<-EOSCRIPT
 <script type="text/javascript">
+$.tagcloud.defaults.type = 'list';
+$.tagcloud.defaults.sizemin = 10;
 jQuery(document).ready(function(){
   $("ul#tags").children("li").click(function(){
      var el = $(this);
