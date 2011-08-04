@@ -89,7 +89,7 @@ module Rock
                     "../" * depth
                 end
             link = "#{relative}package_sets/#{name_to_path(name)}.html"
-            "<a href=\"#{link}\">#{name}</a>"
+            "<a href=\"#{link}\" markdown=\"0\">#{name}</a>"
         end
         def self.package_link(name, depth)
             relative =
@@ -97,7 +97,7 @@ module Rock
                     "../" * depth
                 end
             link = "#{relative}packages/#{package_name_to_path(name)}/index.html"
-            "<a href=\"#{link}\">#{name}</a>"
+            "<a href=\"#{link}\" markdown=\"0\">#{name}</a>"
         end
         def self.osdeps_link(name, depth)
             relative =

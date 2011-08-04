@@ -30,10 +30,10 @@ module Rock
 
             if from == :orogen_types || from == :orogen_tasks
                 link = "../orogen_types/#{name_to_path(type.name)}.html"
-                return "<a href=\"#{link}\">#{escape_html(type.name)}</a>"
+                return "<a href=\"#{link}\" markdown=\"0\">#{escape_html(type.name)}</a>"
             elsif from == :autoproj_packages
                 link = "../#{name_to_path(autoproj_name)}/types.html##{name_to_path(type.name)}"
-                return "<a href=\"#{link}\">#{escape_html(type.name)}</a>"
+                return "<a href=\"#{link}\" markdown=\"0\">#{escape_html(type.name)}</a>"
             else
                 raise ArgumentError, "#{from} was expected to be one of :orogen_types, :autoproj_packages"
             end
@@ -46,7 +46,7 @@ module Rock
 
             if from == :orogen_types || from == :orogen_tasks
                 link = "../orogen_tasks/#{name_to_path(task.name)}.html"
-                return "<a href=\"#{link}\">#{escape_html(task.name)}</a>"
+                return "<a href=\"#{link}\" markdown=\"0\">#{escape_html(task.name)}</a>"
             elsif from == :autoproj_packages
                 return autoproj_package_link(autoproj_name, from, "tasks.html##{name_to_path(task.name)}")
             else
@@ -82,7 +82,7 @@ module Rock
                 raise ArgumentError, "#{from} was expected to be one of :orogen_types, :autoproj_packages"
             end
 
-            return "<a href=\"#{link}\">#{escape_html(task.name)}</a>"
+            return "<a href=\"#{link}\" markdown=\"0\">#{escape_html(task.name)}</a>"
         end
 
         class OrogenRender
