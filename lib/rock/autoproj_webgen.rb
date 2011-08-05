@@ -50,9 +50,9 @@ module Rock
                 elsif value =~ /git:\/\/(.*)\.git/
                     value = "<a href=\"http://#{$1}\">#{value}</a>"
                 end
-                "<tr><td>#{key}</td><td>#{value}</td></tr>"
-            end.join("\n")
-            value = "<table>#{value}</table>"
+                "#{key}: #{value}"
+            end
+            value = "<pre class=\"vcs\">\n- #{value.join("\n  ")}</pre>"
         end
 
         def self.render_package_set_header(pkg_set)
