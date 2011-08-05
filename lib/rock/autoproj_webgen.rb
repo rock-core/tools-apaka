@@ -133,7 +133,7 @@ module Rock
 
             result = []
             result << ['name', pkg.name]
-            result << ['defined in', Doc.package_set_link(pkg_set, 2)]
+            result << ['defined in', Doc.package_set_link(pkg_set, 2) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
             result << ["from", render_vcs(vcs_def)]
 
             opt_deps = pkg.optional_dependencies.to_set
