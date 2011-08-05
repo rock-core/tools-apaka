@@ -24,6 +24,16 @@ module Rock
             end
         end
 
+        @help_id = 0
+        def self.allocate_help_id
+            @help_id += 1
+        end
+
+        def self.help(doc)
+            id = allocate_help_id
+            "<span class=\"help_trigger\" id=\"#{id}\"><img src=\"{relocatable: /img/help.png}\" /></span><div class=\"help\" id=\"help_#{id}\">#{doc}</div>"
+        end
+
         def self.render_page(path, content)
             if File.file?(content)
                 content = File.read(content)
@@ -43,7 +53,42 @@ module Rock
         end
 
         def self.render_vcs(vcs)
-            value = [['type', vcs.type], ['url', vcs.url]].concat(vcs.options.to_a.sort_by { |k, _| k.to_s })
+            if vcs.raw
+                first = true
+                raw_info = vcs.raw.map do |pkg_set, vcs_info|
+                    fragment = render_one_vcs(vcs_info)
+                    if !first
+                        fragment = "<span class=\"vcs_override\">overriden in #{pkg_set}</span>" + fragment
+                    end
+                    first = false
+                    fragment
+                end
+                raw_vcs = "<div class=\"vcs\">Rock short definition<span class=\"toggle\">show/hide</span><div class=\"vcs_info\">#{raw_info.join("\n")}</div></div>"
+            end
+
+            raw_vcs +
+            "<div class=\"vcs\">Autoproj definition<span class=\"toggle\">show/hide</span><div class=\"vcs_info\">#{render_one_vcs(vcs)}</div></div>"
+        end
+
+        def self.render_one_vcs(vcs)
+            if vcs.kind_of?(Hash)
+                options = vcs.dup
+                type = options.delete('type')
+                url  = options.delete('url')
+            else 
+                options = vcs.options
+                type = vcs.type
+                url = vcs.url
+            end
+
+            value = []
+            if type
+                value << ['type', type]
+            end
+            if url
+                value << ['url', url]
+            end
+            value = value.concat(options.to_a.sort_by { |k, _| k.to_s })
             value = value.map do |key, value|
                 if value.respond_to?(:to_str) && File.file?(value)
                     value = Pathname.new(value).relative_path_from(Pathname.new(Autoproj.root_dir))
@@ -135,7 +180,8 @@ module Rock
 
             result = []
             result << ['name', pkg.name]
-            result << ['defined in', Doc.package_set_link(pkg_set, 3) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
+            doc = "a package set is used to declare multiple packages into autoproj. To be able to build a package, one should add the relevant package set to its build configuration by copy/pasting one of the following blocks (either the Rock short definition or the Autoproj definition) into the package_sets section of autoproj/manifest. See also <a href=\"{relocatable: /documentation/tutorials/190_installing_packages.html}\">this tutorial</a>."
+            result << ['defined in package set', Doc.package_set_link(pkg_set, 3) + Doc.help(doc) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
             result << ["from", render_vcs(vcs_def)]
 
             opt_deps = pkg.optional_dependencies.to_set
