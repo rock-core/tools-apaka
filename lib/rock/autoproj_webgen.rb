@@ -52,7 +52,7 @@ module Rock
                 end
                 "#{key}: #{value}"
             end
-            value = "<pre class=\"vcs\">\n- #{value.join("\n  ")}</pre>"
+            value = "<pre class=\"vcs\">\n  - #{value.join("\n    ")}</pre>"
         end
 
         def self.render_package_set_header(pkg_set)
