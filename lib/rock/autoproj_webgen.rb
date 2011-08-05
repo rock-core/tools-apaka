@@ -128,22 +128,24 @@ module Rock
         end
 
         def self.render_package_header(pkg)
+            depth = if File.basename(pkg.name) == pkg.name then 2 else 3 end
+
             pkg, pkg_set = pkg.pkg, pkg.pkg_set
             vcs_def = Autoproj.manifest.importer_definition_for(pkg.name)
 
             result = []
             result << ['name', pkg.name]
-            result << ['defined in', Doc.package_set_link(pkg_set, 2) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
+            result << ['defined in', Doc.package_set_link(pkg_set, 3) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
             result << ["from", render_vcs(vcs_def)]
 
             opt_deps = pkg.optional_dependencies.to_set
             real_deps = pkg.dependencies.find_all { |dep_name| !opt_deps.include?(dep_name) }
 
             real_deps = real_deps.sort.map do |name|
-                Doc.package_link(name, 2)
+                Doc.package_link(name, depth)
             end
             opt_deps = opt_deps.sort.map do |name|
-                Doc.package_link(name, 2)
+                Doc.package_link(name, depth)
             end
 
             if real_deps.empty?
@@ -159,7 +161,7 @@ module Rock
 
             osdeps = pkg.os_packages.sort.
                 map do |name|
-                    Doc.osdeps_link(name, 2)
+                    Doc.osdeps_link(name, depth)
                 end
             if osdeps.empty?
                 result << ['OS dependencies', 'none']
