@@ -109,7 +109,7 @@ module Rock
                 return result.map { |v| render_item(*v) }
             end
 
-            result << ["from", render_vcs(pkg_set.vcs)]
+            result << ["imported from", render_vcs(pkg_set.vcs)]
 
             imports = pkg_set.each_imported_set.to_a
             if !imports.empty?
@@ -182,7 +182,7 @@ module Rock
             result << ['name', pkg.name]
             doc = "in autoproj, a package set is used to declare packages so that they can be imported and built. To be able to build a package, one should therefore add the relevant package set to its build configuration by copy/pasting one of the following blocks (either the Rock short definition or the Autoproj definition) into the package_sets section of autoproj/manifest. See also <a href=\"{relocatable: /documentation/tutorials/190_installing_packages.html}\">this tutorial</a>."
             result << ['defined in package set', Doc.package_set_link(pkg_set, 3) + Doc.help(doc) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
-            result << ["from", render_vcs(vcs_def)]
+            result << ["imported from", render_vcs(vcs_def)]
 
             opt_deps = pkg.optional_dependencies.to_set
             real_deps = pkg.dependencies.find_all { |dep_name| !opt_deps.include?(dep_name) }
