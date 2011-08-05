@@ -150,7 +150,7 @@ Defined in the typekit of #{Doc.package_link(package_name, depth)}
 
                     page << "<table><tr>"
                     if !outputs.empty?
-                        page << "<td><ul class=\"body-header-list\" style=\"width=45%;\">"
+                        page << "<td><ul class=\"body-header-list half-size\" style=\"margin:0;\">"
                         page << Doc.render_item("Produced by")
                         outputs.sort.each do |task|
                             page << "<li>#{task}</li>"
@@ -158,7 +158,7 @@ Defined in the typekit of #{Doc.package_link(package_name, depth)}
                         page << "</ul></td>"
                     end
                     if !inputs.empty?
-                        page << "<td><ul class=\"body-header-list\" style=\"width=45%;\">"
+                        page << "<td><ul class=\"body-header-list half-size\" style=\"margin:0;\">"
                         page << Doc.render_item("Consumed by")
                         inputs.sort.each do |task|
                             page << "<li>#{task}</li>"
