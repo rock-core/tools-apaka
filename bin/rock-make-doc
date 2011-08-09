@@ -1,7 +1,7 @@
 #! /bin/sh
 
 usage() {
-    echo "usage: rock-make-doc target_dir [main_doc_template] [directory_template]"
+    echo "usage: rock-make-doc target_dir [main_doc_template]"
     echo "you must run it from within the autoproj installation that you want"
     echo "to generate the documentation for"
     exit 1
@@ -17,10 +17,9 @@ is_absolute() {
 autoproj_dir=$PWD
 target_dir=$1
 main_template_dir=$2
-directory_template_dir=$3
 
-if test -z $main_template_dir; then
-    main_template_dir=git://gitorious.org/rock/doc.git
+if test -z "$main_template_dir"; then
+    main_template_dir="-b stable git://gitorious.org/rock/doc.git"
 fi
 
 if ! test -d "$autoproj_dir/autoproj"; then
@@ -52,8 +51,8 @@ echo "generating the API documentation from the autoproj packages"
 cd $autoproj_dir
 autoproj doc
 mkdir -p $target_dir
-echo "moving API documentation to $target_dir/api"
-mv install/doc $target_dir/api
+echo "copying API documentation to $target_dir/api"
+cp -r install/doc $target_dir/api
 
 autoproj_version=`$GEM_HOME/bin/autoproj --version | sed 's/autoproj.*v//'`
 autoproj_api_dir=$GEM_HOME/doc/autoproj-$autoproj_version
@@ -76,13 +75,14 @@ fi
 echo "creating rock's main documentation"
 cd $tempdir
 git clone $main_template_dir main
-cd main
+
+cd $autoproj_dir
+rock-directory-pages "$tempdir/main/src/package_directory" $target_dir/api
+
+cd $tempdir/main
 rake
 echo "moving main documentation in $target_dir"
 mv out/* $target_dir
-
-cd $autoproj_dir
-rock-directory "$target_dir/package_directory" $directory_template_dir
 
 echo "deleting $tempdir"
 rm -rf $tempdir
