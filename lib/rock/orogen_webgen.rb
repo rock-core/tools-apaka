@@ -342,7 +342,11 @@ For each type, three informations are given:
             def initialize(output_dir, api_dir)
                 @output_dir = output_dir
                 @api_dir = api_dir
-                index_api_dir if api_dir
+                if api_dir
+                    index_api_dir 
+                else
+                    @rdoc_dirs = Array.new
+                end
                 @sort_order = 0
             end
 
