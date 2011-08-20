@@ -54,16 +54,22 @@ Affected packages: <% needs_merge.each do |pkg_name| %>
 <% status.each do |pkg, main, from_commits, to_commits| %>
 <%   if main.kind_of?(Exception) %>
        <% status_error = main.message.gsub(/</, "&lt;").gsub(/>/, "&gt;").split("\n").join("<br/>\n") %>
-       <tr class="name" id="<%= pkg.name %>">
-         <th class="error">
-           <%= pkg.name %>: failed to get status
-           <p class="error_message"><%= status_error %></p>
+       <tr class="name error" id="<%= pkg.name %>">
+         <th class="error"><%= pkg.name %>
          </th>
+       </tr>
+       <tr class="error_message">
+	 <td><%= status_error %></td>
        </tr>
 <%   else %>
        <tr class="name" id="<%= pkg.name %>">
          <th><%= pkg.name %></th>
        </tr>
+       <% if from_commits.empty? && to_commits.empty? %>
+       <tr class="message">
+       <td>No changes between <%= from_flavor %> and <%= to_flavor %></td>
+       </tr>
+       <% end %>
        <% if !from_commits.empty? %>
          <tr class="from_commits_header">
            <td><a class="commit_event_toggler" id="<%= id += 1 %>"> <%= from_commits.size %> commits</a> in <%= from_flavor %> but not in <%= to_flavor %></td>
