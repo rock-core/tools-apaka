@@ -4,6 +4,8 @@ title: Status - <%= from_flavor %> to <%= to_flavor %>
 
 <script type="text/javascript">
 $(document).ready(function () {
+    $("tr.from_commits").hide()
+    $("tr.to_commits").hide()
     $("a.commit_event_toggler").click(function (event) {
             var eventId = $(this).attr("id");
 
