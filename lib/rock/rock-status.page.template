@@ -16,7 +16,7 @@ $(document).ready(function () {
 <% if !new_packages.empty? %>
 <h1>New packages: in <%= from_flavor %> but not in <%= to_flavor %></h1>
 <ul>
-<% new_packages.each do |pkg_name| %>
+<% new_packages.sort.each do |pkg_name| %>
     <li><%= pkg_name %></li>
 <% end %>
 </ul>
@@ -24,7 +24,7 @@ $(document).ready(function () {
 <% if !obsolete_packages.empty? %>
 <h1>Obsoleted packages: in <%= to_flavor %> but not in <%= from_flavor %></h1>
 <ul>
-<% obsolete_packages.each do |pkg_name| %>
+<% obsolete_packages.sort.each do |pkg_name| %>
     <li><%= pkg_name %></li>
 <% end %>
 </ul>
