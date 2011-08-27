@@ -234,7 +234,13 @@ module Rock
                 result << ['OS dependencies', osdeps.join(", ")]
             end
 
-            return result.map { |v| render_item(*v) }
+
+	    import_info = []
+            doc = "in autoproj, a package set is used to declare packages so that they can be imported and built. To be able to build a package, one should therefore add the relevant package set to its build configuration by copy/pasting one of the following blocks (either the Rock short definition or the Autoproj definition) into the package_sets section of autoproj/manifest. See also <a href=\"{relocatable: /documentation/tutorials/190_installing_packages.html}\">this tutorial</a>."
+            import_info << ['defined in package set', Doc.package_set_link(pkg_set, 3) + Doc.help(doc) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
+            import_info << ["imported from", render_vcs(vcs_def)]
+
+            return result.map { |v| render_item(*v) }, import_info.map { |v| render_item(*v) }
         end
 
         def self.render_main_list(title, sort_info, elements, additional_header = nil, attributes = Hash.new)
@@ -361,21 +367,31 @@ sort_info: #{sort_order}
                 documentation = pkg.documentation
                 documentation = documentation.split("\n").map(&:strip).join("\n")
 
+		pkg_info, import_info = Doc.render_package_header(pkg)
                 page = <<-EOT
 ---
 title: Overview
 sort_info: #{sort_order}
 --- name:content
+#{documentation}
+
+Package Info
+------------
 <div class="body-header-list" markdown="1">
 <ul>
-    #{Doc.render_package_header(pkg).join("\n    ")}
+    #{pkg_info.join("\n    ")}
     #{if pkg.has_api? then "<li>#{Doc.api_link(pkg.name, "API Documentation")}</li>" end}
 </ul>
 </div>
 
-Documentation
--------------
-#{documentation}
+Import Info
+-----------
+<div class="body-header-list" markdown="1">
+<ul>
+    #{import_info.join("\n    ")}
+</ul>
+</div>
+
                 EOT
 
                 pkg_dir = File.join('packages', Doc.package_name_to_path(pkg.name))
