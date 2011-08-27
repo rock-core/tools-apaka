@@ -24,6 +24,18 @@ module Rock
             end
         end
 
+	# Obscures an email using HTML entities
+        def self.obscure_email(email)
+            return nil if email.nil? #Don't bother if the parameter is nil.
+            lower = ('a'..'z').to_a
+            upper = ('A'..'Z').to_a
+            email.split('').map { |char|
+                output = lower.index(char) + 97 if lower.include?(char)
+                output = upper.index(char) + 65 if upper.include?(char)
+                output ? "&##{output};" : (char == '@' ? '&#0064;' : char)
+            }.join
+        end
+
         @help_id = 0
         def self.allocate_help_id
             @help_id += 1
@@ -180,9 +192,15 @@ module Rock
 
             result = []
             result << ['name', pkg.name]
-            doc = "in autoproj, a package set is used to declare packages so that they can be imported and built. To be able to build a package, one should therefore add the relevant package set to its build configuration by copy/pasting one of the following blocks (either the Rock short definition or the Autoproj definition) into the package_sets section of autoproj/manifest. See also <a href=\"{relocatable: /documentation/tutorials/190_installing_packages.html}\">this tutorial</a>."
-            result << ['defined in package set', Doc.package_set_link(pkg_set, 3) + Doc.help(doc) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
-            result << ["imported from", render_vcs(vcs_def)]
+	    authors = pkg.description.xml.xpath('//author').map(&:content).
+		map { |s| obscure_email(s) }.
+		join(", ")
+            result << ["authors", authors]
+            result << ["license", pkg.description.xml.xpath('//license').map(&:content).join(", ")]
+	    urls = pkg.description.xml.xpath('//url').map(&:to_s).
+		map { |s| "<a href=\"#{s}\">#{s}</a>" }
+
+            result << ["URL", urls.join(" ")]
 
             opt_deps = pkg.optional_dependencies.to_set
             real_deps = pkg.dependencies.find_all { |dep_name| !opt_deps.include?(dep_name) }
@@ -193,6 +211,7 @@ module Rock
             opt_deps = opt_deps.sort.map do |name|
                 Doc.package_link(name, depth)
             end
+
 
             if real_deps.empty?
                 result << ['mandatory dependencies', 'none']
