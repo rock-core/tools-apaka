@@ -1,5 +1,6 @@
 ---
 title: Status - <%= from_flavor %> to <%= to_flavor %>
+sort_info: <%= sort_info %>
 ---
 
 <script type="text/javascript">

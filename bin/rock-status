@@ -39,8 +39,12 @@ require 'autoproj'
 require 'erb'
 
 dest_path = nil
+sort_info = 0
 parser = OptionParser.new do |opt|
     opt.banner = "rock-status from_flavor to_flavor dest_path"
+    opt.on("--sort ID", Integer, "the sort_info value for the generated page") do |info|
+	sort_info = info
+    end
 end
 remaining = parser.parse(ARGV)
 
