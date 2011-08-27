@@ -185,9 +185,10 @@ Rock::Doc::OrogenRender.render_all(output_dir, true)
 
 root_metainfo << ["package_sets", "Package Sets", 1]
 root_metainfo << ["packages", "Packages", 2]
-root_metainfo << ["orogen_tasks", "oroGen Tasks", 3]
-root_metainfo << ["orogen_types", "oroGen Types", 4]
-root_metainfo << ["osdeps",   "OS Dependencies", 5]
+root_metainfo << ["osdeps",   "OS Dependencies", 3]
+root_metainfo << ["orogen_tasks", "oroGen Tasks", 1000]
+root_metainfo << ["orogen_types", "oroGen Types", 1500]
+root_metainfo << ["status", "Status", 2000]
 metainfo = root_metainfo.map do |dir, title, sort|
         ["#{dir}:",
          "  title: #{title}",
