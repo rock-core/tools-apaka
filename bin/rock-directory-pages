@@ -9,17 +9,32 @@ require 'autoproj'
 require 'autoproj/cmdline'
 require 'rock/autoproj_webgen'
 require 'rock/orogen_webgen'
+require 'optparse'
 
-output_dir = ARGV.shift
-if !output_dir
-    STDERR.puts "usage: rock-directory-pages output_dir"
-    exit(1)
+generate_status = []
+parser = OptionParser.new do |opt|
+    opt.banner = "rock-directory-pages [OPTIONS] output_dir [api_dir]"
+    opt.on('--status=DIFFSPEC', String, "generate status pages. DIFFSPEC is FROM_FLAVOR:TO_FLAVOR,FROM_FLAVOR:TO_FLAVOR,...") do |status|
+	generate_status = status.split(',').map do |s|
+	    s.split(':')
+	end
+    end
+    opt.on('--help') do
+        puts opt
+	exit
+    end
 end
 
-Autoproj::CmdLine.initialize_and_load
-manifest = Autoproj.manifest
+remaining  = parser.parse(ARGV)
+output_dir = remaining.shift
+api_dir = remaining.shift
+if !output_dir
+    puts opt
+    exit 1
+end
 
-api_dir = ARGV.shift
+Autoproj::CmdLine.initialize_and_load([])
+manifest = Autoproj.manifest
 
 root_metainfo = []
 sort_order = 0
@@ -182,4 +197,14 @@ metainfo = root_metainfo.map do |dir, title, sort|
     end.join("\n")
 
 Rock::Doc.render_page(File.join(output_dir, 'htmldoc.metainfo'), metainfo)
+
+generate_status.each_with_index do |(from, to), sort_info|
+    ENV['ROCK_FORCE_FLAVOR'] = from
+    if !system('autoproj', 'update', '--no-osdeps')
+	raise "could not reset the current state to flavor #{from}"
+    end
+    if !system('rock-status', '--sort', (2000 + sort_info).to_s, from, to, File.join(output_dir, "status_#{from}_#{to}.page"))
+	raise "rock-status #{from} #{to} failed"
+    end
+end
 
