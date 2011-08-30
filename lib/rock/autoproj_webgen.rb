@@ -102,7 +102,7 @@ module Rock
             end
             value = value.concat(options.to_a.sort_by { |k, _| k.to_s })
             value = value.map do |key, value|
-                if value.respond_to?(:to_str) && File.file?(value)
+                if value.respond_to?(:to_str) && File.file?(value) && value =~ /^\//
                     value = Pathname.new(value).relative_path_from(Pathname.new(Autoproj.root_dir))
                 elsif value =~ /git:\/\/(.*)\.git/
                     value = "<a href=\"http://#{$1}\">#{value}</a>"
