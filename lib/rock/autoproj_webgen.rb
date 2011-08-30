@@ -24,7 +24,7 @@ module Rock
             end
         end
 
-	# Obscures an email using HTML entities
+        # Obscures an email using HTML entities
         def self.obscure_email(email)
             return nil if email.nil? #Don't bother if the parameter is nil.
             lower = ('a'..'z').to_a
@@ -242,7 +242,7 @@ module Rock
             end
 
 
-	    import_info = []
+            import_info = []
             doc = "in autoproj, a package set is used to declare packages so that they can be imported and built. To be able to build a package, one should therefore add the relevant package set to its build configuration by copy/pasting one of the following blocks (either the Rock short definition or the Autoproj definition) into the package_sets section of autoproj/manifest. See also <a href=\"{relocatable: /documentation/tutorials/190_installing_packages.html}\">this tutorial</a>."
             import_info << ['defined in package set', Doc.package_set_link(pkg_set, 3) + Doc.help(doc) + render_vcs(Autoproj.manifest.package_set(pkg_set).vcs)]
             import_info << ["imported from", render_vcs(vcs_def)]
@@ -374,7 +374,7 @@ sort_info: #{sort_order}
                 documentation = pkg.documentation
                 documentation = documentation.split("\n").map(&:strip).join("\n")
 
-		pkg_info, import_info = Doc.render_package_header(pkg)
+                pkg_info, import_info = Doc.render_package_header(pkg)
                 page = <<-EOT
 ---
 title: Overview
