@@ -1,9 +1,11 @@
 #! /bin/sh
 
 usage() {
-    echo "usage: rock-make-doc target_dir [main_doc_template]"
+    echo "usage: rock-make-doc [--status=from:to,from:to] target_dir [main_doc_template]"
     echo "you must run it from within the autoproj installation that you want"
     echo "to generate the documentation for"
+    echo "if the --status option is given, will also generate status pages for the provided"
+    echo "pairs of flavors"
     exit 1
 }
 
@@ -15,6 +17,10 @@ is_absolute() {
 }
 
 autoproj_dir=$PWD
+if echo "$1" | grep -q -- "--status="; then
+    status=$1
+    shift
+fi
 target_dir=$1
 main_template_dir=$2
 
@@ -77,7 +83,7 @@ cd $tempdir
 git clone $main_template_dir main
 
 cd $autoproj_dir
-rock-directory-pages "$tempdir/main/src/package_directory" $target_dir/api
+rock-directory-pages $status "$tempdir/main/src/package_directory" $target_dir/api
 
 cd $tempdir/main
 rake
