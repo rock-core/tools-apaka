@@ -52,12 +52,13 @@ fi
 
 set -e
 
+mkdir -p $target_dir
 tempdir=$(mktemp -d)
+
 if ! test "$ROCK_DOC_API" = "0"; then
     echo "generating the API documentation from the autoproj packages"
     cd $autoproj_dir
     autoproj doc
-    mkdir -p $target_dir
     echo "copying API documentation to $target_dir/api"
     cp -r install/doc $target_dir/api
     
