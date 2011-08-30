@@ -1,0 +1,97 @@
+#! /bin/sh
+
+usage() {
+    echo "usage: rock-make-doc [--status=from:to,from:to] target_dir [main_doc_template]"
+    echo "you must run it from within the autoproj installation that you want"
+    echo "to generate the documentation for"
+    echo "if the --status option is given, will also generate status pages for the provided"
+    echo "pairs of flavors"
+    exit 1
+}
+
+is_absolute() {
+    case $1 in
+        /*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+autoproj_dir=$PWD
+if echo "$1" | grep -q -- "--status="; then
+    status=$1
+    shift
+fi
+target_dir=$1
+main_template_dir=$2
+
+if test -z "$main_template_dir"; then
+    main_template_dir="-b stable git://gitorious.org/rock/doc.git"
+fi
+
+if ! test -d "$autoproj_dir/autoproj"; then
+    echo "$autoproj_dir is not an autoproj installation"
+    echo
+    usage
+fi
+
+if test -z "$target_dir"; then
+    echo "no target dir given"
+    echo
+    usage
+fi
+
+if ! is_absolute "$target_dir"; then
+    echo "$target_dir must be an absolute path"
+    exit 1
+fi
+
+if test -d "$target_dir"; then
+    echo "$target_dir already exists"
+    exit 1
+fi
+
+set -e
+
+tempdir=$(mktemp -d)
+if ! test "$ROCK_DOC_API" = "0"; then
+    echo "generating the API documentation from the autoproj packages"
+    cd $autoproj_dir
+    autoproj doc
+    mkdir -p $target_dir
+    echo "copying API documentation to $target_dir/api"
+    cp -r install/doc $target_dir/api
+    
+    autoproj_version=`$GEM_HOME/bin/autoproj --version | sed 's/autoproj.*v//'`
+    autoproj_api_dir=$GEM_HOME/doc/autoproj-$autoproj_version
+    if test -d $autoproj_api_dir; then
+        echo "copying autoproj API documentation to $target_dir/api/autoproj"
+        cp -r $autoproj_api_dir/rdoc $target_dir/api/autoproj
+    else
+        echo "could not find the autoproj API in $autoproj_api_dir"
+    fi
+    
+    autobuild_version=`$GEM_HOME/bin/autobuild --version | sed 's/autobuild.*v//'`
+    autobuild_api_dir=$GEM_HOME/doc/autobuild-$autobuild_version
+    if test -d $autobuild_api_dir; then
+        echo "copying autobuild API documentation to $target_dir/api/autobuild"
+        cp -r $autobuild_api_dir/rdoc $target_dir/api/autobuild
+    else
+        echo "could not find the autobuild API in $autobuild_api_dir"
+    fi
+fi
+
+echo "creating rock's main documentation"
+cd $tempdir
+git clone $main_template_dir main
+
+cd $autoproj_dir
+rock-directory-pages $status "$tempdir/main/src/package_directory" $target_dir/api
+
+cd $tempdir/main
+rake
+echo "moving main documentation in $target_dir"
+mv out/* $target_dir
+
+echo "deleting $tempdir"
+rm -rf $tempdir
+
