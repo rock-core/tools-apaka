@@ -192,15 +192,22 @@ module Rock
 
             result = []
             result << ['name', pkg.name]
-	    authors = pkg.description.xml.xpath('//author').map(&:content).
-		map { |s| obscure_email(s) }.
-		join(", ")
-            result << ["authors", authors]
-            result << ["license", pkg.description.xml.xpath('//license').map(&:content).join(", ")]
-	    urls = pkg.description.xml.xpath('//url').map(&:to_s).
-		map { |s| "<a href=\"#{s}\">#{s}</a>" }
 
-            result << ["URL", urls.join(" ")]
+            # WORKAROUND: the next autoproj version will always have a PackageManifest object (just empty if no manifest.xml)
+            if pkg.description
+                authors = pkg.description.xml.xpath('//author').map(&:content).
+                    map { |s| obscure_email(s) }.
+                    join(", ")
+                result << ["authors", authors]
+                result << ["license", pkg.description.xml.xpath('//license').map(&:content).join(", ")]
+                urls = pkg.description.xml.xpath('//url').map(&:to_s).
+                    map { |s| "<a href=\"#{s}\">#{s}</a>" }
+                result << ["URL", urls.join(" ")]
+            else
+                result << ["authors", ""]
+                result << ["license", ""]
+                result << ["URL", ""]
+            end
 
             opt_deps = pkg.optional_dependencies.to_set
             real_deps = pkg.dependencies.find_all { |dep_name| !opt_deps.include?(dep_name) }
