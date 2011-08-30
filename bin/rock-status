@@ -62,6 +62,8 @@ end
 
 io = File.open(dest_path, 'w')
 
+initial_flavor = YAML.load(File.read(File.join("autoproj", "config.yml")))['ROCK_FLAVOR']
+
 ENV['ROCK_FORCE_FLAVOR'] = from_flavor
 Autoproj::CmdLine.initialize_and_load(["--update"])
 manifest = Autoproj.manifest
@@ -112,4 +114,7 @@ id = 0
 template = File.join(BASE_DIR, 'lib', 'rock', 'rock-status.page.template')
 erb = ERB.new(File.read(template))
 io.puts erb.result(binding)
+
+ENV['ROCK_FORCE_FLAVOR'] = initial_flavor
+Autoproj::CmdLine.initialize_and_load(["--update"])
 
