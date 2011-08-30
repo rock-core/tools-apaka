@@ -35,11 +35,11 @@ delete_artifacts() {
 bootstrap() {
 # If we are bootstrapping, delete the old build artifacts and create a local
 # configuration with the specified configuration file
-if test -f "$BUILDCONF_BOOTSTRAP"; then    
+if test -f "$BUILDCONF_FILE"; then    
 
     git clone $BUILDCONF_GIT buildconf
     cd buildconf
-    cp -f $BUILDCONF_BOOTSTRAP config.yml
+    cp -f $BUILDCONF_FILE config.yml
     git add -f config.yml
     git commit -a -m "build server configuration"
     cd ..
@@ -70,6 +70,9 @@ update() {
     fi
     
     . ./env.sh
+    if test -n "$BUILDCONF_FILE"; then
+        cp -f $BUILDCONF_FILE autoproj/
+    fi
     autoproj full-build $COMMON_ARGS
 }
 
