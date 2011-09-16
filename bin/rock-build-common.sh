@@ -54,21 +54,12 @@ fi
 }
 
 update() {
-    if !(test -d dev)
-    then
+    if ! test -d dev/autoproj; then
 	bootstrap
+        exit
     fi
+
     cd dev
-    
-    # Check if we do need to bootstrap
-    if ! test -d autoproj; then
-	sudo apt-get update
-	sudo apt-get -y install ruby rubygems wget
-	rm -f autoproj_bootstrap
-	wget http://rock-robotics.org/autoproj_bootstrap
-	ruby autoproj_bootstrap git $BUILDCONF_GIT
-    fi
-    
     . ./env.sh
     if test -n "$BUILDCONF_FILE"; then
         cp -f $BUILDCONF_FILE autoproj/
