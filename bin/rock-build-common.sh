@@ -62,7 +62,7 @@ update() {
     cd dev
     . ./env.sh
     if test -n "$BUILDCONF_FILE"; then
-        cp -f $BUILDCONF_FILE autoproj/
+        cp -f $BUILDCONF_FILE autoproj/config.yml
     fi
     autoproj full-build $COMMON_ARGS
 }
