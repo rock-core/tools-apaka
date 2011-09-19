@@ -32,7 +32,7 @@ delete_artifacts() {
     rm -rf buildconf dev
 }
 
-bootstrap() {
+prepare_buildconf_git() {
 # If we are bootstrapping, delete the old build artifacts and create a local
 # configuration with the specified configuration file
 if test -f "$BUILDCONF_FILE"; then    
@@ -56,7 +56,7 @@ fi
 update() {
     if !(test -d dev)
     then
-	bootstrap
+	prepare_buildconf_git
     fi
     cd dev
     
