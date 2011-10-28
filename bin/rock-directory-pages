@@ -199,13 +199,21 @@ metainfo = root_metainfo.map do |dir, title, sort|
 
 Rock::Doc.render_page(File.join(output_dir, 'htmldoc.metainfo'), metainfo)
 
-generate_status.each_with_index do |(from, to), sort_info|
-    ENV['ROCK_FORCE_FLAVOR'] = from
-    if !system('autoproj', 'update', '--no-osdeps')
-	raise "could not reset the current state to flavor #{from}"
+initial_flavor = YAML.load(File.read(File.join("autoproj", "config.yml")))['ROCK_FLAVOR']
+begin
+    generate_status.each_with_index do |(from, to), sort_info|
+        ENV['ROCK_FORCE_FLAVOR'] = from
+        if !system('autoproj', 'update', '--no-osdeps')
+            raise "could not reset the current state to flavor #{from}"
+        end
+        if !system('rock-status', '--sort', (2000 + sort_info).to_s, from, to, File.join(output_dir, "status_#{from}_#{to}.page"))
+            raise "rock-status #{from} #{to} failed"
+        end
     end
-    if !system('rock-status', '--sort', (2000 + sort_info).to_s, from, to, File.join(output_dir, "status_#{from}_#{to}.page"))
-	raise "rock-status #{from} #{to} failed"
+ensure
+    ENV['ROCK_FORCE_FLAVOR'] = initial_flavor
+    if !system('autoproj', 'update', '--no-osdeps')
+        raise "could not reset the current state to the initial flavor #{initial_flavor}"
     end
 end
 
