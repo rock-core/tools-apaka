@@ -37,6 +37,7 @@ prepare_buildconf_git() {
 # configuration with the specified configuration file
 if test -f "$BUILDCONF_FILE"; then    
 
+    rm -rf buildconf
     git clone $BUILDCONF_GIT buildconf
     cd buildconf
     cp -f $BUILDCONF_FILE config.yml
