@@ -63,7 +63,12 @@ update() {
     
     # Check if we do need to bootstrap
     if ! test -d autoproj; then
-	sudo apt-get update
+        # do NOT run apt-get update, as it will cause problems in environments
+        # where multiple installations are bootstrapped in parallel (such as a
+        # build server)
+        #
+        # Instead, setup a separate task that does the update for you
+	# sudo apt-get update
 	sudo apt-get -y install ruby rubygems wget
 	rm -f autoproj_bootstrap
 	wget http://rock-robotics.org/autoproj_bootstrap
