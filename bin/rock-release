@@ -1,0 +1,23 @@
+#! /bin/sh
+
+set -ex
+date=`date +%Y%m%d`
+
+echo "generating next-to-stable update report in ../stable-$date.page"
+rock-status next stable ../stable-$date.page
+
+echo "tagging stable-$date"
+autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git tag -d stable-$date
+autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git tag stable-$date
+echo "pushing tag"
+autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git push --tags
+echo "pushing next to stable"
+autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git push autobuild next:stable
+
+echo "generating resulting status for double-checking ../stable-$date-final.page"
+rock-status next stable ../stable-$date-final.page
+
+echo "Things left to do:"
+echo "  handle packages that are in next but not stable in autoproj configuration"
+echo "  test build"
+
