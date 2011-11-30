@@ -1,5 +1,7 @@
 #! /bin/sh
 
+set -ex
+
 usage() {
     echo "usage: rock-make-doc [--status=from:to,from:to] target_dir [main_doc_template]"
     echo "you must run it from within the autoproj installation that you want"
