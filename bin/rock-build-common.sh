@@ -55,8 +55,7 @@ fi
 }
 
 update() {
-    if !(test -d dev/autoproj)
-    then
+    if ! test -d dev/autoproj; then
 	prepare_buildconf_git
     fi
     cd dev
