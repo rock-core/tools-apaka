@@ -79,6 +79,6 @@ update() {
     if test -n "$BUILDCONF_FILE"; then
         cp -f $BUILDCONF_FILE autoproj/config.yml
     fi
-    autoproj full-build $COMMON_ARGS
+    autoproj full-build --no-color $COMMON_ARGS
 }
 
