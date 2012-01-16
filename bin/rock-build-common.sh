@@ -71,7 +71,7 @@ update() {
 	# sudo apt-get -y install ruby rubygems wget
 	rm -f autoproj_bootstrap
 	wget http://rock-robotics.org/autoproj_bootstrap
-	ruby autoproj_bootstrap git $BUILDCONF_GIT
+	ruby autoproj_bootstrap --no-color git $BUILDCONF_GIT
     fi
     
     . ./env.sh
