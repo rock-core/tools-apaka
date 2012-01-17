@@ -195,12 +195,12 @@ module Rock
 
             # WORKAROUND: the next autoproj version will always have a PackageManifest object (just empty if no manifest.xml)
             if pkg.description
-                authors = pkg.description.xml.xpath('//author').map(&:content).
+                authors = REXML::XPath.each(pkg.description.xml, "//author").map(&:text).
                     map { |s| obscure_email(s) }.
                     join(", ")
                 result << ["authors", authors]
-                result << ["license", pkg.description.xml.xpath('//license').map(&:content).join(", ")]
-                urls = pkg.description.xml.xpath('//url').map(&:to_s).
+                result << ["license", REXML::XPath.each(pkg.description.xml, "//license").map(&:text).join(", ")]
+                urls = REXML::XPath.each(pkg.description.xml, "//url").map(&:to_s).
                     map { |s| "<a href=\"#{s}\">#{s}</a>" }
                 result << ["URL", urls.join(" ")]
             else
