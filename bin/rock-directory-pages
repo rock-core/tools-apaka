@@ -127,8 +127,12 @@ all_packages = all_packages.each_value.map do |pkg, pkg_set|
     end
 
     if pkg.kind_of?(Autobuild::Orogen)
-        orogen_file = File.join(pkg.srcdir, pkg.orogen_file)
-        orogen_name = File.readlines(orogen_file).grep(/^name\s/).to_a.first
+        orogen_name =
+            if pkg.orogen_file
+                orogen_file = File.join(pkg.srcdir, pkg.orogen_file)
+                orogen_name = File.readlines(orogen_file).grep(/^name\s/).to_a.first
+            end
+
         if orogen_name
             orogen_name =~ /^name[^\w]+(\w+)/
             orogen_name = $1
