@@ -1,0 +1,32 @@
+<script type="text/javascript" src="{relocatable: /scripts/jquery.selectfilter.js}"></script>
+<script type="text/javascript">
+  jQuery(document).ready(function(){
+  jQuery("div#index-table").selectFilter();
+});
+</script>
+
+<%= if additional_header.respond_to?(:join)
+       additional_header.join("\n")
+    else
+       additional_header
+    end
+%>
+
+<div name="index_filter" id="index-table">
+<%
+list_data.each_with_index do |(data, attributes), index|
+    if attributes
+        table_attributes = attributes.map { |k, v| " #{k}=\"#{v}\"" }.join("")
+    end
+%>
+<table class="short_doc<%= " list_alt" if index % 2 == 0 %>"<%= table_attributes %>>
+<% if data.respond_to?(:to_ary) %>
+<%   data = data.join("\n") %>
+<% end %>
+<%= data %>
+</table>
+<%
+end
+%>
+</div>
+

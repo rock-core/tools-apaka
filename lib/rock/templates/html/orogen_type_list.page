@@ -1,0 +1,28 @@
+---
+title: <%= title %>
+routed_title: <%= routed_title %>
+in_menu: false
+sort_info: <%= sort_info %>
+---
+This page lists all the types that have been exported through oroGen, i.e. that are being used in oroGen tasks.
+
+For each type, three informations are given:
+
+ * <b>the C++ type definition</b>, that is the definition of the type in C++ (as
+   given to oroGen). [Opaque
+   types]({relocatable: /documentation/orogen/opaque_types.html}) are not explicitely
+   represented in oroGen and are therefore not displayed.
+ * <b>Logging</b> is the type definition as saved in log files. It differs from
+   the C++ type only for opaque types.
+ * <b>Ruby</b> is the type definition as manipulated in Ruby. It differs from
+   the C++ type for opaque types, and in cases where [custom
+   convertions]({relocatable: /documentation/runtime/ruby_and_types.html}) have been
+   defined.
+
+<%=
+type_items = objects.sort_by(&:name).map do |type|
+    "<tr><td>#{link_to(type)}</td></tr>"
+end
+PackageDirectory.render_list(type_items)
+%>
+

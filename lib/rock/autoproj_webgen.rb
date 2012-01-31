@@ -24,6 +24,12 @@ module Rock
             end
         end
 
+        def self.escape_html(string)
+            string.
+                gsub('<', '&lt;').
+                gsub('>', '&gt;')
+        end
+
         # Obscures an email using HTML entities
         def self.obscure_email(email)
             return nil if email.nil? #Don't bother if the parameter is nil.

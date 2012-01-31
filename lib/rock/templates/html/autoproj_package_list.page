@@ -1,0 +1,31 @@
+---
+title: <%= title %>
+routed_title: <%= routed_title %>
+in_menu: false
+sort_info: <%= sort_info %>
+---
+<%
+packages = objects
+all_tags = Hash.new { 0 }
+packages.each do |pkg|
+    if m = pkg.autobuild.description
+        m.tags.each do |str|
+            all_tags[str] += 1
+        end
+    end
+end
+
+tagcloud = render_tagcloud(all_tags)
+package_list_items = packages.sort_by(&:name).map do |pkg|
+    tags, short_doc = [], ""
+    if m = pkg.autobuild.description
+        tags = m.tags.sort
+        short_doc = m.short_documentation
+    end
+
+    html = ["<tr><td>#{link_to(pkg)}</td><td class=\"align-right\">#{if has_api?(pkg) then api_link(pkg, "[API]") end}</td></tr>",
+        "<tr><td colspan=\"2\" class=\"short_doc\">#{short_doc}</td></tr>"]
+    [html, { 'tags' => tags }]
+end
+%>
+<%= PackageDirectory.render_list(package_list_items, tagcloud) %>
