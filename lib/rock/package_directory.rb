@@ -1,5 +1,6 @@
 require 'rock/doc'
 require 'utilrb/logger'
+require 'vizkit'
 
 module Rock
     module Doc
@@ -86,6 +87,9 @@ module Rock
                         if orogen_type_consumers.has_key?(object.name)
                             context.consumed_by.concat(orogen_type_consumers[object.name])
                         end
+                        if orogen_type_vizkit.has_key?(object.name)
+                            context.displayed_by.concat(orogen_type_vizkit[object.name])
+                        end
                     end
                 end
                 context
@@ -157,6 +161,8 @@ module Rock
 
                         relative_path = "types/#{typename_to_path(obj, "html")}"
                     end
+                when Rock::Doc::VizkitWidget
+                    relative_path = false
                 end
 
                 text =
@@ -222,6 +228,8 @@ module Rock
             attr_reader :orogen_types
             attr_reader :orogen_type_producers
             attr_reader :orogen_type_consumers
+            attr_reader :orogen_type_vizkit
+            attr_reader :orogen_type_vizkit3d
 
             def prepare
                 @autoproj_packages = Autoproj.manifest.packages.values.sort_by(&:name).
@@ -271,6 +279,28 @@ module Rock
                     end
                 end.compact
 
+                @orogen_type_vizkit = Hash.new { |h, k| h[k] = Array.new }
+                widgets = Vizkit.default_loader.available_widgets
+                widgets.each do |widget|
+                    Vizkit.default_loader.registered_for(widget).each do |type_name|
+                        klass =
+                            if Vizkit.default_loader.vizkit3d_widgets.include?(widget)
+                                Rock::Doc::Vizkit3DWidget
+                            else
+                                Rock::Doc::VizkitWidget
+                            end
+
+                        orogen_type_vizkit[type_name] << klass.new(widget)
+                    end
+                end
+
+                @orogen_type_vizkit3d = Hash.new { |h, k| h[k] = Array.new }
+                Vizkit.vizkit3d_widget.plugins.each do |libname, plugin_name| 
+                    plugin = Vizkit::vizkit3d_widget.createPlugin(libname, plugin_name)
+                    plugin.plugins.each_value do |adapter|
+                        orogen_type_vizkit3d[adapter.expected_ruby_type.name] << plugin
+                    end
+                end
 
             end
 
