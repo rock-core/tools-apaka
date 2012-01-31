@@ -260,18 +260,23 @@ module Rock
                         next
                     end
                 end.compact
+
                 @orogen_types = Orocos.available_types.keys.sort.map do |type_name|
-                    begin
-                        PackageDirectory.debug "loading typekit for #{type_name}"
-                        Orocos.load_typekit_for(type_name, false)
-                    rescue Interrupt; raise
-                    rescue Exception => e
-                        PackageDirectory.warn "cannot load typekit for #{type_name}: #{e.message}"
-                        next
-                    end
+                    typekit =
+                        begin
+                            PackageDirectory.debug "loading typekit for #{type_name}"
+                            Orocos.load_typekit_for(type_name, false)
+                        rescue Interrupt; raise
+                        rescue Exception => e
+                            PackageDirectory.warn "cannot load typekit for #{type_name}: #{e.message}"
+                            next
+                        end
 
                     type = Orocos.registry.get(type_name)
-                    if !(type <= Typelib::ArrayType)
+                    if typekit.m_type?(type)
+                        PackageDirectory.debug "ignoring #{type_name}: is an m-type"
+                        next
+                    elsif !(type <= Typelib::ArrayType)
                         type
                     else
                         PackageDirectory.debug "ignoring #{type.name}: is an array"
