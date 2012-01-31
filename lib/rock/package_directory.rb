@@ -179,6 +179,7 @@ module Rock
                     raise
                 else
                     PackageDirectory.debug "did not generate link to #{text}(#{obj})"
+                    text
                 end
             end
 
