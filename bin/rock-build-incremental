@@ -2,6 +2,11 @@
 
 source rock-build-common.sh
 
+if test "x$1" = "xdev"; then
+    USE_PRERELEASE=true
+    shift
+fi
+
 BUILDCONF_GIT=$1
 BUILDCONF_FILE=$2
 MAIL_HEADER=$3

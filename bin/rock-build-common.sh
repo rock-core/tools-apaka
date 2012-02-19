@@ -60,6 +60,10 @@ update() {
     fi
     cd dev
     
+    if test "x$USE_PRERELEASE" = "xtrue"; then
+	BOOTSTRAP_ARGS="dev"
+    fi
+
     # Check if we do need to bootstrap
     if ! test -d autoproj; then
         # do NOT run apt-get update, as it will cause problems in environments
@@ -71,12 +75,16 @@ update() {
 	# sudo apt-get -y install ruby rubygems wget
 	rm -f autoproj_bootstrap
 	wget http://rock-robotics.org/autoproj_bootstrap
-	ruby autoproj_bootstrap --no-color git $BUILDCONF_GIT
+	ruby autoproj_bootstrap $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
     fi
     
     . ./env.sh
     if test -n "$BUILDCONF_FILE"; then
         cp -f $BUILDCONF_FILE autoproj/config.yml
+    fi
+
+    if test "x$USE_PRERELEASE" = "xtrue"; then
+	gem install --prerelease autobuild autoproj
     fi
     autoproj full-build --no-color $COMMON_ARGS
 }
