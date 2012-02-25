@@ -31,7 +31,7 @@ remaining  = parser.parse(ARGV)
 output_dir = remaining.shift
 api_dir    = remaining.shift
 if !output_dir
-    puts opt
+    puts parser
     exit 1
 end
 
