@@ -4,6 +4,7 @@ base_dir = File.expand_path('../lib', File.dirname(__FILE__))
 $LOAD_PATH.unshift base_dir
 
 PAGES_DIR = File.join(base_dir, 'rock', 'pages', 'package_directory')
+ENV['VIZKIT_NO_GUI'] = '1'
 
 require 'autoproj'
 require 'autoproj/cmdline'
