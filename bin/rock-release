@@ -7,7 +7,7 @@ echo "generating next-to-stable update report in ../stable-$date.page"
 rock-status next stable ../stable-$date.page
 
 echo "tagging stable-$date"
-autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git tag -d stable-$date
+( set +e; autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git tag -d stable-$date; echo )
 autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git tag stable-$date
 echo "pushing tag"
 autoproj query 'vcs.type=git:package_set.name~rock' --format '$SRCDIR' | xargs -n1 -IDIR git --git-dir=DIR/.git push --tags
