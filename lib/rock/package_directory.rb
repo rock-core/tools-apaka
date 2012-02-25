@@ -33,6 +33,7 @@ module Rock
             def initialize(output_dir)
                 @output_dir = File.expand_path(output_dir)
                 @generated_indexes = Set.new
+                @handle_vizkit = false
             end
 
             @templates = Hash.new
@@ -232,6 +233,8 @@ module Rock
             attr_reader :orogen_type_vizkit
             attr_reader :orogen_type_vizkit3d
 
+            attr_predicate :handle_vizkit?, true
+
             def prepare
                 @autoproj_packages = Autoproj.manifest.packages.values.sort_by(&:name).
                     find_all { |pkg| File.directory?(pkg.autobuild.srcdir) }
@@ -286,28 +289,28 @@ module Rock
                 end.compact
 
                 @orogen_type_vizkit = Hash.new { |h, k| h[k] = Array.new }
-                widgets = Vizkit.default_loader.available_widgets
-                widgets.each do |widget|
-                    Vizkit.default_loader.registered_for(widget).each do |type_name|
-                        klass =
-                            if Vizkit.default_loader.vizkit3d_widgets.include?(widget)
-                                Rock::Doc::Vizkit3DWidget
-                            else
-                                Rock::Doc::VizkitWidget
-                            end
-
-                        orogen_type_vizkit[type_name] << klass.new(widget)
-                    end
-                end
-
                 @orogen_type_vizkit3d = Hash.new { |h, k| h[k] = Array.new }
-                Vizkit.vizkit3d_widget.plugins.each do |libname, plugin_name| 
-                    plugin = Vizkit::vizkit3d_widget.createPlugin(libname, plugin_name)
-                    plugin.plugins.each_value do |adapter|
-                        orogen_type_vizkit3d[adapter.expected_ruby_type.name] << plugin
+                if handle_vizkit?
+                    widgets = Vizkit.default_loader.available_widgets
+                    widgets.each do |widget|
+                        Vizkit.default_loader.registered_for(widget).each do |type_name|
+                            klass =
+                                if Vizkit.default_loader.vizkit3d_widgets.include?(widget)
+                                    Rock::Doc::Vizkit3DWidget
+                                else
+                                    Rock::Doc::VizkitWidget
+                                end
+
+                            orogen_type_vizkit[type_name] << klass.new(widget)
+                        end
+                    end
+                    Vizkit.vizkit3d_widget.plugins.each do |libname, plugin_name| 
+                        plugin = Vizkit::vizkit3d_widget.createPlugin(libname, plugin_name)
+                        plugin.plugins.each_value do |adapter|
+                            orogen_type_vizkit3d[adapter.expected_ruby_type.name] << plugin
+                        end
                     end
                 end
-
             end
 
             def render_autoproj_packages(match = nil)
