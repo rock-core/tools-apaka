@@ -174,7 +174,7 @@ module Rock
                 text = Doc::HTML.escape_html(text)
 
                 if relative_path
-                    "<a href=\"/#{relative_path}}\">#{text}</a>"
+                    "<a href=\"/#{relative_path}\">#{text}</a>"
                 elsif relative_path.nil?
                     PackageDirectory.warn "cannot generate link to #{text}(#{obj})"
                     raise
