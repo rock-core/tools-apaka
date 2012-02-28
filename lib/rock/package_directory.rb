@@ -353,7 +353,7 @@ module Rock
                 result = YAML::Omap.new
                 autoproj_packages.each do |pkg|
                     if has_api?(pkg)
-                        result << ["/#{api_base_url}/#{pkg.name}", nil]
+                        result << ["#{api_base_url}/#{pkg.name}", nil]
                    end
                 end
                 if !result.empty?
