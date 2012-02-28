@@ -43,6 +43,7 @@ Orocos.load
 package_directory = Rock::Doc::PackageDirectory.new(output_dir)
 package_directory.api_dir = api_dir
 package_directory.prepare
+package_directory.render_api_virtual
 package_directory.render_autoproj_packages
 package_directory.render_autoproj_package_sets
 package_directory.render_autoproj_osdeps

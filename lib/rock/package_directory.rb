@@ -347,6 +347,20 @@ module Rock
                 end
             end
 
+            def render_api_virtual
+                return if !api_dir
+
+                result = YAML::Omap.new
+                autoproj_packages.each do |pkg|
+                    if has_api?(pkg)
+                        result << ["/#{api_base_url}/#{pkg.name}", nil]
+                   end
+                end
+                if !result.empty?
+                    write_file('api.virtual', "\\" + YAML.dump(result))
+                end
+            end
+
             def render_autoproj_packages(match = nil)
                 if match
                     packages = autoproj_packages.find_all { |pkg| pkg.name =~ match }
