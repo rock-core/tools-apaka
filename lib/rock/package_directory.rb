@@ -81,6 +81,16 @@ module Rock
                 def render_object(object, *template_path)
                     package_directory.render_object(object, *template_path)
                 end
+
+                @@help_id = 0
+                def self.allocate_help_id
+                    @@help_id += 1
+                end
+
+                def help_tip(doc)
+                    id = RenderingContextExtension.allocate_help_id
+                    "<span class=\"help_trigger\" id=\"#{id}\"><img src=\"{relocatable: /img/help.png}\" /></span><div class=\"help\" id=\"help_#{id}\">#{doc}</div>"
+                end
             end
 
             def rendering_context_for(object)
