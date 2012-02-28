@@ -30,10 +30,20 @@ module Rock
             # used to generate them only once per session
             attr_reader :generated_indexes
 
+            # If set, the API documentation for a package is supposed to be
+            # stored in api_dir/package/name. The associated information can be
+            # retrieved with has_api? and api_link
+            attr_accessor :api_dir
+
+            # If set, this is the website-relative path of the API directory. It
+            # defaults to "/api"
+            attr_accessor :api_base_url
+
             def initialize(output_dir)
                 @output_dir = File.expand_path(output_dir)
                 @generated_indexes = Set.new
                 @handle_vizkit = false
+                @api_base_url = "/api"
             end
 
             @templates = Hash.new
@@ -185,7 +195,13 @@ module Rock
             end
 
             def has_api?(pkg)
-                false
+                if api_dir
+                    File.directory?(File.join(api_dir, *pkg.name.split('/')))
+                end
+            end
+
+            def api_link(pkg, text)
+                "<a href=\"{relocatable: #{File.join(api_base_url, pkg.name)}}\">#{text}</a>"
             end
 
             def prepare_sections(objects, index, root_dir, separator, name_path, section_path, template)
