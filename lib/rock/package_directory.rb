@@ -147,7 +147,11 @@ module Rock
                 relative_path = nil
                 case obj
                 when Orocos::Spec::TaskContext
-                    relative_path = "tasks/#{obj.name}.html"
+                    if Orocos.available_task_models.include?(obj.name)
+                        relative_path = "tasks/#{obj.name}.html"
+                    else
+                        return obj.name
+                    end
                 when Autoproj::PackageSet
                     relative_path = "sets/#{obj.name.gsub('.', '_')}.html"
                 when Autoproj::PackageDefinition
@@ -168,6 +172,10 @@ module Rock
                             return "#{link_to(obj.deference)}[#{obj.length}]"
                         elsif obj <= Typelib::ContainerType
                             return "#{Doc::HTML.escape_html(obj.container_kind)}&lt;#{link_to(obj.deference)}&gt;"
+                        elsif !orogen_types.include?(obj)
+                            if opaque = Orocos.master_project.find_opaque_for_intermediate(obj)
+                                return link_to(opaque)
+                            end
                         end
 
                         relative_path = "types/#{typename_to_path(obj, "html")}"
@@ -176,15 +184,15 @@ module Rock
                     relative_path = false
                 end
 
-                text =
-                    if obj.respond_to?(:name)
-                        obj.name
-                    else obj.to_s
-                    end
-                text = Doc::HTML.escape_html(text)
-
                 if relative_path
-                    "<a href=\"{relocatable: /pkg/#{relative_path}}\">#{text}</a>"
+                    text =
+                        if obj.respond_to?(:name)
+                            obj.name
+                        else obj.to_s
+                        end
+                    text = Doc::HTML.escape_html(text)
+
+                    "<a href=\"{relocatable: /#{relative_path}}\">#{text}</a>"
                 elsif relative_path.nil?
                     PackageDirectory.warn "cannot generate link to #{text}(#{obj})"
                     raise
@@ -302,7 +310,7 @@ module Rock
                         PackageDirectory.debug "ignoring #{type.name}: is an array"
                         nil
                     end
-                end.compact
+                end.compact.to_value_set
 
                 @orogen_type_vizkit = Hash.new { |h, k| h[k] = Array.new }
                 @orogen_type_vizkit3d = Hash.new { |h, k| h[k] = Array.new }
@@ -421,6 +429,7 @@ module Rock
             end
 
             def render_orogen_types
+                orogen_types = self.orogen_types.sort_by(&:name)
                 write_index(orogen_types,
                             File.join('types', 'index.page'), 'orogen_type_list.page',
                            :title => 'oroGen Types Index',
