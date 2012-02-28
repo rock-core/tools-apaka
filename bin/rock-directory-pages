@@ -62,9 +62,11 @@ begin
         end
     end
 ensure
-    ENV['ROCK_FORCE_FLAVOR'] = initial_flavor
-    if !system('autoproj', 'update', '--no-osdeps')
-        raise "could not reset the current state to the initial flavor #{initial_flavor}"
+    if ENV['ROCK_FORCE_FLAVOR'] && ENV['ROCK_FORCE_FLAVOR'] != initial_flavor
+        ENV['ROCK_FORCE_FLAVOR'] = initial_flavor
+        if !system('autoproj', 'update', '--no-osdeps')
+            raise "could not reset the current state to the initial flavor #{initial_flavor}"
+        end
     end
 end
 
