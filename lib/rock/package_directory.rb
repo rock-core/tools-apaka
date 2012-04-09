@@ -81,6 +81,12 @@ module Rock
                 def render_object(object, *template_path)
                     package_directory.render_object(object, *template_path)
                 end
+                def has_api?(pkg)
+                    package_directory.has_api?(pkg)
+                end
+                def api_link(pkg, text)
+                    package_directory.api_link(pkg, text)
+                end
 
                 @@help_id = 0
                 def self.allocate_help_id
