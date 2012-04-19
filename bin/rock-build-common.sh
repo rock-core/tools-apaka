@@ -74,7 +74,7 @@ update() {
         # Instead, setup a separate task that does the update for you
 	# sudo apt-get update
 	# sudo apt-get -y install ruby rubygems wget
-	rm -f autoproj_bootstrap
+	rm -f autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 	wget http://rock-robotics.org/autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 
 	ruby autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
