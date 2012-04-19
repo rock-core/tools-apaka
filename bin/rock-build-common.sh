@@ -62,6 +62,7 @@ update() {
     
     if test "x$USE_PRERELEASE" = "xtrue"; then
 	BOOTSTRAP_ARGS="dev"
+	BOOTSTRAP_SCRIPT_SUFFIX="-dev"
     fi
 
     # Check if we do need to bootstrap
@@ -74,8 +75,9 @@ update() {
 	# sudo apt-get update
 	# sudo apt-get -y install ruby rubygems wget
 	rm -f autoproj_bootstrap
-	wget http://rock-robotics.org/autoproj_bootstrap
-	ruby autoproj_bootstrap $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
+	wget http://rock-robotics.org/autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
+
+	ruby autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
     fi
     
     . ./env.sh
