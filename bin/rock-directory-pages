@@ -51,22 +51,45 @@ package_directory.render_orogen_types
 package_directory.render_orogen_tasks
 
 initial_flavor = YAML.load(File.read(File.join("autoproj", "config.yml")))['ROCK_FLAVOR']
+
+ret_code = 0
 begin
     generate_status.each_with_index do |(from, to), sort_info|
+        failed_update = false
         ENV['ROCK_FORCE_FLAVOR'] = from
-        if !system('autoproj', 'update', '--no-osdeps')
-            raise "could not reset the current state to flavor #{from}"
+        if !system('autoproj', 'update', '--no-osdeps', '-k')
+            failed_update = true
+            STDERR.puts "could not reset the current state to flavor #{from}"
+            ret_code = 2
         end
-        if !system('rock-status', '--sort', (2000 + sort_info).to_s, from, to, File.join(output_dir, "status_#{from}_#{to}.page"))
-            raise "rock-status #{from} #{to} failed"
+        outfile = File.join(output_dir, "status_#{from}_#{to}.page")
+        if !system('rock-status', '--sort', (2000 + sort_info).to_s, from, to, outfile)
+            if failed_update
+                lines = File.readlines(outfile)
+                lines = lines[0, 4] +
+                    [
+                        "This status update is incomplete as the generation process failed.\n",
+                        "It might contain less commits / updates than there should be\n",
+                        "{: .warning}\n"] +
+                    lines[4..-1]
+                File.open(outfile, 'w') do |io|
+                    io.write(lines.join(""))
+                end
+            end
+            STDERR.puts "rock-status #{from} #{to} failed"
+            ret_code = 2
         end
     end
 ensure
     if ENV['ROCK_FORCE_FLAVOR'] && ENV['ROCK_FORCE_FLAVOR'] != initial_flavor
         ENV['ROCK_FORCE_FLAVOR'] = initial_flavor
         if !system('autoproj', 'update', '--no-osdeps')
-            raise "could not reset the current state to the initial flavor #{initial_flavor}"
+            STDERR.puts "could not reset the current state to the initial flavor #{initial_flavor}"
+            # Do not override the retcode 2
+            if ret_code == 0
+                ret_code = 3
+            end
         end
     end
 end
-
+exit ret_code
