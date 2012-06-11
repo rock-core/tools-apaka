@@ -79,6 +79,13 @@ update() {
 
 	ruby1.8 autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
     fi
+
+    #workaround for solving network problems on our build server build01
+    if [ `hostname -s` = "build01" ]; then
+	echo "!!patching autoporj and autobuild to retry reaching gitorious multiple times before failing!!!"
+	cp /home/build/rock_admin_scripts/patches/gitorious.rb .gems/gems/autoproj-1.7.20/lib/autoproj/
+	cp /home/build/rock_admin_scripts/patches/importer.rb .gems/gems/autobuild-1.5.61/lib/autobuild/
+    fi
     
     . ./env.sh
     if test -n "$BUILDCONF_FILE"; then
