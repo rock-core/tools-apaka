@@ -20,7 +20,7 @@ projects.each do |proj_name|
 
     repositories.each do |repo_name|
         clone_to = File.join(dest_path, proj_name, "#{repo_name.name}.git")
-        system("git", "clone", "--bare", "--mirror", "git://#{hostname}#{repo_name.path}.git", clone_to)
+        system("git", "clone", "--bare", "--mirror","-q", "git://#{hostname}#{repo_name.path}.git", clone_to)
     end
 end
 

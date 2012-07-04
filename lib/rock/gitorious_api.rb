@@ -25,6 +25,13 @@ class Gitorious
                 array << NamePath.new(name,path)
             end
         end
+        body.scan(/<h5><a href="(.*)">(.*)<\/a><\/h5>/) do |path,name|
+            if reg
+                array << NamePath.new(name,path) if name.match(reg)
+            else
+                array << NamePath.new(name,path)
+            end
+        end
         return array
     end
 
@@ -33,6 +40,9 @@ class Gitorious
         array = Array.new
         body = raw_file(http_uri+project)
         body.scan(/<h3 mainline>.*\n.*<a href="(.*)">(.*)<\/a>/) do |path,name|
+            array << NamePath.new(name,path)
+        end
+        body.scan(/<h5 mainline>.*\n.*<a href="(.*)">(.*)<\/a>.*href.*/) do |path,name|
             array << NamePath.new(name,path)
         end
         return array
