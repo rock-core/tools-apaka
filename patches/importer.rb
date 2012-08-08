@@ -167,6 +167,7 @@ class Importer
 
     # Tries to find a fallback importer because of the given error.
     def fallback(error, package, *args, &block)
+        puts "Error Code #{error.status}" if error.respond_to?(:status)
         Importer.fallback_handlers.each do |handler|
             fallback_importer = handler.call(package, self)
             if fallback_importer.kind_of?(Importer)
