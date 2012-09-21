@@ -64,7 +64,7 @@ if ! test "$ROCK_DOC_API" = "0"; then
     echo "copying API documentation to $target_dir/api"
     cp -r install/doc $target_dir/api
     
-    autoproj_version=`$GEM_HOME/bin/autoproj --version | sed 's/autoproj.*v//'`
+    autoproj_version=`$GEM_HOME/bin/autoproj --version | grep 'autoproj' | sed 's/autoproj.*v//'`
     autoproj_api_dir=$GEM_HOME/doc/autoproj-$autoproj_version
     if test -d $autoproj_api_dir; then
         echo "copying autoproj API documentation to $target_dir/api/autoproj"
