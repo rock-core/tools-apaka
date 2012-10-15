@@ -64,7 +64,7 @@ if ! test "$ROCK_DOC_API" = "0"; then
     echo "copying API documentation to $target_dir/api"
     cp -r install/doc $target_dir/api
     
-    autoproj_version=`$GEM_HOME/bin/autoproj --version | grep 'autoproj' | sed 's/autoproj.*v//'`
+    autoproj_version=`ruby -e "require 'autoproj'; puts Autoproj::VERSION"`
     autoproj_api_dir=$GEM_HOME/doc/autoproj-$autoproj_version
     if test -d $autoproj_api_dir; then
         echo "copying autoproj API documentation to $target_dir/api/autoproj"
@@ -73,7 +73,7 @@ if ! test "$ROCK_DOC_API" = "0"; then
         echo "could not find the autoproj API in $autoproj_api_dir"
     fi
     
-    autobuild_version=`$GEM_HOME/bin/autobuild --version | sed 's/autobuild.*v//'`
+    autobuild_version=`ruby -e "require 'autobuild'; puts autobuild::VERSION"`
     autobuild_api_dir=$GEM_HOME/doc/autobuild-$autobuild_version
     if test -d $autobuild_api_dir; then
         echo "copying autobuild API documentation to $target_dir/api/autobuild"
