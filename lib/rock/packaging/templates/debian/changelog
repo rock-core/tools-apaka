@@ -1,0 +1,5 @@
+<%= debian_name %> (<%= debian_version %>) unstable; urgency=low
+
+  * Package automatically built using autoproj-package debian
+
+ -- Packaging Daemon <rock-dev@dfki.de>  Mon, 10 Sep 2012 17:01:58 +0200

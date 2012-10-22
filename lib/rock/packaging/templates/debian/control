@@ -1,0 +1,36 @@
+Source: <%= debian_name %>
+Section: science
+Priority: extra
+Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
+% dependencies = (deps_rock_packages + deps_osdeps_packages)
+% build_dependencies = dependencies.dup
+% if package.class == Autobuild::CMake
+%     build_dependencies << "cmake"
+% else
+%     raise "cannot handle package type #{package.class} for #{package.name}"
+% end
+%
+Build-Depends: cdbs, debhelper (>= 8.0.0), <%= build_dependencies.sort.join(", ") %>
+Standards-Version: 3.9.2
+Homepage: http://rock-robotics.org
+#Vcs-Git: git://git.debian.org/collab-maint/bla.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/bla.git;a=summary
+
+Package: <%= debian_name %>
+Architecture: any
+<% runtime_dependencies = dependencies.find_all { |name| name !~ /-dev$/ } %>
+<% if runtime_dependencies.empty?  %>
+Depends: ${shlibs:Depends}
+<% else %>
+Depends: ${shlibs:Depends}, <%= runtime_dependencies.join(", ") %>
+<% end %>
+Description: <%= package.description.short_documentation.split("\n").join(" ").strip %>
+% documentation = package.description.documentation.split("\n").map do |l|
+%      l = l.strip
+%      if l.empty?
+%        l = "."
+%      end
+%      l
+%    end.join("\n  ")
+ <%= documentation %>
+

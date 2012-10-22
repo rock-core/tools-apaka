@@ -1,0 +1,57 @@
+#! /usr/bin/env ruby
+require 'rock/packaging/debian'
+
+osc_dir = nil
+options = OptionParser.new do |opt|
+    opt.on("--osc DIR", String, "OpenBuildService checkout in which the generated packages should be registered") do |dir|
+        osc_dir = dir
+    end
+end
+remaining = options.parse(ARGV)
+
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(remaining)
+selection = Autoproj.manifest.all_selected_packages
+
+packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+selection.each do |pkg_name|
+    pkg = Autoproj.manifest.package(pkg_name).autobuild
+    files = begin packager.package(pkg)
+            rescue Interrupt
+                raise
+            rescue Exception => e
+                puts "failed to package #{pkg.name}: #{e.message}"
+                next
+            end
+
+    if osc_dir
+        pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
+        if !File.directory?(pkg_osc_dir)
+            system("osc add #{pkg_osc_dir}")
+        end
+        # Remove files that are not lised in "files"
+        patterns = packager.file_patterns.map do |p|
+            File.join(pkg_osc_dir, p)
+        end
+        Dir.glob(patterns) do |existing_path|
+            if !files.include?(File.basename(existing_path))
+                puts "deleting #{existing_path}: not present in the current packaging"
+                FileUtils.rm _f existing_path
+                system("osc rm #{existing_path}")
+            end
+        end
+        # Add the new unchanged files
+        files.each do |path|
+            target_file = File.join(pkg_osc_dir, path)
+            if File.exists?(target_file) && (File.read(path) != File.read(target_file))
+                puts "#{target_file} is unchanged, skipping"
+            else
+                puts "adding/updating #{target_file}"
+                FileUtils.mv path, pkg_osc_dir
+                system("osc add #{File.join(pkg_osc_dir, path)}")
+            end
+        end
+        system("osc ci #{pkg_osc_dir} -m \"autopackaged using autoproj-packaging tools\"")
+    end
+end
+

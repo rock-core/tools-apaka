@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+<%=
+   if package.class == Autobuild::CMake
+       "include /usr/share/cdbs/1/class/cmake.mk"
+   else
+       raise "cannot handle package type #{package.class} for #{package.name}"
+   end
+%>
