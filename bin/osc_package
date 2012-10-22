@@ -43,11 +43,16 @@ selection.each do |pkg_name|
         # Add the new unchanged files
         files.each do |path|
             target_file = File.join(pkg_osc_dir, path)
-            if File.exists?(target_file) && (File.read(path) == File.read(target_file))
-                puts "#{target_file} is unchanged, skipping"
+            exists = File.exists?(target_file)
+            if exists 
+                if File.read(path) == File.read(target_file))
+                    puts "#{target_file} is unchanged, skipping"
+                else
+                    puts "updating #{target_file}"
+                    FileUtils.mv path, pkg_osc_dir
+                end
             else
-                puts "adding/updating #{target_file}"
-                FileUtils.mv path, pkg_osc_dir
+                puts "adding #{target_file}"
                 system("osc add #{File.join(pkg_osc_dir, path)}")
             end
         end
