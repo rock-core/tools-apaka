@@ -10,7 +10,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     raise "cannot handle package type #{package.class} for #{package.name}"
 % end
 %
-Build-Depends: cdbs, debhelper (>= 8.0.0), <%= build_dependencies.sort.join(", ") %>
+Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, <%= build_dependencies.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: http://rock-robotics.org
 #Vcs-Git: git://git.debian.org/collab-maint/bla.git
