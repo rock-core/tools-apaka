@@ -18,7 +18,7 @@ Homepage: http://rock-robotics.org
 
 Package: <%= debian_name %>
 Architecture: any
-<% runtime_dependencies = dependencies.find_all { |name| name !~ /-dev$/ } %>
+<% runtime_dependencies = dependencies.dup %>
 <% if runtime_dependencies.empty?  %>
 Depends: ${shlibs:Depends}
 <% else %>
