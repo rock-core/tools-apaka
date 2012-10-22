@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+CMAKE = PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/cmake/rock cmake
+DEB_CMAKE_INSTALL_PREFIX = /opt/rock
 include /usr/share/cdbs/1/rules/debhelper.mk
 <%=
    if package.class == Autobuild::CMake
