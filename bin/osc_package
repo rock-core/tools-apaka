@@ -27,6 +27,7 @@ selection.each do |pkg_name|
     if osc_dir
         pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
         if !File.directory?(pkg_osc_dir)
+            FileUtils.mkdir_p pkg_osc_dir
             system("osc add #{pkg_osc_dir}")
         end
         # Remove files that are not lised in "files"
