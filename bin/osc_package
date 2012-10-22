@@ -35,7 +35,7 @@ selection.each do |pkg_name|
         Dir.glob(patterns) do |existing_path|
             if !files.include?(File.basename(existing_path))
                 puts "deleting #{existing_path}: not present in the current packaging"
-                FileUtils.rm _f existing_path
+                FileUtils.rm_f existing_path
                 system("osc rm #{existing_path}")
             end
         end
