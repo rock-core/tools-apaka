@@ -11,7 +11,6 @@ module Autoproj
                 pkg.srcdir = dir_name(pkg)
                 pkg.importer.import(pkg)
 
-                FileUtils.rm_rf File.join(pkg.srcdir, ".git")
                 Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
                     FileUtils.rm_f file
                 end
@@ -97,11 +96,11 @@ module Autoproj
 
                 # First, generate the source tarball
                 tarball = "#{dir_name}.orig.tar.gz"
-                system("tar czf #{tarball} --exclude debian #{File.basename(pkg.srcdir)}")
+                system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian #{File.basename(pkg.srcdir)}")
                 # Generate the debian directory
                 generate_debian_dir(pkg, pkg.srcdir)
                 # Run dpkg-source
-                system("dpkg-source", "-b", pkg.srcdir)
+                system("dpkg-source", "-I", "-b", pkg.srcdir)
                 ["#{versioned_name(pkg)}.debian.tar.gz",
                  "#{versioned_name(pkg)}.orig.tar.gz",
                  "#{versioned_name(pkg)}.dsc"]
