@@ -11,7 +11,6 @@ remaining = options.parse(ARGV)
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(remaining)
-selection = Autoproj.manifest.all_selected_packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 selection.each do |pkg_name|
