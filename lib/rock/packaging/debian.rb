@@ -17,7 +17,7 @@ module Autoproj
             end
 
             def self.osc_package_name(pkg)
-                "rock-" + pkg.name.gsub(/[\/_]/, '-')
+                "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
             end
         end
 
@@ -31,7 +31,7 @@ module Autoproj
             end
 
             def debian_name(pkg)
-                "rock-" + pkg.name.gsub(/[\/_]/, '-')
+                "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
             end
 
             def debian_version(pkg)
