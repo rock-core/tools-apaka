@@ -15,6 +15,7 @@ remaining = options.parse(ARGV)
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(remaining)
+selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 Autobuild.do_update = true
