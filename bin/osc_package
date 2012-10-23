@@ -14,8 +14,9 @@ selection = Autoproj::CmdLine.initialize_and_load(remaining)
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 Autobuild.do_update = true
-selection.each do |pkg_name|
+selection.each_with_index do |pkg_name, i|
     pkg = Autoproj.manifest.package(pkg_name).autobuild
+    puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
     files = begin packager.package(pkg)
             rescue Interrupt
                 raise
