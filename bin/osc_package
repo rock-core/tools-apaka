@@ -30,6 +30,11 @@ selection.each_with_index do |pkg_name, i|
     end
 
     puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+    pkg.importer.import(pkg)
+    if File.file?(File.join(pkg.srcdir, "CMakeLists.txt")) && File.read(File.join(pkg.srcdir, "CMakeLists.txt")) =~ /include\(Rock\)|Rock\.cmake/
+        pkg.depends_on "base/types"
+    end
+
     files = begin packager.package(pkg)
             rescue Interrupt
                 raise
