@@ -2,7 +2,11 @@
 require 'rock/packaging/debian'
 
 osc_dir = nil
+skip = false
 options = OptionParser.new do |opt|
+    opt.on('--skip', 'Skip existing packages') do
+        skip = true
+    end
     opt.on("--osc DIR", String, "OpenBuildService checkout in which the generated packages should be registered") do |dir|
         osc_dir = dir
     end
@@ -16,6 +20,15 @@ packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"
 Autobuild.do_update = true
 selection.each_with_index do |pkg_name, i|
     pkg = Autoproj.manifest.package(pkg_name).autobuild
+
+    if skip && osc_dir
+        pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
+        if File.directory?(pkg_osc_dir)
+            puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
+            next
+        end
+    end
+
     puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
     files = begin packager.package(pkg)
             rescue Interrupt
