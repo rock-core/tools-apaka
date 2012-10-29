@@ -8,6 +8,9 @@ module Autoproj
                 pkg.importer.import(pkg)
                 Autoproj.manifest.load_package_manifest(pkg.name)
 
+                if pkg.importer.kind_of?(Autobuild::Git)
+                    pkg.importer.repository = pkg.srcdir
+                end
                 pkg.srcdir = dir_name(pkg)
                 pkg.importer.import(pkg)
 
