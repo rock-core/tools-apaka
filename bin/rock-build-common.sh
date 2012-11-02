@@ -89,7 +89,9 @@ update() {
 	gem install --prerelease autobuild autoproj
     fi
     # To track which versions of autoproj/autobuild are used
-    ( set +e; autoproj --version )
+    set +e
+    autoproj --version
+    set -e
     autoproj full-build --no-color $COMMON_ARGS
 }
 
