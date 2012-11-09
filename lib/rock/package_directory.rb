@@ -189,8 +189,11 @@ module Rock
                         elsif obj <= Typelib::ContainerType
                             return "#{Doc::HTML.escape_html(obj.container_kind)}&lt;#{link_to(obj.deference)}&gt;"
                         elsif !orogen_types.include?(obj)
-                            if opaque = Orocos.master_project.find_opaque_for_intermediate(obj)
+                            opaque = Orocos.master_project.find_opaque_for_intermediate(obj)
+                            if opaque != obj
                                 return link_to(opaque)
+                            else
+                                raise "unknown type found: #{obj}"
                             end
                         end
 
@@ -317,7 +320,7 @@ module Rock
                         end
 
                     type = Orocos.registry.get(type_name)
-                    if typekit.m_type?(type)
+                    if typekit.m_type?(type) && (Orocos.master_project.find_opaque_for_intermediate(type) != type)
                         PackageDirectory.debug "ignoring #{type_name}: is an m-type"
                         next
                     elsif !(type <= Typelib::ArrayType)
