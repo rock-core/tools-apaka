@@ -77,7 +77,7 @@ update() {
 	rm -f autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 	wget http://rock-robotics.org/autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 
-	ruby1.8 autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
+	$RUBY autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
     fi
     
     . ./env.sh

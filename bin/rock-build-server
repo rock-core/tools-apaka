@@ -8,6 +8,10 @@ MAIL_HEADER=$3
 MAIL_ADDRESS=$4
 MAIL_SMTP=$5
 
+
+if test -z "$RUBY"; then
+    RUBY=ruby1.8
+fi
 argument_checks
 delete_artifacts
 update
