@@ -38,7 +38,7 @@ prepare_buildconf_git() {
 if test -f "$BUILDCONF_FILE"; then    
 
     rm -rf buildconf
-    git clone $BUILDCONF_GIT buildconf
+    git clone -b $BUILDCONF_BRANCH $BUILDCONF_GIT buildconf
     cd buildconf
     cp -f $BUILDCONF_FILE config.yml
     git add -f config.yml
@@ -77,7 +77,7 @@ update() {
 	rm -f autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 	wget http://rock-robotics.org/autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX
 
-	$RUBY autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT
+	$RUBY autoproj_bootstrap$BOOTSTRAP_SCRIPT_SUFFIX $BOOTSTRAP_ARGS --no-color git $BUILDCONF_GIT branch=$BUILDCONF_BRANCH
     fi
     
     . ./env.sh
