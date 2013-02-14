@@ -160,6 +160,10 @@ module Rock
             end
 
             def link_to(obj)
+                if !obj
+                    raise "got nil !"
+                end
+
                 relative_path = nil
                 case obj
                 when Orocos::Spec::TaskContext
@@ -214,7 +218,7 @@ module Rock
                     "<a href=\"{relocatable: /#{relative_path}}\">#{text}</a>"
                 elsif relative_path.nil?
                     PackageDirectory.warn "cannot generate link to #{text}(#{obj})"
-                    raise
+                    raise "cannot generate link to #{text}(#{obj})"
                 else
                     PackageDirectory.debug "did not generate link to #{text}(#{obj})"
                     text
