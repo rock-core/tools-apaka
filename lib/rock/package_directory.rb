@@ -194,10 +194,10 @@ module Rock
                             return "#{Doc::HTML.escape_html(obj.container_kind)}&lt;#{link_to(obj.deference)}&gt;"
                         elsif !orogen_types.include?(obj)
                             opaque = Orocos.master_project.find_opaque_for_intermediate(obj)
-                            if opaque != obj
+                            if opaque != obj && opaque
                                 return link_to(opaque)
                             else
-                                raise "unknown type found: #{obj}"
+                                raise "unknown type found: #{obj} from registry #{obj.registry}"
                             end
                         end
 
