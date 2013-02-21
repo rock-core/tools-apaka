@@ -19,7 +19,7 @@ tagcloud = render_tagcloud(all_tags)
 package_list_items = packages.sort_by(&:name).map do |pkg|
     tags, short_doc = [], ""
     if m = pkg.autobuild.description
-        tags = m.tags.sort
+        tags = m.tags.sort.join(",")
         short_doc = m.short_documentation
     end
 
