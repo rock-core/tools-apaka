@@ -36,7 +36,9 @@ if !output_dir
     exit 1
 end
 
-Autoproj::CmdLine.initialize_and_load([])
+Autoproj.silent do
+    Autoproj::CmdLine.initialize_and_load([])
+end
 require 'orocos'
 Orocos.load
 
