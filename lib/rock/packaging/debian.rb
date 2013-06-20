@@ -34,7 +34,11 @@ module Autoproj
             end
 
             def debian_name(pkg)
-                "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
+                debianize_pkg_name(pkg.name)
+            end
+
+            def debianize_pkg_name(name)
+               "rock-" + name.gsub(/[\/_]/, '-').downcase
             end
 
             def debian_version(pkg)
@@ -68,15 +72,28 @@ module Autoproj
                 deps_rock_packages = pkg.dependencies.map do |pkg_name|
                     debian_name(Autoproj.manifest.package(pkg_name))
                 end.sort
+
                 osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
-                # We cannot package if there are non-native dependencies
-                native_package_manager = Autoproj.osdeps.os_package_handler
-                if wrong_handler = osdeps.find { |handler, _| handler != native_package_manager }
-                    raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{wrong_handler[1]})"
-                end
                 deps_osdeps_packages = []
                 if !osdeps.empty?
                     deps_osdeps_packages = osdeps[0][1]
+                end
+
+                # There are limitations regarding handling packages with native dependencies
+                #
+                # Currently gems need to converted into debs using gem2deb
+                # These deps dependencies are update here before uploading a package
+                native_package_manager = Autoproj.osdeps.os_package_handler
+                pkg_handler, pkg_list = osdeps.find { |handler, _| handler != native_package_manager }
+                if pkg_handler
+                    # Convert native ruby gems package names to rock-xxx  
+                    if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
+                        pkg_list.flatten.each do |name|
+                            deps_osdeps_packages << debianize_pkg_name(name)
+                        end
+                    else
+                        raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list})"
+                    end
                 end
 
                 Find.find(template_dir) do |path|
