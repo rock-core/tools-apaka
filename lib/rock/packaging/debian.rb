@@ -3,16 +3,30 @@ require 'autoproj'
 require 'tmpdir'
 module Autoproj
     module Packaging
+
+        # Directory for temporary data to 
+        # validate osc_packages
+        OSC_LOCAL_TMP = ".osc_package"
+        OSC_BUILD_DIR=File.join(Autoproj.root_dir, "build/osc")
+
         class Packager
             def prepare_source_dir(pkg)
-                pkg.importer.import(pkg)
+                Autoproj.info "Preparing source dir #{pkg.name}"
                 Autoproj.manifest.load_package_manifest(pkg.name)
 
                 if pkg.importer.kind_of?(Autobuild::Git)
                     pkg.importer.repository = pkg.srcdir
                 end
-                pkg.srcdir = dir_name(pkg)
-                pkg.importer.import(pkg)
+                pkg.srcdir = File.join(OSC_BUILD_DIR, dir_name(pkg))
+                begin 
+                    pkg.importer.import(pkg)
+                rescue Exception => e
+                    if not e.message =~ /failed in patch phase/
+                        raise
+                    else
+                        Autoproj.warn "Patching #{pkg.name} failed"
+                    end
+                end
 
                 Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
                     FileUtils.rm_f file
@@ -24,21 +38,73 @@ module Autoproj
             end
         end
 
+        class OSC
+            # Update the open build local checkout
+            # using a given checkout directory and the pkg name
+            def self.update_dir(packager, osc_dir, pkg_osc_name)
+                pkg_osc_dir = File.join(osc_dir, pkg_osc_name)
+                if !File.directory?(pkg_osc_dir)
+                    FileUtils.mkdir_p pkg_osc_dir
+                    system("osc add #{pkg_osc_dir}")
+                end
+
+                # sync the directory in build/osc and the target directory
+                files = []
+                patterns = packager.file_patterns.map do |p|
+                    puts File.join(Autoproj::Packaging::OSC_BUILD_DIR,"#{pkg_osc_name}#{p}")
+                    files << Dir.glob(File.join(Autoproj::Packaging::OSC_BUILD_DIR,"#{pkg_osc_name}#{p}"))
+                    File.join(pkg_osc_dir, p)
+                end
+                files.flatten!.uniq!
+
+                # Delete files that don't exist in the build dir 
+                Dir.glob(patterns) do |existing_path|
+                    if not File.exists?( File.join(Autoproj::Packaging::OSC_BUILD_DIR,File.basename(existing_path)) )
+                        puts "deleting #{existing_path}: not present in the current packaging"
+                        FileUtils.rm_f existing_path
+                        system("osc rm #{existing_path}")
+                    end
+                end
+
+                # Add the new unchanged files
+                files.each do |path|
+                    target_file = File.join(pkg_osc_dir, File.basename(path))
+                    exists = File.exists?(target_file)
+                    if exists 
+                        if File.read(path) == File.read(target_file)
+                            puts "#{target_file} is unchanged, skipping"
+                        else
+                            FileUtils.cp path, target_file
+                        end
+                    else
+                        FileUtils.cp path, target_file 
+                        system("osc add #{target_file}")
+                    end
+                end
+                puts "OSC: checking in #{pkg_osc_dir}"
+                system("osc ci #{pkg_osc_dir} -m \"autopackaged using autoproj-packaging tools\"")
+            end
+        end
+
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
 
             attr_reader :existing_debian_directories
 
+            # List of gems, which need to be converted to debian packages
+            attr_accessor :ruby_gems
+
             def initialize(existing_debian_directories)
                 @existing_debian_directories = existing_debian_directories
+                @ruby_gems = Array.new
             end
 
             def debian_name(pkg)
-                debianize_pkg_name(pkg.name)
+               "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
             end
 
-            def debianize_pkg_name(name)
-               "rock-" + name.gsub(/[\/_]/, '-').downcase
+            def debian_ruby_name(name)
+               "ruby-" + name.gsub(/[\/_]/, '-').downcase
             end
 
             def debian_version(pkg)
@@ -53,21 +119,9 @@ module Autoproj
                 versioned_name(pkg)
             end
 
-            def generate_debian_dir(pkg, dir)
-                existing_dir = File.join(existing_debian_directories, pkg.name)
-                template_dir = 
-                    if File.directory?(existing_dir)
-                        existing_dir
-                    else
-                        TEMPLATES
-                    end
-
-                dir = File.join(dir, "debian")
-                FileUtils.mkdir_p dir
-                package = pkg
-                debian_name = debian_name(pkg)
-                debian_version = debian_version(pkg)
-                versioned_name = versioned_name(pkg)
+            # Compute dependencies of this package
+            # Returns [rock_packages, osdeps_packages]
+            def dependencies(pkg)
                 pkg.resolve_optional_dependencies
                 deps_rock_packages = pkg.dependencies.map do |pkg_name|
                     debian_name(Autoproj.manifest.package(pkg_name))
@@ -89,12 +143,38 @@ module Autoproj
                     # Convert native ruby gems package names to rock-xxx  
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
                         pkg_list.flatten.each do |name|
-                            deps_osdeps_packages << debianize_pkg_name(name)
+                            @ruby_gems << name
+                            deps_osdeps_packages << debian_ruby_name(name)
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list})"
                     end
                 end
+
+                # Remove duplicates
+                @ruby_gems.uniq
+
+                # Return rock packages and osdeps
+                [deps_rock_packages, deps_osdeps_packages]
+            end
+
+            def generate_debian_dir(pkg, dir)
+                existing_dir = File.join(existing_debian_directories, pkg.name)
+                template_dir = 
+                    if File.directory?(existing_dir)
+                        existing_dir
+                    else
+                        TEMPLATES
+                    end
+
+                dir = File.join(dir, "debian")
+                FileUtils.mkdir_p dir
+                package = pkg
+                debian_name = debian_name(pkg)
+                debian_version = debian_version(pkg)
+                versioned_name = versioned_name(pkg)
+
+                deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
 
                 Find.find(template_dir) do |path|
                     next if File.directory?(path)
@@ -109,6 +189,7 @@ module Autoproj
                 end
             end
 
+            # Create
             def package(pkg)
                 prepare_source_dir(pkg)
                 dir_name = versioned_name(pkg)
@@ -116,14 +197,70 @@ module Autoproj
 
                 # First, generate the source tarball
                 tarball = "#{dir_name}.orig.tar.gz"
-                system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian #{File.basename(pkg.srcdir)}")
-                # Generate the debian directory
-                generate_debian_dir(pkg, pkg.srcdir)
-                # Run dpkg-source
-                system("dpkg-source", "-I", "-b", pkg.srcdir)
-                ["#{versioned_name(pkg)}.debian.tar.gz",
-                 "#{versioned_name(pkg)}.orig.tar.gz",
-                 "#{versioned_name(pkg)}.dsc"]
+                if not File.exists?(OSC_LOCAL_TMP)
+                    FileUtils.mkdir_p OSC_LOCAL_TMP
+                end
+
+                # Check first if actual source contains newer information than existing 
+                # orig.tar.gz -- only then we create a new debian package
+                if package_updated?(pkg)
+                    Autoproj.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
+                    system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian #{File.basename(pkg.srcdir)}")
+
+                    # Generate the debian directory
+                    generate_debian_dir(pkg, pkg.srcdir)
+
+                    # Run dpkg-source
+                    # Use the new tar ball as source
+                    system("dpkg-source", "-I", "-b", pkg.srcdir)
+                    ["#{versioned_name(pkg)}.debian.tar.gz",
+                     "#{versioned_name(pkg)}.orig.tar.gz",
+                     "#{versioned_name(pkg)}.dsc"]
+                else 
+                    # just to update the required gem property
+                    dependencies(pkg)
+                    Autoproj.warn "Package: #{pkg.name} is up to date"
+                end
+                FileUtils.rm_rf("#{File.basename(pkg.srcdir)}")
+            end
+
+            # We create a diff between the existing orig.tar.gz and the source directory
+            # to identify if there have been any updates
+            #
+            # Using 'diff' allows us to apply this test to all kind of packages
+            def package_updated?(pkg)
+                orig_file_name = "#{versioned_name(pkg)}.orig.tar.gz"
+                if not File.exists?(orig_file_name)
+                    return true
+                end
+                FileUtils.mkdir_p(OSC_LOCAL_TMP)
+                FileUtils.cp(orig_file_name, OSC_LOCAL_TMP) 
+                Dir.chdir(OSC_LOCAL_TMP) do
+                    `tar xzf #{orig_file_name}`
+                    Dir.chdir(versioned_name(pkg)) do
+                        diff_name = "#{orig_file_name}.diff"
+                        `diff -urN --exclude .git --exclude .svn --exclude CVS --exclude debian #{pkg.srcdir} . > #{diff_name}`
+                        if File.open(diff_name).lines.any? 
+                            return true
+                        end
+                    end
+                end
+                return false
+            end
+
+            def prepare
+                if not File.exists?(OSC_BUILD_DIR)
+                    FileUtils.mkdir_p OSC_BUILD_DIR
+                end
+                cleanup
+            end
+
+            # Cleanup an existing local tmp folder
+            def cleanup
+                tmpdir = File.join(OSC_BUILD_DIR,OSC_LOCAL_TMP)
+                if File.exists?(tmpdir)
+                    FileUtils.rm_rf(tmpdir)
+                end
             end
 
             def file_patterns
@@ -132,6 +269,37 @@ module Autoproj
 
             def system(*args)
                 Kernel.system(*args)
+            end
+
+            # Convert all gems that are required 
+            # by package build with the debian packager
+            def convert_gems(force_update = false)
+                @ruby_gems.each do |gem_name|
+                    if force_update or not Dir.glob("#{gem_name}*.gem").size > 0
+                        Autoproj.warn "Converting gem: '#{gem_name}' to debian source package"
+                        # Build only a debian source package -- do not build
+                        # disable testing
+                        # To allow patching we need to split `gem2deb -S #{gem_name}`
+                        # into its substeps
+                        `gem fetch #{gem_name}`
+                        gem_file_name = Dir.glob("#{gem_name}*.gem").first
+                        gem_versioned_name = gem_file_name.sub("\.gem","")
+                        `gem2tgz #{gem_file_name}`
+                        `dh-make-ruby #{gem_versioned_name}.tar.gz`
+
+                        debian_ruby_name = debian_ruby_name(gem_versioned_name)
+                        Dir.chdir(debian_ruby_name) do
+                            `echo "---\n- test/always_pass.rb\n" > debian/ruby-test-files.yaml`
+                            `echo "0\n" > test/always_pass.rb`
+                        end
+
+                         ENV['EDITOR'] = "/bin/true"
+                        `dpkg-source --commit #{debian_ruby_name} always_pass`
+                        `dpkg-source -b #{debian_ruby_name}`
+                    else 
+                        Autoproj.warn "gem: #{gem_name} up to date"
+                    end
+                end
             end
         end
     end

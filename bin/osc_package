@@ -18,67 +18,56 @@ selection = Autoproj::CmdLine.initialize_and_load(remaining)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
-Autobuild.do_update = true
-selection.each_with_index do |pkg_name, i|
-    pkg = Autoproj.manifest.package(pkg_name).autobuild
+packager.prepare
 
-    if skip && osc_dir
-        pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
-        if File.directory?(pkg_osc_dir)
-            puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
+Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
+
+    Autobuild.do_update = true
+    selection.each_with_index do |pkg_name, i|
+        pkg = Autoproj.manifest.package(pkg_name).autobuild
+
+        if skip && osc_dir
+            pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
+            if File.directory?(pkg_osc_dir)
+                puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
+                next
+            end
+        end
+
+        puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+        if File.file?(File.join(pkg.srcdir, "CMakeLists.txt")) && File.read(File.join(pkg.srcdir, "CMakeLists.txt")) =~ /include\(Rock\)|Rock\.cmake/
+            pkg.depends_on "base/types"
+        end
+
+        begin 
+            packager.package(pkg)
+        rescue Interrupt
+            raise
+        rescue Exception => e
+            puts "failed to package #{pkg.name}: #{e.message}"
             next
         end
     end
-
-    puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
-    pkg.importer.import(pkg)
-    if File.file?(File.join(pkg.srcdir, "CMakeLists.txt")) && File.read(File.join(pkg.srcdir, "CMakeLists.txt")) =~ /include\(Rock\)|Rock\.cmake/
-        pkg.depends_on "base/types"
-    end
-
-    files = begin packager.package(pkg)
-            rescue Interrupt
-                raise
-            rescue Exception => e
-                puts "failed to package #{pkg.name}: #{e.message}"
-                next
-            end
+    packager.convert_gems
 
     if osc_dir
-        pkg_osc_dir = File.join(osc_dir, Autoproj::Packaging::Packager.osc_package_name(pkg))
-        if !File.directory?(pkg_osc_dir)
-            FileUtils.mkdir_p pkg_osc_dir
-            system("osc add #{pkg_osc_dir}")
+        # Update all packages
+        selection.each_with_index do |pkg_name, i|
+            puts "OSC -- update pkg: #{pkg_name}"
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            # if the directory does not exist create one and add it to osc
+            pkg_osc_name = Autoproj::Packaging::Packager.osc_package_name(pkg)
+            Autoproj::Packaging::OSC.update_dir(packager, osc_dir, pkg_osc_name)
         end
-        # Remove files that are not lised in "files"
-        patterns = packager.file_patterns.map do |p|
-            File.join(pkg_osc_dir, p)
-        end
-        Dir.glob(patterns) do |existing_path|
-            if !files.include?(File.basename(existing_path))
-                puts "deleting #{existing_path}: not present in the current packaging"
-                FileUtils.rm_f existing_path
-                system("osc rm #{existing_path}")
-            end
-        end
-        # Add the new unchanged files
-        files.each do |path|
-            target_file = File.join(pkg_osc_dir, path)
-            exists = File.exists?(target_file)
-            if exists 
-                if File.read(path) == File.read(target_file)
-                    puts "#{target_file} is unchanged, skipping"
-                else
-                    puts "updating #{target_file}"
-                    FileUtils.mv path, pkg_osc_dir
-                end
-            else
-                puts "adding #{target_file}"
-                FileUtils.mv path, pkg_osc_dir
-                system("osc add #{File.join(pkg_osc_dir, path)}")
-            end
-        end
-        system("osc ci #{pkg_osc_dir} -m \"autopackaged using autoproj-packaging tools\"")
-    end
-end
 
+        # Update all gems
+        packager.ruby_gems.each do |gem_name|
+            puts "OSC -- update gem: #{gem_name}"
+            pkg_osc_name = packager.debian_ruby_name(gem_name)
+            Autoproj::Packaging::OSC.update_dir(packager, osc_dir, pkg_osc_name)
+        end
+    end # if osc_dir
+
+    packager.cleanup
+
+end # Dir.chdir

@@ -1,11 +1,22 @@
 #!/usr/bin/make -f
-
 include /usr/share/cdbs/1/rules/debhelper.mk
+
 <% if package.class == Autobuild::CMake %>
-CMAKE = PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/cmake/rock cmake
+# Defining the cmake command and setting the required enviroment variables
+# PKG_CONFIG_PATH and ROCK_CMAKE_MACROS
+CMAKE = PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/cmake cmake
 DEB_CMAKE_INSTALL_PREFIX = /opt/rock
 DEB_CMAKE_EXTRA_FLAGS = <%= package.defines.map { |k, v| "\"-D#{k}=#{v}\"" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
-<% else
-    raise "cannot handle package type #{package.class} for #{package.name}"
-   end %>
+
+<% elsif package.class == Autobuild::Autotools %>
+DEB_CONFIGURE_PREFIX= /opt/rock
+DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
+    <% if package.using[:libtool] %>
+DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
+    <% end %>
+include /usr/share/cdbs/1/class/autotools.mk
+
+<% else 
+raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
+end %>
