@@ -1,6 +1,8 @@
 require 'find'
 require 'autoproj'
 require 'tmpdir'
+require 'pry'
+
 module Autoproj
     module Packaging
 
@@ -59,8 +61,9 @@ module Autoproj
 
                 # Delete files that don't exist in the build dir 
                 Dir.glob(patterns) do |existing_path|
-                    if not File.exists?( File.join(Autoproj::Packaging::OSC_BUILD_DIR,File.basename(existing_path)) )
-                        puts "deleting #{existing_path}: not present in the current packaging"
+                    expected_path = File.join(Autoproj::Packaging::OSC_BUILD_DIR,File.basename(existing_path))
+                    if not File.exists?(expected_path)
+                        puts "deleting #{existing_path} -- '#{expected_path}' not present in the current packaging"
                         FileUtils.rm_f existing_path
                         system("osc rm #{existing_path}")
                     end
@@ -136,7 +139,10 @@ module Autoproj
                 # There are limitations regarding handling packages with native dependencies
                 #
                 # Currently gems need to converted into debs using gem2deb
-                # These deps dependencies are update here before uploading a package
+                # These deps dependencies are updated here before uploading a package
+                # 
+                # Generation of the debian packages from the gems can be done in postprocessing step
+                # i.e. see convert_gems
                 native_package_manager = Autoproj.osdeps.os_package_handler
                 pkg_handler, pkg_list = osdeps.find { |handler, _| handler != native_package_manager }
                 if pkg_handler
@@ -145,6 +151,15 @@ module Autoproj
                         pkg_list.flatten.each do |name|
                             @ruby_gems << name
                             deps_osdeps_packages << debian_ruby_name(name)
+
+                            ## Since ruby header and library need to be available
+                            ## for extensions
+                            #if not deps_osdeps_packages.include?("ruby1.9.1-dev")
+                            #    deps_osdeps_packages << "ruby1.9.1-dev"
+                            #end
+                            #if not deps_osdeps_packages.include?("ruby1.8-dev")
+                            #    deps_osdeps_packages << "ruby1.8-dev"
+                            #end
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list})"
@@ -189,9 +204,15 @@ module Autoproj
                 end
             end
 
-            # Create
-            def package(pkg)
-                prepare_source_dir(pkg)
+            # Package the given package
+            # if an existing source directory is given this will be used
+            # for packaging, otherwise the package will be bootstrapped
+            def package(pkg, existing_source_dir = nil)
+                if existing_source_dir 
+                    pkg.srcdir = existing_source_dir
+                else
+                    prepare_source_dir(pkg)
+                end
                 dir_name = versioned_name(pkg)
                 FileUtils.rm_rf File.join(pkg.srcdir, "debian")
 
@@ -229,15 +250,24 @@ module Autoproj
             #
             # Using 'diff' allows us to apply this test to all kind of packages
             def package_updated?(pkg)
-                orig_file_name = "#{versioned_name(pkg)}.orig.tar.gz"
-                if not File.exists?(orig_file_name)
+                # Find an existing orig.tar.gz in the build directory
+                # ignoring the current version-timestamp
+                orig_file_name = Dir.glob("#{debian_name(pkg)}*.orig.tar.gz")
+                if orig_file_name.empty?
                     return true
+                elsif orig_file_name.size > 1
+                    Autoproj.warn "Multiple version of package #{debian_name(pkg)} in #{Dir.pwd} -- you have to fix this first"
+                else
+                    orig_file_name = orig_file_name.first
                 end
+                # Create a local copy/backup of the current orig.tar.gz in .osc_package 
+                # and extract it there -- compare the actual source package
                 FileUtils.mkdir_p(OSC_LOCAL_TMP)
                 FileUtils.cp(orig_file_name, OSC_LOCAL_TMP) 
                 Dir.chdir(OSC_LOCAL_TMP) do
                     `tar xzf #{orig_file_name}`
-                    Dir.chdir(versioned_name(pkg)) do
+                    base_name = orig_file_name.sub(".orig.tar.gz","")
+                    Dir.chdir(base_name) do
                         diff_name = "#{orig_file_name}.diff"
                         `diff -urN --exclude .git --exclude .svn --exclude CVS --exclude debian #{pkg.srcdir} . > #{diff_name}`
                         if File.open(diff_name).lines.any? 
@@ -248,6 +278,7 @@ module Autoproj
                 return false
             end
 
+            # Prepare the build directory, i.e. cleanup and obsolete file
             def prepare
                 if not File.exists?(OSC_BUILD_DIR)
                     FileUtils.mkdir_p OSC_BUILD_DIR
@@ -255,7 +286,7 @@ module Autoproj
                 cleanup
             end
 
-            # Cleanup an existing local tmp folder
+            # Cleanup an existing local tmp folder in the build dir
             def cleanup
                 tmpdir = File.join(OSC_BUILD_DIR,OSC_LOCAL_TMP)
                 if File.exists?(tmpdir)
@@ -273,29 +304,74 @@ module Autoproj
 
             # Convert all gems that are required 
             # by package build with the debian packager
-            def convert_gems(force_update = false)
+            def convert_gems(options = Hash.new)
+
+                options, unknown_options = Kernel.filter_options options,
+                    :force_update => false,
+                    :patch_dir => nil
+
+                if unknown_options.size > 0
+                    Autoproj.warn "Autoproj::Packaging Unknown options provided to convert gems: #{unknown_options}"
+                end
+
+                # We use gem2deb for the job of converting the gems
+                # However, since we require some gems to be patched we split the process into the
+                # individual step 
+                # This allows to add an overlay (patch) to be added to the final directory -- which 
+                # requires to be commited via dpkg-source --commit
                 @ruby_gems.each do |gem_name|
-                    if force_update or not Dir.glob("#{gem_name}*.gem").size > 0
+                    # Assuming if the .gem file has been download we do not need to update
+                    if options[:force_update] or not Dir.glob("#{gem_name}*.gem").size > 0
                         Autoproj.warn "Converting gem: '#{gem_name}' to debian source package"
-                        # Build only a debian source package -- do not build
-                        # disable testing
-                        # To allow patching we need to split `gem2deb -S #{gem_name}`
-                        # into its substeps
+
                         `gem fetch #{gem_name}`
                         gem_file_name = Dir.glob("#{gem_name}*.gem").first
                         gem_versioned_name = gem_file_name.sub("\.gem","")
+
+                        # Convert .gem to .tar.gz
                         `gem2tgz #{gem_file_name}`
+
+                        # Create ruby-<name>-<version> folder including debian/ folder 
+                        # from .tar.gz
                         `dh-make-ruby #{gem_versioned_name}.tar.gz`
 
                         debian_ruby_name = debian_ruby_name(gem_versioned_name)
+
+                        # Check if patching is needed
                         Dir.chdir(debian_ruby_name) do
-                            `echo "---\n- test/always_pass.rb\n" > debian/ruby-test-files.yaml`
-                            `echo "0\n" > test/always_pass.rb`
+                            # Only if a patch directory is given then update
+                            if patch_dir = options[:patch_dir]
+                                gem_patch_dir = File.join(patch_dir, gem_name)
+                                if File.directory?(gem_patch_dir)
+                                    FileUtils.cp_r("#{gem_patch_dir}/.", ".")
+
+                                    # We need to commit if original files have been modified
+                                    # so add a commit
+                                    orig_files = Dir["#{gem_patch_dir}/**"].reject { |f| f["#{gem_patch_dir}/debian/"] }
+                                    if orig_files.size > 0
+                                        # Since dpkg-source will open an editor we have to 
+                                        # take this approach to make it pass directly in an 
+                                        # automated workflow
+                                        ENV['EDITOR'] = "/bin/true"
+                                        `dpkg-source --commit . ocl_autopackaging_overlay`
+                                    end
+                                end
+                            end
+
+                            # Ignore all ruby test results when the binary package is build (on the build server)
+                            # via:
+                            # dpkg-buildpackage -us -uc
+                            #
+                            # Thus uncommented line of
+                            # export DH_RUBY_IGNORE_TESTS=all
+                            Autoproj.warn "Disabling ruby test result evaluation"
+                            `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
                         end
 
-                         ENV['EDITOR'] = "/bin/true"
-                        `dpkg-source --commit #{debian_ruby_name} always_pass`
-                        `dpkg-source -b #{debian_ruby_name}`
+                        # Build only a debian source package -- do not build
+                        # To allow patching we need to split `gem2deb -S #{gem_name}`
+                        # into its substeps
+                        `dpkg-source -I -b #{debian_ruby_name}`
                     else 
                         Autoproj.warn "gem: #{gem_name} up to date"
                     end

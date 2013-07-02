@@ -3,12 +3,16 @@ require 'rock/packaging/debian'
 
 osc_dir = nil
 skip = false
+gem_patch_dir = nil
 options = OptionParser.new do |opt|
     opt.on('--skip', 'Skip existing packages') do
         skip = true
     end
     opt.on("--osc DIR", String, "OpenBuildService checkout in which the generated packages should be registered") do |dir|
-        osc_dir = dir
+        osc_dir = File.expand_path(dir)
+    end
+    opt.on("--gem-patch-dir DIR", String, "Overlay directory to patch existing gems during the packaging process") do |dir|
+        gem_patch_dir = File.expand_path(dir)
     end
 end
 remaining = options.parse(ARGV)
@@ -48,7 +52,7 @@ Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
             next
         end
     end
-    packager.convert_gems
+    packager.convert_gems({:force_update => false, :patch_dir => gem_patch_dir})
 
     if osc_dir
         # Update all packages
