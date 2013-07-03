@@ -159,7 +159,7 @@ module Autoproj
                 end
 
                 # Remove duplicates
-                @ruby_gems.uniq
+                @ruby_gems.uniq!
 
                 # Return rock packages and osdeps
                 [deps_rock_packages, deps_osdeps_packages]
