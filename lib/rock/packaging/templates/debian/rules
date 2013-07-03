@@ -3,11 +3,18 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 
 <% if package.class == Autobuild::CMake %>
 # Defining the cmake command and setting the required enviroment variables
-# PKG_CONFIG_PATH and ROCK_CMAKE_MACROS
-CMAKE = LD_LIBRARY_PATH=/opt/rock/lib PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/rock/cmake cmake
+# PKG_CONFIG_PATH Resolve Rock package via pkg-config
+# Rock_DIR Set to make sure find_package(Rock) does work
+# ROCK_CMAKE_MACROS Used in some patches to set the CMAKE_MODULE_PATH, allowing to find Rock.cmake
+CMAKE = Rock_DIR=/opt/rock/share/rock/cmake PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/rock/cmake cmake
 DEB_CMAKE_INSTALL_PREFIX = /opt/rock
+
+# Debian packaging discourages the use of rpath
+# So allow linking to rock specific libraries which are not providing the full path 
+# and rely on a properly set enviroment at runtime
+CXXFLAGS+=-Wl,-rpath-link,/opt/rock/lib
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
-DEB_CMAKE_EXTRA_FLAGS = "-DGEM_OS_PKG=TRUE"
+DEB_CMAKE_EXTRA_FLAGS = -DGEM_OS_PKG=TRUE
 DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "\"-D#{k}=#{v}\"" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
 
@@ -18,7 +25,6 @@ DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
 DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
     <% end %>
 include /usr/share/cdbs/1/class/autotools.mk
-
 <% else 
 raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
 end %>
