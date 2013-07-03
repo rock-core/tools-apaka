@@ -131,11 +131,6 @@ module Autoproj
                 end.sort
 
                 osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
-                deps_osdeps_packages = []
-                if !osdeps.empty?
-                    deps_osdeps_packages = osdeps[0][1]
-                end
-
                 # There are limitations regarding handling packages with native dependencies
                 #
                 # Currently gems need to converted into debs using gem2deb
@@ -143,23 +138,20 @@ module Autoproj
                 # 
                 # Generation of the debian packages from the gems can be done in postprocessing step
                 # i.e. see convert_gems
+               
+                deps_osdeps_packages = []
                 native_package_manager = Autoproj.osdeps.os_package_handler
-                pkg_handler, pkg_list = osdeps.find { |handler, _| handler != native_package_manager }
-                if pkg_handler
+                _, native_pkg_list = osdeps.find { |handler, _| handler == native_package_manager }
+
+                deps_osdeps_packages += native_pkg_list if native_pkg_list
+
+                non_native_handlers = osdeps.select { |handler, _| handler != native_package_manager }
+                non_native_handlers.each do |pkg_handler, pkg_list|
                     # Convert native ruby gems package names to rock-xxx  
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
                         pkg_list.flatten.each do |name|
                             @ruby_gems << name
                             deps_osdeps_packages << debian_ruby_name(name)
-
-                            ## Since ruby header and library need to be available
-                            ## for extensions
-                            #if not deps_osdeps_packages.include?("ruby1.9.1-dev")
-                            #    deps_osdeps_packages << "ruby1.9.1-dev"
-                            #end
-                            #if not deps_osdeps_packages.include?("ruby1.8-dev")
-                            #    deps_osdeps_packages << "ruby1.8-dev"
-                            #end
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list})"
@@ -208,6 +200,7 @@ module Autoproj
             # if an existing source directory is given this will be used
             # for packaging, otherwise the package will be bootstrapped
             def package(pkg, existing_source_dir = nil)
+
                 if existing_source_dir 
                     pkg.srcdir = existing_source_dir
                 else
