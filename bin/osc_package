@@ -4,16 +4,30 @@ require 'rock/packaging/debian'
 osc_dir = nil
 skip = false
 gem_patch_dir = nil
+osdeps = false
+commit = false
+
 options = OptionParser.new do |opt|
     opt.on('--skip', 'Skip existing packages') do
         skip = true
     end
-    opt.on("--osc DIR", String, "OpenBuildService checkout in which the generated packages should be registered") do |dir|
+    opt.on("--osc DIR", String, "OpenBuildService checkout in which the generated packages should be registered, in combination with osdeps it limits the update to the osdeps packages") do |dir|
         osc_dir = File.expand_path(dir)
     end
     opt.on("--gem-patch-dir DIR", String, "Overlay directory to patch existing gems during the packaging process") do |dir|
         gem_patch_dir = File.expand_path(dir)
     end
+
+    opt.on("--osdeps","Generate osdeps directories which are not yet available as packages") do
+        osdeps = true
+    end
+
+    opt.on("-c","--commit","Commit the result on the OBS") do
+        commit = true
+    end
+
+    opt.on("--[no-]verbose", "display output of commands on stdout") do |v| Autobuild.verbose = v end
+    opt.on("--[no-]debug", "debug information (for debugging purposes)") do |v| Autobuild.debug = v end
 end
 remaining = options.parse(ARGV)
 
@@ -48,29 +62,110 @@ Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
         rescue Interrupt
             raise
         rescue Exception => e
-            puts "failed to package #{pkg.name}: #{e.message}"
+            puts "failed to package #{pkg.name}: #{e.message} #{e.backtrace}"
             next
         end
     end
     packager.convert_gems({:force_update => false, :patch_dir => gem_patch_dir})
 
-    if osc_dir
+    # Check for osdeps -- fixed set of repositories at the moment
+    if osdeps
+        build_projects = Array.new
+        build_projects << [ "home:roehr:rock-robotics","xUbuntu_12.04"]
+        build_projects << [ "home:sylvainjoyeux:ubuntu:12.04:universe","xUbuntu_12.04"]
+        build_projects << [ "Ubuntu:12.04","standard"]
+
+        available_packages = []
+        build_projects.each do |build_repository|
+            project, repository = build_repository
+            available_packages += Autoproj::Packaging::OSC.list_packages(project, repository)
+        end
+
+        # Opendeps to process and check whether they and they dependencies are 
+        # available
+        openlist_osdeps = packager.osdeps
+        # List of which osdeps which already have dealt with
+        blacklist_osdeps = []
+        # Maintain a listof which osdeps to update
+        update_osdeps = []
+        
+        while true
+            if not osdeps_name = openlist_osdeps.delete_at(0)
+                break
+            end
+
+            if blacklist_osdeps.include?(osdeps_name)
+                next
+            end
+
+            if not available_packages.include?(osdeps_name)
+                Autoproj.warn "OSC: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OSC_BUILD_DIR}"
+                if !File.directory?(Autoproj::Packaging::OSC_BUILD_DIR)
+                    FileUtils.mkdir(Autoproj::Packaging::OSC_BUILD_DIR) 
+                end
+
+                Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
+                    if system("osc_ubuntu_universe_package #{osdeps_name}")
+                        update_osdeps << osdeps_name
+                    else 
+                        Autoproj.warn "OSC: universe package for osdeps '#{osdeps_name}' could not be found"
+                    end
+                    blacklist_osdeps << osdeps_name
+                    add_osdeps = Autoproj::Packaging::OSC.resolve_dependencies(osdeps_name)
+                    open_osdeps = add_osdeps.collect do |pkg| 
+                        if !blacklist_osdeps.include?(pkg)
+                            pkg
+                        end
+                    end.compact
+                    openlist_osdeps += open_osdeps if open_osdeps
+                end
+            end
+        end
+
+        # Update the osc directory if given
+        if osc_dir
+            Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
+                update_osdeps.each do |name|
+                    puts "OSC -- update osdeps gem: #{name}"
+                    if File.directory?(name)
+                       Autoproj::Packaging::OSC.update_dir(osc_dir,Autoproj::Packaging::OSC_BUILD_DIR, name, ["_service"], commit)
+                    else 
+                        Autoproj.warn "OSC: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OSC_BUILD_DIR}"
+                    end
+                end
+            end
+        end
+
+    elsif osc_dir
         # Update all packages
         selection.each_with_index do |pkg_name, i|
-            puts "OSC -- update pkg: #{pkg_name}"
             pkg = Autoproj.manifest.package(pkg_name).autobuild
+            # Excluding ruby packages here since they need a special treatment
+            if pkg.kind_of?(Autoproj::RubyPackage)
+                next
+            end
+
+            puts "OSC -- update pkg: #{pkg_name}"
             # if the directory does not exist create one and add it to osc
             pkg_osc_name = Autoproj::Packaging::Packager.osc_package_name(pkg)
-            Autoproj::Packaging::OSC.update_dir(packager, osc_dir, pkg_osc_name)
+            Autoproj::Packaging::OSC.update_dir(osc_dir, Autoproj::Packaging::OSC_BUILD_DIR, pkg_osc_name, packager.file_suffix_patterns, commit)
         end
 
         # Update all gems
         packager.ruby_gems.each do |gem_name|
             puts "OSC -- update gem: #{gem_name}"
             pkg_osc_name = packager.debian_ruby_name(gem_name)
-            Autoproj::Packaging::OSC.update_dir(packager, osc_dir, pkg_osc_name)
+            Autoproj::Packaging::OSC.update_dir(osc_dir, Autoproj::Packaging::OSC_BUILD_DIR, pkg_osc_name, packager.file_suffix_patterns, commit)
+        end
+
+        # Update rock gems
+        packager.ruby_rock_gems.each do |gem_name|
+            puts "OSC -- update rock gem (converted ruby package): #{gem_name}"
+            pkg_osc_name = gem_name
+            Autoproj::Packaging::OSC.update_dir(osc_dir, Autoproj::Packaging::OSC_BUILD_DIR, pkg_osc_name, packager.file_suffix_patterns, commit)
         end
     end # if osc_dir
+
 
     packager.cleanup
 

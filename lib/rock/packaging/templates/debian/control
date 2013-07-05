@@ -11,10 +11,11 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %         build_dependencies << "libtool"
 %     end
 %     build_dependencies << "autotools"
+% elsif package.kind_of?(Autoproj::RubyPackage)
+%     raise "debian/control: cannot handle ruby package"
 % else
 %     raise "debian/control: cannot handle package type #{package.class} for #{package.name}"
 % end
-%
 Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, <%= build_dependencies.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: http://rock-robotics.org
