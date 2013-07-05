@@ -1,6 +1,28 @@
 #! /usr/bin/env ruby
 # This script allows to setup an OSC directory using a package from the ubuntu archive
 # The resulting directory is created in the current working directory
+#
+# http://en.opensuse.org/openSUSE:Build_Service_Concept_SourceService
+
+# To have the package available on the target platform a _service file is created: 
+#
+# <services>
+# <service name="download_url">
+#     <param name="host">archive.ubuntu.com</param>
+#     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9-1build1.dsc</param>
+# </service>
+# 
+# <service name="download_url">
+#     <param name="host">archive.ubuntu.com</param>
+#     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9.orig.tar.gz</param>
+# </service>
+# 
+# <service name="download_url">
+#     <param name="host">archive.ubuntu.com</param>
+#     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9-1build1.diff.gz</param>
+# </service>
+# </services>
+#
 require 'fileutils'
 
 required_name = ARGV[0]
