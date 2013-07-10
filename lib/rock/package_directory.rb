@@ -239,7 +239,7 @@ module Rock
             end
 
             def prepare_sections(objects, index, root_dir, separator, name_path, section_path, template)
-                full_path = root_dir.dup
+                full_path = File.expand_path(root_dir, output_dir)
                 current_name = []
                 section_path.each_with_index do |part, i|
                     current_name << name_path[i]
