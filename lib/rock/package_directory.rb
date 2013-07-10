@@ -431,7 +431,7 @@ module Rock
                     :sort_info => SORT_INFO_OROGEN_TASKS_INDEX)
                 orogen_task_models.each_with_index do |object, index|
                     index = SORT_INFO_OROGEN_TASKS + index
-                    fragment = MetaRuby::GUI::HTML::Page.to_html(object, Orocos::HTML::TaskContext)
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::TaskContext)
                     write(File.join('tasks', "#{object.name}.page"), 'object_page.page', binding)
                 end
             end
@@ -487,7 +487,7 @@ module Rock
                                      'types', '/', names, path[0..-2], 'orogen_type_list.page')
 
                     index = SORT_INFO_OROGEN_TYPES + index
-                    fragment = MetaRuby::GUI::HTML::Page.to_html(object, Orocos::HTML::Type)
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::Type)
                     write(File.join('types', *path), 'object_page.page', binding)
                 end
             end
