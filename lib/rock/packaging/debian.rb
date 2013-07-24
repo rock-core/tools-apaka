@@ -96,6 +96,7 @@ module Autoproj
                         if File.read(path) == File.read(target_file)
                             Packager.info "OSC: #{target_file} is unchanged, skipping"
                         else
+                            Packager.info "OSC: #{target_file} updated"
                             FileUtils.cp path, target_file
                         end
                     else
@@ -138,6 +139,14 @@ module Autoproj
             end
         end
 
+        # Packaging details:
+        # - one main temporary folder in use: <autoproj-root>/build/osc/
+        # - in the temp folder we create one folder per package to handle the packaging
+        #   this folder can be synced with the target folder of the local checkout of the OBS
+        # - checking update currently on checks for changes on the source data (so if patches change it
+        #   is not recognized)
+        # - to facilitate patching etc. an 'overlay' directory is used which is just copied during the
+        #   build process -- currently only for gem handling and injecting fixes
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
 
@@ -163,16 +172,33 @@ module Autoproj
                 end
             end
 
+            def canonize(name)
+                name.gsub(/[\/_]/, '-').downcase
+            end
+
+            # Extract the base name from a path description
+            # e.g. tools/metaruby => metaruby
+            def basename(name)
+                if name =~ /.*\/(.*)/
+                    name = $1
+                end
+                name
+            end
+
+            # The debian name of a package -- either 
+            # rock-<canonized-package-name>
+            # or for ruby packages
+            # ruby-<canonized-package-name>
             def debian_name(pkg)
                 if pkg.kind_of?(Autoproj::RubyPackage)
                     debian_ruby_name(pkg.name)
                 else
-                   "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
+                   "rock-" + canonize(pkg.name)
                 end
             end
 
             def debian_ruby_name(name)
-               "ruby-" + name.gsub(/[\/_]/, '-').downcase
+               "ruby-" + canonize(name)
             end
 
             def debian_version(pkg)
@@ -277,39 +303,58 @@ module Autoproj
             # Package the given package
             # if an existing source directory is given this will be used
             # for packaging, otherwise the package will be bootstrapped
-            def package(pkg, existing_source_dir = nil)
+            def package(pkg, options = Hash.new)
 
-                if existing_source_dir 
+                if existing_source_dir = options[:existing_source_dir]
                     pkg.srcdir = existing_source_dir
                 else
                     prepare_source_dir(pkg)
                 end
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
-                    package_deb(pkg, existing_source_dir)
+                    package_deb(pkg, options)
                 elsif pkg.kind_of?(Autoproj::RubyPackage)
-                    package_ruby(pkg,existing_source_dir)
+                    package_ruby(pkg, options)
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
                 end
             end
 
             # Package an existing ruby file
-            def package_ruby(pkg, existing_source_dir)
-                # update dependencies
-                dependencies(pkg)
+            def package_ruby(pkg, options) 
+                # update dependencies in any case, i.e. independant if package exists or not
+                deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
                     begin 
-                        logname = "osc-#{pkg.name}" + Time.now.strftime("%Y%m%d-%H%M%S").to_s
+                        logname = "osc-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
                         gem = FileList["pkg/*.gem"].first
                         if not gem 
-                            if system("rake gem 2> #{logname}.log")
+                            Packager.info "Debian: creating gem from package #{pkg.name}"
+                            if system("rake gem 2> #{File.join(OSC_BUILD_DIR, logname)}")
                                 gem = FileList["pkg/*.gem"].first
+
+                                # Make the naming of the gem consistent with the naming schema of
+                                # rock packages
+                                #
+                                # Make sure the gem has the fullname, e.g.
+                                # tools-metaruby instead of just metaruby
+                                gem_rename = gem.sub(basename(pkg.name), canonize(pkg.name)) 
+                                if gem != gem_rename
+                                    Packager.info "Debian: renaming #{gem} to #{gem_rename}"
+                                    FileUtils.mv gem, gem_rename
+                                    gem = gem_rename
+                                end
+
+                                Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
                                 FileUtils.cp gem, packaging_dir(pkg)
                                 gem_final_path = File.join(packaging_dir(pkg), File.basename(gem))
-                                convert_gem( debian_name(pkg), gem_final_path)
+
+                                # Prepare injection of dependencies
+                                options[:deps] = deps
+                                convert_gem(gem_final_path, options)
                             else
                                 Packager.warn "Debian: failed to create gem from RubyPackage #{pkg.name}"
+                                Packager.warn "        check: #{File.expand_path(logname)}"
                             end
                         end
 
@@ -322,7 +367,7 @@ module Autoproj
                 end
             end
 
-            def package_deb(pkg, existing_source_dir)
+            def package_deb(pkg, options) 
                 Dir.chdir(packaging_dir(pkg)) do
                     dir_name = versioned_name(pkg)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
@@ -443,23 +488,47 @@ module Autoproj
                             `gem fetch #{gem_name}`
                         end
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
-                        convert_gem(gem_name, gem_file_name, options)
+                        convert_gem(gem_file_name, options)
                     else 
                         Autoproj.info "gem: #{gem_name} up to date"
                     end
                 end
             end
 
-            # When providing the path to a gem file convers the gem into
+            # When providing the path to a gem file converts the gem into
             # a debian package (files will be residing in the same folder
             # as the gem)
-            def convert_gem(gem_name, gem_path, options = Hash.new)
+            #
+            # When provided a patch directory with the name of the gem, 
+            # e.g. hoe, nokogiri, utilrb
+            # the corresponding files will be copy into the built package during
+            # the gem building process
+            def convert_gem(gem_path, options = Hash.new)
+                Packager.debug "Convert gem: '#{gem_path}' with options: #{options}"
+
+                options, unknown_options = Kernel.filter_options options,
+                    :patch_dir => nil,
+                    :deps => [[],[]]
+
                 Dir.chdir(File.dirname(gem_path)) do 
                     gem_file_name = File.basename(gem_path)
                     gem_versioned_name = gem_file_name.sub("\.gem","")
 
+                    # Dealing with _ in original file name, since gem2deb
+                    # will debianize it
+                    if gem_versioned_name =~ /(.*)([-_][0-9\.]*)/
+                        base_name = $1
+                        version_suffix = $2
+                        gem_versioned_name = base_name.gsub("_","-") + version_suffix
+                    else
+                        raise ArgumentError, "Converting gem: unknown formatting"
+                    end
+
+                    Packager.debug "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                     # Convert .gem to .tar.gz
-                    `gem2tgz #{gem_file_name}`
+                    if not system("gem2tgz #{gem_file_name}")
+                        raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
+                    end
 
                     # Create ruby-<name>-<version> folder including debian/ folder 
                     # from .tar.gz
@@ -472,8 +541,14 @@ module Autoproj
 
                         # Only if a patch directory is given then update
                         if patch_dir = options[:patch_dir]
+                            gem_name = ""
+                            if gem_versioned_name =~ /(.*)[-_][0-9\.]*/
+                                gem_name = $1
+                            end
+
                             gem_patch_dir = File.join(patch_dir, gem_name)
                             if File.directory?(gem_patch_dir)
+                                Packager.warn "Applying overlay (patch) to: gem '#{gem_name}'"
                                 FileUtils.cp_r("#{gem_patch_dir}/.", ".")
 
                                 # We need to commit if original files have been modified
@@ -486,6 +561,8 @@ module Autoproj
                                     ENV['EDITOR'] = "/bin/true"
                                     `dpkg-source --commit . ocl_autopackaging_overlay`
                                 end
+                            else 
+                                Packager.warn "No patch dir: #{gem_patch_dir}"
                             end
                         end
 
