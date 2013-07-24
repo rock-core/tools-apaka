@@ -489,6 +489,18 @@ module Autoproj
                             end
                         end
 
+                        # injecting dependencies into debian/control
+                        deps = options[:deps].flatten.uniq
+                        if not deps.empty?
+                            Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
+                            `sed -i "s#^\\(Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
+                            # Since dpkg-source will open an editor we have to 
+                            # take this approach to make it pass directly in an 
+                            # automated workflow
+                            ENV['EDITOR'] = "/bin/true"
+                            `dpkg-source --commit . ocl_extra_dependencies`
+                        end
+
                         # Ignore all ruby test results when the binary package is build (on the build server)
                         # via:
                         # dpkg-buildpackage -us -uc
