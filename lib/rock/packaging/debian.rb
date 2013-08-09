@@ -594,7 +594,8 @@ module Autoproj
                         deps = options[:deps].flatten.uniq
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
-                            `sed -i "s#^\\(Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
+                            `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
+                            `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
                             # Since dpkg-source will open an editor we have to 
                             # take this approach to make it pass directly in an 
                             # automated workflow
