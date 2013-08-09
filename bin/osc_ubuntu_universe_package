@@ -25,6 +25,12 @@
 #
 require 'fileutils'
 
+if ARGV.size == 0 || ARGV[0] == "--help" || ARGV[0] == "-h"
+    puts "usage: #{$0} <package-name>"
+    puts "Allows to setup an import service, to load existing ubuntu universe packages"
+    exit 0
+end
+
 required_name = ARGV[0]
 record = `apt-cache showsrc #{required_name}`.split("\n").map(&:strip)
 if $?.exitstatus != 0
