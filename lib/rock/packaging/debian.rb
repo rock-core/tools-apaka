@@ -305,6 +305,19 @@ module Autoproj
             # for packaging, otherwise the package will be bootstrapped
             def package(pkg, options = Hash.new)
 
+                options, unknown_options = Kernel.filter_options options,
+                    :force_update => false,
+                    :existing_source_dir => nil,
+                    :patch_dir => nil
+
+                if options[:force_update]
+                    dirname = File.join(OSC_BUILD_DIR, debian_name(pkg))
+                    if File.directory?(dirname)
+                        Packager.info "Debian: rebuild requested -- removing #{dirname}"
+                        FileUtils.rm_rf(dirname)
+                    end
+                end
+
                 if existing_source_dir = options[:existing_source_dir]
                     pkg.srcdir = existing_source_dir
                 else

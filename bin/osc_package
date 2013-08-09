@@ -10,6 +10,7 @@ o_available = false
 o_list_build_projects = false
 o_extra_gem = nil
 o_all_packages = true
+o_rebuild = false
 
 options = OptionParser.new do |opt|
     opt.on('--skip', 'Skip existing packages') do
@@ -43,6 +44,10 @@ options = OptionParser.new do |opt|
     opt.on("--gem NAME", "provide the name of a gem to convert") do |gem|
         o_all_packages = false
         o_extra_gem = gem
+    end
+
+    opt.on("--rebuild", "rebuild package") do
+        o_rebuild = true
     end
 end
 remaining = options.parse(ARGV)
@@ -101,8 +106,8 @@ Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
                 pkg.depends_on "base/types"
             end
 
-            begin 
-                packager.package(pkg, {:force_update => false, :patch_dir => o_patch_dir})
+            begin
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir})
             rescue Interrupt
                 raise
             rescue Exception => e
