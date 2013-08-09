@@ -1,6 +1,7 @@
 require 'rock/doc'
 require 'utilrb/logger'
-require 'vizkit'
+require 'metaruby/gui'
+require 'orogen/html'
 
 module Rock
     module Doc
@@ -67,6 +68,8 @@ module Rock
                 path = template_path(*path)
 		template = load_template(path)
                 template.result(binding)
+            rescue Exception => e
+                raise e, "while rendering #{path}: #{e.message}", e.backtrace
             end
 
             def self.render_list(list_data, additional_header = nil)
@@ -236,7 +239,7 @@ module Rock
             end
 
             def prepare_sections(objects, index, root_dir, separator, name_path, section_path, template)
-                full_path = root_dir.dup
+                full_path = File.expand_path(root_dir, output_dir)
                 current_name = []
                 section_path.each_with_index do |part, i|
                     current_name << name_path[i]
@@ -338,6 +341,7 @@ module Rock
                 @orogen_type_vizkit = Hash.new { |h, k| h[k] = Array.new }
                 @orogen_type_vizkit3d = Hash.new { |h, k| h[k] = Array.new }
                 if handle_vizkit?
+                    require 'vizkit'
                     widgets = Vizkit.default_loader.available_widgets
                     widgets.each do |widget|
                         Vizkit.default_loader.registered_for(widget).each do |type_name|
@@ -425,8 +429,10 @@ module Rock
                     :title => "oroGen Tasks Index",
                     :routed_title => 'oroGen Tasks',
                     :sort_info => SORT_INFO_OROGEN_TASKS_INDEX)
-                orogen_task_models.each_with_index do |t, index|
-                    write_object_page(File.join('tasks', "#{t.name}.page"), SORT_INFO_OROGEN_TASKS + index, t, 'orogen_task_fragment.page')
+                orogen_task_models.each_with_index do |object, index|
+                    index = SORT_INFO_OROGEN_TASKS + index
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::TaskContext)
+                    write(File.join('tasks', "#{object.name}.page"), 'object_page.page', binding)
                 end
             end
 
@@ -473,13 +479,16 @@ module Rock
                            :routed_title => 'oroGen Types',
                            :sort_info => SORT_INFO_OROGEN_TYPES_INDEX)
 
-                orogen_types.each_with_index do |t, index|
-                    names = typename_split(t)
+                orogen_types.each_with_index do |object, index|
+                    names = typename_split(object)
                     path  = names.map { |p| p.gsub(/[\/<>]/, '_') } 
                     path[-1] += ".page"
                     prepare_sections(orogen_types, index + SORT_INFO_OROGEN_TYPES,
                                      'types', '/', names, path[0..-2], 'orogen_type_list.page')
-                    write_object_page(File.join('types', *path), SORT_INFO_OROGEN_TYPES + index, t, 'type_fragment.page')
+
+                    index = SORT_INFO_OROGEN_TYPES + index
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::Type)
+                    write(File.join('types', *path), 'object_page.page', binding)
                 end
             end
         end
