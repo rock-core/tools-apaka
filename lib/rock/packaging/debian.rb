@@ -147,6 +147,10 @@ module Autoproj
         #   is not recognized)
         # - to facilitate patching etc. an 'overlay' directory is used which is just copied during the
         #   build process -- currently only for gem handling and injecting fixes
+        #
+        # Resources:
+        # * http://www.debian.org/doc/manuals/maint-guide/dreq.en.html
+        # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
 
@@ -333,7 +337,7 @@ module Autoproj
                 end
             end
 
-            # Package an existing ruby file
+            # Create an osc package of an existing ruby package
             def package_ruby(pkg, options) 
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
@@ -550,6 +554,8 @@ module Autoproj
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)
 
                     # Check if patching is needed
+                    # To allow patching we need to split `gem2deb -S #{gem_name}`
+                    # into its substeps
                     Dir.chdir(debian_ruby_name) do
 
                         # Only if a patch directory is given then update
@@ -579,7 +585,12 @@ module Autoproj
                             end
                         end
 
-                        # injecting dependencies into debian/control
+                        # Injecting dependencies into debian/control
+                        # Since we do not differentiate between build and runtime dependencies
+                        # at Rock level -- we add them to both
+                        #
+                        # Enforces to have all dependencies available when building the packages
+                        # at the build server
                         deps = options[:deps].flatten.uniq
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
@@ -601,9 +612,7 @@ module Autoproj
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
                     end
 
-                    # Build only a debian source package -- do not build
-                    # To allow patching we need to split `gem2deb -S #{gem_name}`
-                    # into its substeps
+                    # Build only a debian source package -- do not compile binary package
                     `dpkg-source -I -b #{debian_ruby_name}`
                 end
             end
