@@ -4,7 +4,7 @@ Priority: extra
 Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 % dependencies = (deps_rock_packages + deps_osdeps_packages)
 % build_dependencies = dependencies.dup
-% if package.class == Autobuild::CMake
+% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen
 %     build_dependencies << "cmake"
 % elsif package.class == Autobuild::Autotools
 %     if package.using[:libtool]

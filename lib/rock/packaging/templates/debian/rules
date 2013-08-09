@@ -1,13 +1,51 @@
 #!/usr/bin/make -f
+
+rock_install_dir = /opt/rock
+rock_bindir = /tmp/rock/bin
+
+ruby_ver = 1.9.1
+arch_name = $(subst linux-gnu,linux-,$(patsubst %linux-gnu,%linux,$(DEB_BUILD_GNU_TYPE)))
+ruby_binary = /usr/bin/ruby$(ruby_ver)
+rockruby_libdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)
+rockruby_archdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)/$(arch_name)
+
+# Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
+# vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
+rockruby_extra_libdir = /usr/lib/ruby/vendor_ruby/standard/:/usr/lib/ruby/vendor_ruby/core/
+
+# Setting up the env variables
+env_setup = PATH=.:$(rock_bindir):$(PATH)
+env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_libdir):$(RUBYLIB)
+env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake ROCK_CMAKE_MACROS=$(rock_install_dir)/share/rock/cmake
+env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig
+
+DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
 
-<% if package.class == Autobuild::CMake %>
+<% if package.class == Autobuild::Orogen %>
+# Making sure orogen is executed before cmake is called
+pre-build::
+	echo "pre-build: calling orogen in order to generate CMake layout"
+	# Debug information:
+	echo "System ruby libraries: "
+	find /usr/lib/ruby
+	echo "Installed into /opt/rock:"
+	find /opt/rock/
+
+	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set /opt/rock/bin/ruby
+	if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
+	if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
+
+	$(env_setup) orogen --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
+<% end %>
+
+<% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen %>
 # Defining the cmake command and setting the required enviroment variables
 # PKG_CONFIG_PATH Resolve Rock package via pkg-config
 # Rock_DIR Set to make sure find_package(Rock) does work
 # ROCK_CMAKE_MACROS Used in some patches to set the CMAKE_MODULE_PATH, allowing to find Rock.cmake
-CMAKE = Rock_DIR=/opt/rock/share/rock/cmake PKG_CONFIG_PATH=/opt/rock/lib/pkgconfig ROCK_CMAKE_MACROS=/opt/rock/share/rock/cmake cmake
-DEB_CMAKE_INSTALL_PREFIX = /opt/rock
+CMAKE = $(env_setup) cmake
+DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
 # Debian packaging discourages the use of rpath, and 
 # cdbs actively disables it setting CMAKE_SKIP_RPATH=ON
@@ -16,7 +54,7 @@ DEB_CMAKE_INSTALL_PREFIX = /opt/rock
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
-DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "\"-D#{k}=#{v}\"" }.join(" ") %>
+DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=#{v}" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
 
 <% elsif package.class == Autobuild::Autotools %>
