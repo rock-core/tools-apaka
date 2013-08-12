@@ -6,6 +6,7 @@ rock_bindir = /tmp/rock/bin
 ruby_ver = 1.9.1
 arch_name = $(subst linux-gnu,linux-,$(patsubst %linux-gnu,%linux,$(DEB_BUILD_GNU_TYPE)))
 ruby_binary = /usr/bin/ruby$(ruby_ver)
+ruby_libdir = /usr/lib/ruby
 rockruby_libdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)
 rockruby_archdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)/$(arch_name)
 
@@ -22,21 +23,25 @@ env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
 
-<% if package.class == Autobuild::Orogen %>
-# Making sure orogen is executed before cmake is called
 pre-build::
-	echo "pre-build: calling orogen in order to generate CMake layout"
 	# Debug information:
 	echo "System ruby libraries: "
-	find /usr/lib/ruby
-	echo "Installed into /opt/rock:"
-	find /opt/rock/
+	if [ -d $(ruby_libdir) ]; then find $(ruby_libdir); fi
 
+	echo "Installed into $(rock_install_dir):"
+	if [ -d $(rock_install_dir) ]; then find $(rock_install_dir); fi
+
+	echo "Current directory:"
+	find .
+	
 	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set /opt/rock/bin/ruby
 	if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
 	if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
-	$(env_setup) orogen --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
+# Making sure orogen is executed before cmake is called
+<% if package.class == Autobuild::Orogen %>
+	echo "pre-build: calling orogen in order to generate CMake layout"
+	$(env_setup) orogen <%= pkg.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
 <% end %>
 
 <% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen %>
