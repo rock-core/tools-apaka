@@ -14,7 +14,20 @@ module Autoproj
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
-            def prepare_source_dir(pkg)
+            def prepare_source_dir(pkg, options = Hash.new)
+
+                if existing_source_dir = options[:existing_source_dir]
+                    pkg_dir = File.join(OSC_BUILD_DIR, debian_name(pkg))
+                    if not File.directory?(pkg_dir)
+                        FileUtils.mkdir_p pkg_dir
+                    end
+
+                    target_dir = File.join(pkg_dir, dir_name(pkg))
+                    FileUtils.cp_r existing_source_dir, target_dir
+
+                    pkg.srcdir = target_dir
+                end
+
                 Packager.debug "Preparing source dir #{pkg.name}"
                 Autoproj.manifest.load_package_manifest(pkg.name)
 
@@ -322,11 +335,7 @@ module Autoproj
                     end
                 end
 
-                if existing_source_dir = options[:existing_source_dir]
-                    pkg.srcdir = existing_source_dir
-                else
-                    prepare_source_dir(pkg)
-                end
+                prepare_source_dir(pkg, options)
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
                     package_deb(pkg, options)
@@ -388,6 +397,7 @@ module Autoproj
                 Dir.chdir(packaging_dir(pkg)) do
                     dir_name = versioned_name(pkg)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
+                    FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
                     # First, generate the source tarball
                     tarball = "#{dir_name}.orig.tar.gz"
@@ -397,7 +407,7 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian #{File.basename(pkg.srcdir)}")
+                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir)
@@ -413,7 +423,7 @@ module Autoproj
                         dependencies(pkg)
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
-                    FileUtils.rm_rf("#{File.basename(pkg.srcdir)}")
+                    FileUtils.rm_rf( File.basename(pkg.srcdir) )
                 end
             end
 

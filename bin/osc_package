@@ -11,6 +11,7 @@ o_list_build_projects = false
 o_extra_gem = nil
 o_all_packages = true
 o_rebuild = false
+o_src_dir = nil
 
 options = OptionParser.new do |opt|
     opt.on('--skip', 'Skip existing packages') do
@@ -48,6 +49,10 @@ options = OptionParser.new do |opt|
 
     opt.on("--rebuild", "rebuild package") do
         o_rebuild = true
+    end
+
+    opt.on("--src-dir DIR","don't import but use existing source directory") do |dir|
+        o_src_dir = dir
     end
 end
 remaining = options.parse(ARGV)
@@ -110,7 +115,7 @@ Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir})
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir })
             rescue Interrupt
                 raise
             rescue Exception => e
