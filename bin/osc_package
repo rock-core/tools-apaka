@@ -102,8 +102,11 @@ Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
             end
 
             puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
-            if File.file?(File.join(pkg.srcdir, "CMakeLists.txt")) && File.read(File.join(pkg.srcdir, "CMakeLists.txt")) =~ /include\(Rock\)|Rock\.cmake/
-                pkg.depends_on "base/types"
+            if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
+                cmakelists_txt = File.read(File.join(pkg.srcdir, "CMakeLists.txt"))
+                if cmakelists_txt =~ /include\(Rock\)|Rock\.cmake/ || cmakelists_txt =~ /find_package\(Rock\)/
+                    pkg.depends_on "base/cmake" unless pkg.name == "base/cmake"
+                end
             end
 
             begin
