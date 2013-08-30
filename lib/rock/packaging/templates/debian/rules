@@ -22,6 +22,7 @@ env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
+DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(rock_install_dir)/lib
 
 pre-build::
 	# Debug information:
