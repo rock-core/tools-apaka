@@ -55,7 +55,10 @@ options = OptionParser.new do |opt|
         o_src_dir = dir
     end
 end
-remaining = options.parse(ARGV)
+
+# The remaining arguments are the packages that have been selected on console
+# only these ones should be considered
+o_selected_packages = options.parse(ARGV)
 
 ## OBS Content -- entry of repositories hosting rock debian source packages
 build_projects = Array.new
@@ -84,12 +87,21 @@ end
 
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(remaining)
+selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 packager.prepare
 
+# Make sure that when we request a package build we only get this one,
+# and not the pattern matched to other packages, e.g. for orogen
+selection = selection.select do |pkg_name, i|
+    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
+        true
+    else
+        false
+    end
+end
 
 Dir.chdir(Autoproj::Packaging::OSC_BUILD_DIR) do
 
