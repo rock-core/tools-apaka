@@ -15,8 +15,9 @@ module Autoproj
             extend Logger::Root("Packager", Logger::INFO)
 
             def prepare_source_dir(pkg, options = Hash.new)
-
+                Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir]
+                    Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
                     pkg_dir = File.join(OSC_BUILD_DIR, debian_name(pkg))
                     if not File.directory?(pkg_dir)
                         FileUtils.mkdir_p pkg_dir
@@ -26,27 +27,26 @@ module Autoproj
                     FileUtils.cp_r existing_source_dir, target_dir
 
                     pkg.srcdir = target_dir
-                end
+                else
+                    Autoproj.manifest.load_package_manifest(pkg.name)
 
-                Packager.debug "Preparing source dir #{pkg.name}"
-                Autoproj.manifest.load_package_manifest(pkg.name)
-
-                if pkg.importer.kind_of?(Autobuild::Git)
-                    pkg.importer.repository = pkg.srcdir
-                end
-                pkg.srcdir = File.join(OSC_BUILD_DIR, debian_name(pkg), dir_name(pkg))
-                begin 
-                    pkg.importer.import(pkg)
-                rescue Exception => e
-                    if not e.message =~ /failed in patch phase/
-                        raise
-                    else
-                        Packager.warn "Patching #{pkg.name} failed"
+                    if pkg.importer.kind_of?(Autobuild::Git)
+                        pkg.importer.repository = pkg.srcdir
                     end
-                end
+                    pkg.srcdir = File.join(OSC_BUILD_DIR, debian_name(pkg), dir_name(pkg))
+                    begin
+                        pkg.importer.import(pkg)
+                    rescue Exception => e
+                        if not e.message =~ /failed in patch phase/
+                            raise
+                        else
+                            Packager.warn "Patching #{pkg.name} failed"
+                        end
+                    end
 
-                Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
-                    FileUtils.rm_f file
+                    Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
+                        FileUtils.rm_f file
+                    end
                 end
             end
 
@@ -451,7 +451,7 @@ module Autoproj
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
                         diff_name = "#{orig_file_name}.diff"
-                        `diff -urN --exclude .git --exclude .svn --exclude CVS --exclude debian #{pkg.srcdir} . > #{diff_name}`
+                        `diff -urN --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{pkg.srcdir} . > #{diff_name}`
                         if File.open(diff_name).lines.any? 
                             return true
                         end
