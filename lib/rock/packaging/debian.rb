@@ -7,9 +7,9 @@ module Autoproj
     module Packaging
 
         # Directory for temporary data to 
-        # validate osc_packages
-        OSC_BUILD_DIR=File.join(Autoproj.root_dir, "build/osc")
-        OSC_LOCAL_TMP = File.join(OSC_BUILD_DIR,".osc_package")
+        # validate obs_packages
+        OBS_BUILD_DIR=File.join(Autoproj.root_dir, "build/obs")
+        OBS_LOCAL_TMP = File.join(OBS_BUILD_DIR,".obs_package")
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
@@ -18,7 +18,7 @@ module Autoproj
                 Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir]
                     Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
-                    pkg_dir = File.join(OSC_BUILD_DIR, debian_name(pkg))
+                    pkg_dir = File.join(OBS_BUILD_DIR, debian_name(pkg))
                     if not File.directory?(pkg_dir)
                         FileUtils.mkdir_p pkg_dir
                     end
@@ -33,7 +33,7 @@ module Autoproj
                     if pkg.importer.kind_of?(Autobuild::Git)
                         pkg.importer.repository = pkg.srcdir
                     end
-                    pkg.srcdir = File.join(OSC_BUILD_DIR, debian_name(pkg), dir_name(pkg))
+                    pkg.srcdir = File.join(OBS_BUILD_DIR, debian_name(pkg), dir_name(pkg))
                     begin
                         pkg.importer.import(pkg)
                     rescue Exception => e
@@ -50,35 +50,42 @@ module Autoproj
                 end
             end
 
-            def self.osc_package_name(pkg)
+            def self.obs_package_name(pkg)
                 "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
             end
         end
 
-        class OSC
+        class OBS
+
+            @@obs_cmd = "osc"
+
+            def self.obs_cmd
+                @@obs_cmd
+            end
+
             # Update the open build local checkout
             # using a given checkout directory and the pkg name
             # use a specific file pattern to set allowed files
             # source directory
-            # osc_dir target obs checkout directory
+            # obs_dir target obs checkout directory
             # src_dir wher the source dir is
             # pkg_name
             # allowed file patterns
-            def self.update_dir(osc_dir, src_dir, pkg_osc_name, file_suffix_patterns = ".*", commit = true)
-                pkg_osc_dir = File.join(osc_dir, pkg_osc_name)
-                if !File.directory?(pkg_osc_dir)
-                    FileUtils.mkdir_p pkg_osc_dir
-                    system("osc add #{pkg_osc_dir}")
+            def self.update_dir(obs_dir, src_dir, pkg_obs_name, file_suffix_patterns = ".*", commit = true)
+                pkg_obs_dir = File.join(obs_dir, pkg_obs_name)
+                if !File.directory?(pkg_obs_dir)
+                    FileUtils.mkdir_p pkg_obs_dir
+                    system("#{obs_cmd} add #{pkg_obs_dir}")
                 end
 
-                # sync the directory in build/osc and the target directory based on an existing
+                # sync the directory in build/obs and the target directory based on an existing
                 # files pattern
                 files = []
                 file_suffix_patterns.map do |p|
                     # Finding files that exist in the source directory
                     # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                     # and ruby-hoe/_service
-                    glob_exp = File.join(src_dir,pkg_osc_name,"*#{p}")
+                    glob_exp = File.join(src_dir,pkg_obs_name,"*#{p}")
                     files += Dir.glob(glob_exp)
                 end
                 files = files.flatten.uniq
@@ -86,43 +93,43 @@ module Autoproj
 
                 # prepare pattern for target directory
                 expected_files = files.map do |f|
-                    File.join(pkg_osc_dir, File.basename(f))
+                    File.join(pkg_obs_dir, File.basename(f))
                 end
                 Packager.debug "target directory: expected files: #{expected_files}"
 
-                existing_files = Dir.glob(File.join(pkg_osc_dir,"*"))
+                existing_files = Dir.glob(File.join(pkg_obs_dir,"*"))
                 Packager.debug "target directory: existing files: #{existing_files}"
 
                 existing_files.each do |existing_path|
                     if not expected_files.include?(existing_path)
-                        Packager.warn "OSC: deleting #{existing_path} -- not present in the current packaging"
+                        Packager.warn "OBS: deleting #{existing_path} -- not present in the current packaging"
                         FileUtils.rm_f existing_path
-                        system("osc rm #{existing_path}")
+                        system("#{obs_cmd} rm #{existing_path}")
                     end
                 end
 
                 # Add the new unchanged files
                 files.each do |path|
-                    target_file = File.join(pkg_osc_dir, File.basename(path))
+                    target_file = File.join(pkg_obs_dir, File.basename(path))
                     exists = File.exists?(target_file)
                     if exists 
                         if File.read(path) == File.read(target_file)
-                            Packager.info "OSC: #{target_file} is unchanged, skipping"
+                            Packager.info "OBS: #{target_file} is unchanged, skipping"
                         else
-                            Packager.info "OSC: #{target_file} updated"
+                            Packager.info "OBS: #{target_file} updated"
                             FileUtils.cp path, target_file
                         end
                     else
                         FileUtils.cp path, target_file 
-                        system("osc add #{target_file}")
+                        system("#{obs_cmd} add #{target_file}")
                     end
                 end
 
                 if commit 
-                    Packager.info "OSC: committing #{pkg_osc_dir}"
-                    system("osc ci #{pkg_osc_dir} -m \"autopackaged using autoproj-packaging tools\"")
+                    Packager.info "OBS: committing #{pkg_obs_dir}"
+                    system("#{obs_cmd} ci #{pkg_obs_dir} -m \"autopackaged using autoproj-packaging tools\"")
                 else 
-                    Packager.info "OSC: not commiting #{pkg_osc_dir}"
+                    Packager.info "OBS: not commiting #{pkg_obs_dir}"
                 end
             end
 
@@ -130,7 +137,7 @@ module Autoproj
             # The list will contain only the name, suffix '.deb' has 
             # been removed
             def self.list_packages(project, repository, architecture = "i586")
-                result = %x[osc ls -b -r #{repository} -a #{architecture} #{project}].split("\n")
+                result = %x[#{obs_cmd} ls -b -r #{repository} -a #{architecture} #{project}].split("\n")
                 pkg_list = result.collect { |pkg| pkg.sub(/(_.*)?.deb/,"") }
                 pkg_list
             end
@@ -153,7 +160,7 @@ module Autoproj
         end
 
         # Packaging details:
-        # - one main temporary folder in use: <autoproj-root>/build/osc/
+        # - one main temporary folder in use: <autoproj-root>/build/obs/
         # - in the temp folder we create one folder per package to handle the packaging
         #   this folder can be synced with the target folder of the local checkout of the OBS
         # - checking update currently on checks for changes on the source data (so if patches change it
@@ -184,8 +191,8 @@ module Autoproj
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
 
-                if not File.exists?(OSC_LOCAL_TMP)
-                    FileUtils.mkdir_p OSC_LOCAL_TMP
+                if not File.exists?(OBS_LOCAL_TMP)
+                    FileUtils.mkdir_p OBS_LOCAL_TMP
                 end
             end
 
@@ -231,7 +238,7 @@ module Autoproj
             end
 
             def packaging_dir(pkg)
-                File.join(Autoproj::Packaging::OSC_BUILD_DIR, debian_name(pkg))
+                File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
             end
 
             # Compute dependencies of this package
@@ -328,7 +335,7 @@ module Autoproj
                     :patch_dir => nil
 
                 if options[:force_update]
-                    dirname = File.join(OSC_BUILD_DIR, debian_name(pkg))
+                    dirname = File.join(OBS_BUILD_DIR, debian_name(pkg))
                     if File.directory?(dirname)
                         Packager.info "Debian: rebuild requested -- removing #{dirname}"
                         FileUtils.rm_rf(dirname)
@@ -351,12 +358,12 @@ module Autoproj
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
-                    begin 
-                        logname = "osc-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
+                    begin
+                        logname = "obs-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
                         gem = FileList["pkg/*.gem"].first
                         if not gem 
                             Packager.info "Debian: creating gem from package #{pkg.name}"
-                            if system("rake gem 2> #{File.join(OSC_BUILD_DIR, logname)}")
+                            if system("rake gem 2> #{File.join(OBS_BUILD_DIR, logname)}")
                                 gem = FileList["pkg/*.gem"].first
 
                                 # Make the naming of the gem consistent with the naming schema of
@@ -443,10 +450,10 @@ module Autoproj
                     orig_file_name = orig_file_name.first
                 end
 
-                # Create a local copy/backup of the current orig.tar.gz in .osc_package 
+                # Create a local copy/backup of the current orig.tar.gz in .obs_package 
                 # and extract it there -- compare the actual source package
-                FileUtils.cp(orig_file_name, OSC_LOCAL_TMP) 
-                Dir.chdir(OSC_LOCAL_TMP) do
+                FileUtils.cp(orig_file_name, OBS_LOCAL_TMP) 
+                Dir.chdir(OBS_LOCAL_TMP) do
                     `tar xzf #{orig_file_name}`
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
@@ -462,15 +469,15 @@ module Autoproj
 
             # Prepare the build directory, i.e. cleanup and obsolete file
             def prepare
-                if not File.exists?(OSC_BUILD_DIR)
-                    FileUtils.mkdir_p OSC_BUILD_DIR
+                if not File.exists?(OBS_BUILD_DIR)
+                    FileUtils.mkdir_p OBS_BUILD_DIR
                 end
                 cleanup
             end
 
             # Cleanup an existing local tmp folder in the build dir
             def cleanup
-                tmpdir = File.join(OSC_BUILD_DIR,OSC_LOCAL_TMP)
+                tmpdir = File.join(OBS_BUILD_DIR,OBS_LOCAL_TMP)
                 if File.exists?(tmpdir)
                     FileUtils.rm_rf(tmpdir)
                 end

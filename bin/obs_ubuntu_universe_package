@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-# This script allows to setup an OSC directory using a package from the ubuntu archive
+# This script allows to setup an OSB directory using a package from the ubuntu archive
 # The resulting directory is created in the current working directory
 #
 # http://en.opensuse.org/openSUSE:Build_Service_Concept_SourceService
@@ -92,7 +92,7 @@ end
 # 
 # if test -z "$package_name" || test -z "$version"; then
 #     echo "usage: osc_ubuntu_universe_package package_name version [revision]"
-#     echo "Sets up an OSC directory using a package from the ubuntu archive"
+#     echo "Sets up an OSB directory using a package from the ubuntu archive"
 #     echo "The resulting directory is created in the current working directory"
 #     echo "It is automatically added and committed at the end of the script"
 #     exit 1
