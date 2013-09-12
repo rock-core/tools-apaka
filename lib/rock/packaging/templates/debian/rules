@@ -15,10 +15,11 @@ rockruby_archdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)/$(arch_name)
 rockruby_extra_libdir = /usr/lib/ruby/vendor_ruby/standard/:/usr/lib/ruby/vendor_ruby/core/
 
 # Setting up the env variables
-env_setup = PATH=.:$(rock_bindir):$(PATH)
+env_setup = PATH=$(rock_bindir):$(PATH)
 env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_libdir):$(RUBYLIB)
-env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake ROCK_CMAKE_MACROS=$(rock_install_dir)/share/rock/cmake
-env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig
+env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake CMAKE_PREFIX_PATH=$(rock_install_dir)
+env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)
+env_setup += LD_LIBRARY_PATH=$(rock_install_dir)/lib:$(LD_LIBRARY_PATH)
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
