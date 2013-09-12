@@ -241,6 +241,19 @@ module Autoproj
                 File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
             end
 
+            # Commit changes of a debian package using dpkg-source --commit
+            # in a given directory (or the current one by default)
+            def dpkg_commit_changes(patch_name, directory = Dir.pwd)
+                Dir.chdir(directory) do
+                    Packager.info ("commit changes to debian pkg: #{patch_name}")
+                    # Since dpkg-source will open an editor we have to
+                    # take this approach to make it pass directly in an
+                    # automated workflow
+                    ENV['EDITOR'] = "/bin/true"
+                    `dpkg-source --commit . #{patch_name}`
+                end
+            end
+
             # Compute dependencies of this package
             # Returns [rock_packages, osdeps_packages]
             def dependencies(pkg)
@@ -591,11 +604,7 @@ module Autoproj
                                 # so add a commit
                                 orig_files = Dir["#{gem_patch_dir}/**"].reject { |f| f["#{gem_patch_dir}/debian/"] }
                                 if orig_files.size > 0
-                                    # Since dpkg-source will open an editor we have to 
-                                    # take this approach to make it pass directly in an 
-                                    # automated workflow
-                                    ENV['EDITOR'] = "/bin/true"
-                                    `dpkg-source --commit . ocl_autopackaging_overlay`
+                                    dpkg_commit_changes("ocl_autopackaging_overlay")
                                 end
                             else 
                                 Packager.warn "No patch dir: #{gem_patch_dir}"
@@ -613,11 +622,8 @@ module Autoproj
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
-                            # Since dpkg-source will open an editor we have to 
-                            # take this approach to make it pass directly in an 
-                            # automated workflow
-                            ENV['EDITOR'] = "/bin/true"
-                            `dpkg-source --commit . ocl_extra_dependencies`
+
+                            dpkg_commit_changes("ocl_extra_dependencies")
                         end
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
