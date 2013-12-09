@@ -431,6 +431,10 @@ module Autoproj
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir)
 
+                        # Commit local changes, e.g. check for
+                        # control/urdfdom as an example
+                        dpkg_commit_changes("local_build_changes", pkg.srcdir)
+
                         # Run dpkg-source
                         # Use the new tar ball as source
                         system("dpkg-source", "-I", "-b", pkg.srcdir)
