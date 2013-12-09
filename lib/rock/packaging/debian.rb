@@ -280,7 +280,7 @@ module Autoproj
                 # Update global list
                 @osdeps += deps_osdeps_packages
 
-                non_native_handlers = pkg_osdeps.collect do |handler, pkg_list| 
+                non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
                     if handler != native_package_manager
                         [handler, pkg_list]
                     end
@@ -289,8 +289,8 @@ module Autoproj
                 non_native_handlers.each do |pkg_handler, pkg_list|
                     # Convert native ruby gems package names to rock-xxx  
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
-                        pkg_list.flatten.each do |name|
-                            @ruby_gems << name
+                        pkg_list.each do |name,version|
+                            @ruby_gems << [name,version]
                             deps_osdeps_packages << debian_ruby_name(name)
                         end
                     else
@@ -376,34 +376,33 @@ module Autoproj
                         gem = FileList["pkg/*.gem"].first
                         if not gem 
                             Packager.info "Debian: creating gem from package #{pkg.name}"
-                            if system("rake gem 2> #{File.join(OBS_BUILD_DIR, logname)}")
-                                gem = FileList["pkg/*.gem"].first
-
-                                # Make the naming of the gem consistent with the naming schema of
-                                # rock packages
-                                #
-                                # Make sure the gem has the fullname, e.g.
-                                # tools-metaruby instead of just metaruby
-                                gem_rename = gem.sub(basename(pkg.name), canonize(pkg.name)) 
-                                if gem != gem_rename
-                                    Packager.info "Debian: renaming #{gem} to #{gem_rename}"
-                                    FileUtils.mv gem, gem_rename
-                                    gem = gem_rename
-                                end
-
-                                Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
-                                FileUtils.cp gem, packaging_dir(pkg)
-                                gem_final_path = File.join(packaging_dir(pkg), File.basename(gem))
-
-                                # Prepare injection of dependencies
-                                options[:deps] = deps
-                                convert_gem(gem_final_path, options)
-                            else
-                                Packager.warn "Debian: failed to create gem from RubyPackage #{pkg.name}"
+                            if !system("rake gem 2> #{File.join(OBS_BUILD_DIR, logname)}")
+                                raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
                                 Packager.warn "        check: #{File.expand_path(logname)}"
                             end
                         end
 
+                        gem = FileList["pkg/*.gem"].first
+
+                        # Make the naming of the gem consistent with the naming schema of
+                        # rock packages
+                        #
+                        # Make sure the gem has the fullname, e.g.
+                        # tools-metaruby instead of just metaruby
+                        gem_rename = gem.sub(basename(pkg.name), canonize(pkg.name))
+                        if gem != gem_rename
+                            Packager.info "Debian: renaming #{gem} to #{gem_rename}"
+                            FileUtils.mv gem, gem_rename
+                            gem = gem_rename
+                        end
+
+                        Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
+                        FileUtils.cp gem, packaging_dir(pkg)
+                        gem_final_path = File.join(packaging_dir(pkg), File.basename(gem))
+
+                        # Prepare injection of dependencies
+                        options[:deps] = deps
+                        convert_gem(gem_final_path, options)
                         # register gem with the correct naming schema
                         # to make sure dependency naming and gem naming are consistent
                         @ruby_rock_gems << debian_name(pkg)
@@ -521,7 +520,7 @@ module Autoproj
                 # individual step 
                 # This allows to add an overlay (patch) to be added to the final directory -- which 
                 # requires to be commited via dpkg-source --commit
-                @ruby_gems.each do |gem_name|
+                @ruby_gems.each do |gem_name, version|
                     gem_dir_name = debian_ruby_name(gem_name)
 
                     # Assuming if the .gem file has been download we do not need to update
@@ -532,7 +531,11 @@ module Autoproj
                         end
 
                         Dir.chdir(gem_dir_name) do 
-                            `gem fetch #{gem_name}`
+                            if version
+                                `gem fetch #{gem_name} --version '#{version}'`
+                            else
+                                `gem fetch #{gem_name}`
+                            end
                         end
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
                         convert_gem(gem_file_name, options)
