@@ -14,6 +14,7 @@ o_rebuild = false
 o_src_dir = nil
 
 options = OptionParser.new do |opt|
+    opt.banner = "Usage: obs_package [options]"
     opt.on('--skip', 'Skip existing packages') do
         skip = true
     end
