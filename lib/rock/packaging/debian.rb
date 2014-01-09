@@ -9,6 +9,7 @@ module Autoproj
         # Directory for temporary data to 
         # validate obs_packages
         OBS_BUILD_DIR=File.join(Autoproj.root_dir, "build/obs")
+        OBS_LOG_DIR=File.join(Autoproj.root_dir, OBS_BUILD_DIR, "logs")
         OBS_LOCAL_TMP = File.join(OBS_BUILD_DIR,".obs_package")
 
         class Packager
@@ -194,6 +195,10 @@ module Autoproj
                 if not File.exists?(OBS_LOCAL_TMP)
                     FileUtils.mkdir_p OBS_LOCAL_TMP
                 end
+
+                if not File.exists?(OBS_LOG_DIR)
+                    FileUtils.mkdir_p OBS_LOG_DIR
+                end
             end
 
             def canonize(name)
@@ -376,7 +381,7 @@ module Autoproj
                         gem = FileList["pkg/*.gem"].first
                         if not gem 
                             Packager.info "Debian: creating gem from package #{pkg.name}"
-                            if !system("rake gem 2> #{File.join(OBS_BUILD_DIR, logname)}")
+                            if !system("rake gem 2> #{File.join(OBS_LOG_DIR, logname)}")
                                 raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
                                 Packager.warn "        check: #{File.expand_path(logname)}"
                             end
