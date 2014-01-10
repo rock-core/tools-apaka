@@ -63,7 +63,8 @@ DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
-DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=#{v}" }.join(" ") %>
+# Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
+DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=#{v}" unless "#{k}" == "RUBY_EXECUTABLE" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
 
 <% elsif package.class == Autobuild::Autotools %>
