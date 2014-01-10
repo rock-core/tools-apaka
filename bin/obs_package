@@ -254,7 +254,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
     end
 
     # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
-    packager.convert_gems({:force_update => false, :patch_dir => o_patch_dir})
+    packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
 
     if o_obs_dir
         if o_all_packages

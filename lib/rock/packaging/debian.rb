@@ -549,7 +549,7 @@ module Autoproj
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
                         convert_gem(gem_file_name, options)
                     else 
-                        Autoproj.info "gem: #{gem_name} up to date"
+                        Packager.info "gem: #{gem_name} up to date"
                     end
                 end
             end
