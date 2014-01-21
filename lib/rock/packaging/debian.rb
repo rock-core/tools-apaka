@@ -31,11 +31,23 @@ module Autoproj
                 else
                     Autoproj.manifest.load_package_manifest(pkg.name)
 
+                    # Test whether there is a local
+                    # version of the package to use.
+                    # If it is not available import package
+                    # from the original source
                     if pkg.importer.kind_of?(Autobuild::Git)
+                        if not File.exists?(pkg.srcdir)
+                            Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
+                            pkg.importer.import(pkg)
+                        else
+                            Packager.debug "Using locally available git repository of '#{pkg.name}'"
+                        end
                         pkg.importer.repository = pkg.srcdir
                     end
+
                     pkg.srcdir = File.join(OBS_BUILD_DIR, debian_name(pkg), dir_name(pkg))
                     begin
+                        Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
                     rescue Exception => e
                         if not e.message =~ /failed in patch phase/
