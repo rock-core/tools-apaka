@@ -591,7 +591,7 @@ module Autoproj
 
                     # Create ruby-<name>-<version> folder including debian/ folder 
                     # from .tar.gz
-                    `dh-make-ruby #{gem_versioned_name}.tar.gz`
+                    `dh-make-ruby --ruby-versions "ruby1.9.1" #{gem_versioned_name}.tar.gz`
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)
 
