@@ -20,6 +20,7 @@ env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_lib
 env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake CMAKE_PREFIX_PATH=$(rock_install_dir)
 env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)
 env_setup += LD_LIBRARY_PATH=$(rock_install_dir)/lib:$(LD_LIBRARY_PATH)
+env_setup += OROGEN_PLUGIN_PATH=$(rock_install_dir)/share/orogen/plugins
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
