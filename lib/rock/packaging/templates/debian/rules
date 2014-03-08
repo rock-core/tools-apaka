@@ -41,8 +41,8 @@ pre-build::
 	if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
 	if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
-# Making sure orogen is executed before cmake is called
 <% if package.class == Autobuild::Orogen %>
+	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
 	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= pkg.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
 	echo "Current directory including oroGen generated files"
@@ -75,6 +75,21 @@ DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
 DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
     <% end %>
 include /usr/share/cdbs/1/class/autotools.mk
+<% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage) %>
+CMAKE = $(env_setup) cmake
+DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
+
+# Debian packaging discourages the use of rpath, and 
+# cdbs actively disables it setting CMAKE_SKIP_RPATH=ON
+# however since we install into /opt/rock we turn skipping off again
+# CXXFLAGS+=-Wl,-rpath-link,/opt/rock/lib
+DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
+# Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
+DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
+# Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
+include /usr/share/cdbs/1/class/cmake.mk
+
+
 <% else 
 raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
 end %>
