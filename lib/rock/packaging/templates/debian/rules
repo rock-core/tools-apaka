@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 
+# BEGIN ENVIRONMENT SETUP
 rock_install_dir = /opt/rock
 rock_bindir = /tmp/rock/bin
 
@@ -41,14 +42,22 @@ pre-build::
 	if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
 	if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
-# Making sure orogen is executed before cmake is called
+# END ENVIRONMENT SETUP
+######################################
+# BEGIN OROGEN -- This block needs to be executed before CMAKE
+
 <% if package.class == Autobuild::Orogen %>
+	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
 	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= pkg.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
 	echo "Current directory including oroGen generated files"
 	find . 
 <% end %>
 
+# END OROGEN
+######################################
+# BEGIN CMAKE
+#
 <% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen %>
 # Defining the cmake command and setting the required enviroment variables
 # PKG_CONFIG_PATH Resolve Rock package via pkg-config
@@ -68,6 +77,10 @@ DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
 DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=#{v}" unless "#{k}" == "RUBY_EXECUTABLE" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
 
+# END CMAKE
+##########################################
+# BEGIN AUTOTOOLS
+#
 <% elsif package.class == Autobuild::Autotools %>
 DEB_CONFIGURE_PREFIX= /opt/rock
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
@@ -75,6 +88,22 @@ DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
 DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
     <% end %>
 include /usr/share/cdbs/1/class/autotools.mk
+
+# END AUTOTOOLS
+############################################
+# BEGIN IMPORTER
+#
+<% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage) %>
+CMAKE = $(env_setup) cmake
+DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
+DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
+DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
+# Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
+include /usr/share/cdbs/1/class/cmake.mk
+
+# END IMPORTER
+# ##########################################
+#
 <% else 
 raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
 end %>

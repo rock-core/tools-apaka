@@ -391,6 +391,8 @@ module Autoproj
                     package_deb(pkg, options)
                 elsif pkg.kind_of?(Autoproj::RubyPackage)
                     package_ruby(pkg, options)
+                elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) || pkg.kind_of?(Autobuild::ImporterPackage)
+                    package_importer(pkg, options)
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
                 end
@@ -477,6 +479,67 @@ module Autoproj
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                     FileUtils.rm_rf( File.basename(pkg.srcdir) )
+                end
+            end
+
+            def package_importer(pkg, options)
+                Packager.info "Using package_importer for #{pkg.name}"
+
+                Dir.chdir(packaging_dir(pkg)) do
+                    dir_name = versioned_name(pkg)
+
+                    FileUtils.rm_rf File.join(pkg.srcdir, "debian")
+                    FileUtils.rm_rf File.join(pkg.srcdir, "build")
+
+                    # Generate a CMakeLists which installs every file
+                    cmake = File.new(dir_name + "/CMakeLists.txt", "w+")
+                    cmake.puts "cmake_minimum_required(VERSION 2.6)"
+                    add_folder_to_cmake "#{Dir.pwd}/#{dir_name}", cmake, pkg.name
+                    cmake.close
+
+                    # First, generate the source tarball
+                    tarball = "#{dir_name}.orig.tar.gz"
+
+                    # Check first if actual source contains newer information than existing
+                    # orig.tar.gz -- only then we create a new debian package
+                    if package_updated?(pkg)
+
+                        Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
+                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
+
+                        # Generate the debian directory
+                        generate_debian_dir(pkg, pkg.srcdir)
+
+                        # Commit local changes, e.g. check for
+                        # control/urdfdom as an example
+                        dpkg_commit_changes("local_build_changes", pkg.srcdir)
+
+                        # Run dpkg-source
+                        # Use the new tar ball as source
+                        system("dpkg-source", "-I", "-b", pkg.srcdir)
+                        ["#{versioned_name(pkg)}.debian.tar.gz",
+                         "#{versioned_name(pkg)}.orig.tar.gz",
+                         "#{versioned_name(pkg)}.dsc"]
+                    else
+                        # just to update the required gem property
+                        dependencies(pkg)
+                        Packager.info "Package: #{pkg.name} is up to date"
+                    end
+                end
+            end
+
+            # For importer-packages we need to add every file in the deb-package, for that we "install" every file with CMake
+            # This method adds an install-line of every file (including subdirectories) of a file into the given cmake-file
+            def add_folder_to_cmake(base_dir, cmake, destination, folder = ".")
+                Dir.foreach("#{base_dir}/#{folder}") do |file|
+                    next if file.to_s == "." or file.to_s == ".." or file.to_s.start_with? "."
+                    if File.directory? "#{base_dir}/#{folder}/#{file}"
+                        # create the potentially empty folder. If the folder is not empty this is useless, but empty folders would not be generated
+                        cmake.puts "install(DIRECTORY #{folder}/#{file} DESTINATION share/rock/#{destination}/#{folder} FILES_MATCHING PATTERN .* EXCLUDE)"
+                        add_folder_to_cmake base_dir, cmake, destination, "#{folder}/#{file}"
+                    else
+                        cmake.puts "install(FILES #{folder}/#{file} DESTINATION share/rock/#{destination}/#{folder})"
+                    end
                 end
             end
 
