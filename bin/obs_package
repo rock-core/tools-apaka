@@ -128,6 +128,11 @@ selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+
+packager.add_package_alias("tools/rtt","rtt")
+package.add_package_alias("tools/rtt-typelib", "rtt-typelib")
+package.add_package_alias("tools/typelib","typelib")
+
 packager.prepare
 
 # Make sure that when we request a package build we only get this one,

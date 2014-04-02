@@ -187,6 +187,9 @@ module Autoproj
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
 
+            # Package like tools/rtt etc. require a custom naming schema, i.e. the base name rtt should be used for tools/rtt
+            attr_reader :package_aliases
+
             attr_reader :existing_debian_directories
 
             # List of gems, which need to be converted to debian packages
@@ -203,6 +206,7 @@ module Autoproj
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
+                @package_aliases = Hash.new
 
                 if not File.exists?(OBS_LOCAL_TMP)
                     FileUtils.mkdir_p OBS_LOCAL_TMP
@@ -226,15 +230,24 @@ module Autoproj
                 name
             end
 
+            def add_package_alias(pkg_name, pkg_alias)
+                @package_aliases[pkg_name] = pkg_alias
+            end
+
             # The debian name of a package -- either 
             # rock-<canonized-package-name>
             # or for ruby packages
             # ruby-<canonized-package-name>
             def debian_name(pkg)
+                name = pkg.name
+                if @package_aliases.has_key?(name)
+                    name = @package_aliases[name]
+                end
+
                 if pkg.kind_of?(Autoproj::RubyPackage)
-                    debian_ruby_name(pkg.name)
+                    debian_ruby_name(name)
                 else
-                   "rock-" + canonize(pkg.name)
+                   "rock-" + canonize(name)
                 end
             end
 
