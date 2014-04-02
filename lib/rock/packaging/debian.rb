@@ -409,8 +409,10 @@ module Autoproj
                         if not gem 
                             Packager.info "Debian: creating gem from package #{pkg.name}"
                             if !system("rake gem 2> #{File.join(OBS_LOG_DIR, logname)}")
-                                raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
-                                Packager.warn "        check: #{File.expand_path(logname)}"
+                                if !system("rake dist:gem 2> #{File.join(OBS_LOG_DIR, logname)}")
+                                    Packager.warn "        check: #{File.expand_path(logname)}"
+                                    raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
+                                end
                             end
                         end
 
