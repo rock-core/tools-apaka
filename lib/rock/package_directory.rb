@@ -326,7 +326,13 @@ module Rock
                             next
                         end
 
-                    type = Orocos.registry.get(type_name)
+                    type = nil
+                    begin
+                        type = Orocos.registry.get(type_name)
+                    rescue Typelib::NotFound => e
+                        PackageDirecttory.warn "Could not load typekit for #{type_name}, but it was defined in #{typekit.name}"
+                        raise e
+                    end
                     if typekit.m_type?(type) && (Orocos.master_project.find_opaque_for_intermediate(type) != type)
                         PackageDirectory.debug "ignoring #{type_name}: is an m-type"
                         next
