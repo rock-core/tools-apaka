@@ -435,16 +435,15 @@ module Autoproj
                         #
                         # Make sure the gem has the fullname, e.g.
                         # tools-metaruby instead of just metaruby
+                        Packager.info "Debian: '#{pkg.name}' -- basename: #{basename(pkg.name)} will be canonized to: #{canonize(pkg.name)}"
                         gem_rename = gem.sub(basename(pkg.name), canonize(pkg.name))
                         if gem != gem_rename
                             Packager.info "Debian: renaming #{gem} to #{gem_rename}"
-                            FileUtils.mv gem, gem_rename
-                            gem = gem_rename
                         end
 
                         Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
-                        FileUtils.cp gem, packaging_dir(pkg)
-                        gem_final_path = File.join(packaging_dir(pkg), File.basename(gem))
+                        gem_final_path = File.join(packaging_dir(pkg), File.basename(gem_rename))
+                        FileUtils.cp gem, gem_final_path
 
                         # Prepare injection of dependencies
                         options[:deps] = deps
