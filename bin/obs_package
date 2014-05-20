@@ -98,6 +98,9 @@ class OBSConfiguration
         @override_osdeps["ruby-nokogiri"] = :gem
         @override_osdeps
     end
+
+    def osdeps_target_directory(root_dir)
+        root_dir
     end
 end
 
@@ -249,18 +252,18 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
         # Update the obs directory if given
         if o_obs_dir
-            Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
+            Dir.chdir(obs_configuration.osdeps_target_directory(o_obs_dir)) do
                 update_osdeps.each do |name|
                     puts "OBS -- update osdeps gem: #{name}"
+                    # Check if directory exists -- if not, the osdeps
                     if File.directory?(name)
-                       Autoproj::Packaging::OBS.update_dir(o_obs_dir,Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
+                        Autoproj::Packaging::OBS.update_dir(obs_configuration.osdeps_target_directory(o_obs_dir),Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
                     else
-                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}"
+                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
                     end
                 end
             end
         end
-
     end
 
     if o_extra_gem
