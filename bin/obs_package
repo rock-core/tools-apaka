@@ -96,6 +96,8 @@ class OBSConfiguration
     def osdeps_override
         # Set list of osdeps, which need to be manually packaged
         @override_osdeps["ruby-nokogiri"] = :gem
+        @override_osdeps
+    end
     end
 end
 
