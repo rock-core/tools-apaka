@@ -81,7 +81,7 @@ module Autoproj
             # use a specific file pattern to set allowed files
             # source directory
             # obs_dir target obs checkout directory
-            # src_dir wher the source dir is
+            # src_dir where the source dir is
             # pkg_name
             # allowed file patterns
             def self.update_dir(obs_dir, src_dir, pkg_obs_name, file_suffix_patterns = ".*", commit = true)
