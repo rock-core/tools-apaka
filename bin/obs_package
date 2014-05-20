@@ -183,10 +183,11 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     # Check for osdeps -- fixed set of repositories at the moment
     if o_osdeps
-
         # Opendeps to process and check whether they and their dependencies are
         # available
         openlist_osdeps = packager.osdeps
+        Autoproj.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
+
         # List of which osdeps which already have dealt with
         blacklist_osdeps = []
         # Maintain a listof which osdeps to update
@@ -204,8 +205,8 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
-            # Workaround for nokogiri -- insert to ruby_gems list to force
-            # gem2deb usage instead of default os package
+            # Workaround,e.g., for nokogiri -- insert to ruby_gems list to force
+            # gem2deb usage instead of using the default os package
             if override_osdeps.has_key?(osdeps_name)
                 type = override_osdeps[osdeps_name]
                 if  type == :gem
@@ -216,13 +217,19 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
+            # Check if the osdeps package is already available, otherwise add it
+            # to the current obs project
             if not available_packages.include?(osdeps_name)
                 Autoproj.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
                 if !File.directory?(Autoproj::Packaging::OBS_BUILD_DIR)
                     FileUtils.mkdir(Autoproj::Packaging::OBS_BUILD_DIR)
                 end
 
+                # Create the package, but keep a blacklist. This makes sure that each package dependency creation is tried only once while
+                # going recursively through all package dependencies
                 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
+                    # Use the existing script to create a corresponding '_service' file for OBS, that allow to include existing
+                    # deps into the current project
                     if system("obs_ubuntu_universe_package #{osdeps_name}")
                         update_osdeps << osdeps_name
                     else 
@@ -257,6 +264,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
     end
 
     if o_extra_gem
+        # Allow to build a gem explicitely
         packager.ruby_gems << o_extra_gem
     end
 
