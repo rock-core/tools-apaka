@@ -418,6 +418,7 @@ module Autoproj
                                 else
                                     Packager.info "Debian: succeeded to clean package '#{pkg.name}' using target '#{target}'"
                                     gem_clean_success = true
+                                    break
                                 end
                             end
                             if not gem_clean_success
@@ -438,6 +439,7 @@ module Autoproj
                                 else
                                     Packager.info "Debian: succeeded to create gem using target '#{target}'"
                                     gem_creation_success = true
+                                    break
                                 end
                             end
                             if not gem_creation_success
