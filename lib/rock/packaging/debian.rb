@@ -291,6 +291,7 @@ module Autoproj
                 deps_rock_packages = pkg.dependencies.map do |pkg_name|
                     debian_name(Autoproj.manifest.package(pkg_name).autobuild)
                 end.sort
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -306,6 +307,7 @@ module Autoproj
                 _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
+                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 # Update global list
                 @osdeps += deps_osdeps_packages
