@@ -96,6 +96,7 @@ class OBSConfiguration
     def osdeps_override
         # Set list of osdeps, which need to be manually packaged
         @override_osdeps["ruby-nokogiri"] = :gem
+        @override_osdeps
     end
 end
 
@@ -133,7 +134,7 @@ packager.prepare
 # Make sure that when we request a package build we only get this one,
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
-    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
+    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name) or o_selected_packages.include?(pkg_name + '/')
         true
     else
         false
