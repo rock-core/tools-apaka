@@ -11,7 +11,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %         build_dependencies << "libtool"
 %     end
 %     build_dependencies << "autotools"
-% elsif package.kind_of?(Autoproj::RubyPackage)
+% elsif package.kind_of?(Autobuild::Ruby)
 %     raise "debian/control: cannot handle ruby package"
 % elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage)
 %     build_dependencies << "cmake"

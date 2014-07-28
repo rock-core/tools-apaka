@@ -271,7 +271,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             selection.each_with_index do |pkg_name, i|
                 pkg = Autoproj.manifest.package(pkg_name).autobuild
                 # Excluding ruby packages here since they need a special treatment
-                if pkg.kind_of?(Autoproj::RubyPackage)
+                if pkg.kind_of?(Autobuild::Ruby)
                     next
                 end
 

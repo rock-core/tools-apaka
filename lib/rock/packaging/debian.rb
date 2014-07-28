@@ -1,5 +1,6 @@
 require 'find'
 require 'autoproj'
+require 'autobuild'
 require 'tmpdir'
 require 'utilrb'
 
@@ -219,12 +220,8 @@ module Autoproj
             # or for ruby packages
             # ruby-<canonized-package-name>
             def debian_name(pkg)
-                if pkg.kind_of?(Autoproj::RubyPackage)
+                if pkg.kind_of?(Autobuild::Ruby)
                     debian_ruby_name(pkg.name)
-                elsif ROCK_TOOLS.include? pkg.name
-                    pgk_name = pkg.name.split(/\//).shift.join
-                    pgk_name = pgk_name
-                    "rock-" + canonize(pkg_name)
                 else
                    "rock-" + canonize(pkg.name)
                 end
