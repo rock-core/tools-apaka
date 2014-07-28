@@ -354,7 +354,8 @@ module Autoproj
                 options, unknown_options = Kernel.filter_options options,
                     :force_update => false,
                     :existing_source_dir => nil,
-                    :patch_dir => nil
+                    :patch_dir => nil,
+                    :package_set_dir => nil
 
                 if options[:force_update]
                     dirname = File.join(OBS_BUILD_DIR, debian_name(pkg))
@@ -368,12 +369,17 @@ module Autoproj
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
                     package_deb(pkg, options)
-                elsif pkg.kind_of?(Autoproj::RubyPackage)
+                elsif pkg.kind_of?(Autobuild::Ruby)
                     package_ruby(pkg, options)
                 elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) || pkg.kind_of?(Autobuild::ImporterPackage)
                     package_importer(pkg, options)
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
+                end
+                if !options[:package_set_dir].nil?
+                    osdeps_file = YAML.load_file(options[:package_set_dir] + "rock-osdeps.osdeps")
+                    osdeps_file[pkg.name] = {'debian,ubuntu' => debian_name(pkg)}
+                    File.open(options[:package_set_dir] + "rock-osdeps.osdeps", 'w+') {|f| f.write(osdeps_file.to_yaml) }
                 end
             end
 

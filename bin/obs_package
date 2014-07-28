@@ -12,6 +12,7 @@ o_extra_gem = nil
 o_all_packages = true
 o_rebuild = false
 o_src_dir = nil
+o_ps_dir = nil
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
@@ -64,6 +65,13 @@ options = OptionParser.new do |opt|
         o_src_dir = dir
         if !File.directory?(o_src_dir)
             puts "Given source directory '#{o_src_dir}' does not exist"
+            exit -1
+        end
+    end
+    opt.on("--package-set-dir DIR", String, "Directory with the binary-package set to update") do |dir|
+        o_ps_dir = dir
+        if !File.directory?(o_ps_dir)
+            puts "Given source directory '#{o_ps_dir}' does not exist"
             exit -1
         end
     end
@@ -165,7 +173,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir })
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
             rescue Interrupt
                 raise
             rescue Exception => e
