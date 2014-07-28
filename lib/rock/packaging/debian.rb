@@ -175,7 +175,6 @@ module Autoproj
         # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
-            ROCK_TOOLS = ["tools/rtt","tools/rtt-typelib", "tools/typelib"]
             attr_reader :existing_debian_directories
 
             # List of gems, which need to be converted to debian packages
@@ -391,6 +390,7 @@ module Autoproj
                         if not gem 
                             Packager.info "Debian: creating gem from package #{pkg.name}"
                             if !system("rake gem 2> #{File.join(OBS_LOG_DIR, logname)}")
+                                Packager.warn("rake gem failed, trying rake dist:gem")
                                 if !system("rake dist:gem 2> #{File.join(OBS_LOG_DIR, logname)}")
                                     Packager.warn "        check: #{File.expand_path(logname)}"
                                     raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
