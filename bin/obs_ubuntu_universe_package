@@ -4,19 +4,19 @@
 #
 # http://en.opensuse.org/openSUSE:Build_Service_Concept_SourceService
 
-# To have the package available on the target platform a _service file is created: 
+# To have the package available on the target platform a _service file is created:
 #
 # <services>
 # <service name="download_url">
 #     <param name="host">archive.ubuntu.com</param>
 #     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9-1build1.dsc</param>
 # </service>
-# 
+#
 # <service name="download_url">
 #     <param name="host">archive.ubuntu.com</param>
 #     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9.orig.tar.gz</param>
 # </service>
-# 
+#
 # <service name="download_url">
 #     <param name="host">archive.ubuntu.com</param>
 #     <param name="path">/ubuntu/pool/multiverse/c/cgal/cgal_3.9-1build1.diff.gz</param>
@@ -24,135 +24,77 @@
 # </services>
 #
 require 'fileutils'
+require 'optparse'
 
-if ARGV.size == 0 || ARGV[0] == "--help" || ARGV[0] == "-h"
-    puts "usage: #{$0} <package-name>"
-    puts "Allows to setup an import service, to load existing ubuntu universe packages"
-    exit 0
+o_validate = false
+o_verbose = false
+o_selected_packages = []
+
+options = OptionParser.new do |opt|
+    opt.banner = "Usage: obs_ubuntu_universe_package [options]"
+    opt.separator "Description: Allows to setup an import service, to load existing ubuntu universe packages"
+    opt.on('--validate', 'Check it the given package is provided as osdeps by the current operating system') do
+        o_validate = true
+    end
+    opt.on_tail("-v","--verbose", "Show verbose output") do
+        o_verbose = true
+    end
+    opt.on_tail("-h","--help", "Show this message") do
+        puts opt
+        exit
+    end
+
 end
 
-required_name = ARGV[0]
-record = `apt-cache showsrc #{required_name}`.split("\n").map(&:strip)
-if $?.exitstatus != 0
-    raise
-end
+o_selected_packages = options.parse(ARGV)
 
-package_name = record.find { |line| line =~ /^Package:/ }.gsub(/^Package:\s*/, '')
-dir = record.find { |line| line =~ /^Directory:/ }.gsub(/^Directory:\s*/, '')
-files = nil
-record.each do |line|
-    if files
-        if line =~ /^[0-9a-f]+\s+[0-9a-f]+\s+(.*)$/
-            files << $1
-        else break
+o_selected_packages.each do |required_name|
+    record = `apt-cache showsrc #{required_name}`.split("\n").map(&:strip)
+    if record.empty?
+        if not o_validate
+            raise ArgumentError, "obs_ubuntu_universe_package: cannot retrieve package '#{required_name}'"
         end
-    elsif line =~ /^Files:/
-        files = []
+    elsif o_validate
+        puts "Record found for '#{required_name}'"
+    end
+
+    if o_verbose
+        puts record
+    end
+
+    if not o_validate
+        package_name = record.find { |line| line =~ /^Package:/ }.gsub(/^Package:\s*/, '')
+        dir = record.find { |line| line =~ /^Directory:/ }.gsub(/^Directory:\s*/, '')
+        files = nil
+        record.each do |line|
+            if files
+                if line =~ /^[0-9a-f]+\s+[0-9a-f]+\s+(.*)$/
+                    files << $1
+                else break
+                end
+            elsif line =~ /^Files:/
+                files = []
+            end
+        end
+
+        entries = files.map do |f|
+            srv_entry =<<-EOD
+        <service name="download_url">
+            <param name="host">archive.ubuntu.com</param>
+            <param name="path">/ubuntu/#{dir}/#{f}</param>
+        </service>
+            EOD
+        end
+
+        FileUtils.mkdir_p package_name
+        File.open(File.join(package_name, '_service'), 'w') do |io|
+            io.puts "<services>"
+            io.puts entries.join("\n")
+            io.puts "</services>"
+        end
+        if o_verbose
+            puts "Entries:\n#{entries.join("\n")}"
+            puts "Successfully created package folder: '#{package_name}'"
+        end
     end
 end
-
-existed = File.directory?(package_name)
-
-entries = files.map do |f|
-    srv_entry =<<-EOD
-<service name="download_url">
-    <param name="host">archive.ubuntu.com</param>
-    <param name="path">/ubuntu/#{dir}/#{f}</param>
-</service>
-    EOD
-end
-
-FileUtils.mkdir_p package_name
-File.open(File.join(package_name, '_service'), 'w') do |io|
-    io.puts "<services>"
-    io.puts entries.join("\n")
-    io.puts "</services>"
-end
-
-#if !existed
-#    system("osc", "add", package_name)
-#end
-#system("osc", "ci", package_name, "-m", "register ubuntu Universe/Multiverse package #{package_name}")
-
-# required_name=$1
-# directory=`apt-cache showsrc $required_name | grep Directory | head -1 | awk '{print $2}'`
-# files=`apt-cache show $required_name | grep Version | head -1 | awk '{print $2}'`
-# 
-# if echo $source_version | grep -q "-"; then
-#     version=${source_version/-*/}
-#     revision=${source_version/*-/}
-# else # native debian package
-#     package_name=$required_name
-#     version=$source_version
-#     revision=
-# fi
-# version=${version/*:/}
-# 
-# echo $package_name $version $revision
-# 
-# if test -z "$package_name" || test -z "$version"; then
-#     echo "usage: osc_ubuntu_universe_package package_name version [revision]"
-#     echo "Sets up an OSB directory using a package from the ubuntu archive"
-#     echo "The resulting directory is created in the current working directory"
-#     echo "It is automatically added and committed at the end of the script"
-#     exit 1
-# fi
-# package_name_prefix=$(echo $package_name | sed 's/\(.\).*/\1/')
-# 
-# if test -d $package_name; then
-#     existed_before=1
-# fi
-# mkdir -p $package_name
-# 
-# if test -n "$revision"; then
-#     if wget --spider http://archive.ubuntu.com/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version.orig.tar.gz; then
-#         compress=gz
-#     else
-#         compress=bz2
-#     fi
-#     if wget --spider http://archive.ubuntu.com/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version-$revision.debian.tar.gz; then
-#         diffstyle=debian.tar.gz
-#     else
-#         diffstyle=diff.gz
-#     fi
-# 
-# cat > $package_name/_service <<EOF
-# <services>
-# <service name="download_url">
-#     <param name="host">archive.ubuntu.com</param>
-#     <param name="path">/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version-$revision.dsc</param>
-# </service>
-# <service name="download_url">
-#     <param name="host">archive.ubuntu.com</param>
-#     <param name="path">/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version.orig.tar.$compress</param>
-# </service>
-# <service name="download_url">
-#     <param name="host">archive.ubuntu.com</param>
-#     <param name="path">/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version-$revision.$diffstyle</param>
-# </service>
-# </services>
-# EOF
-# else
-# if wget --spider http://archive.ubuntu.com/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version.tar.gz; then
-#     compress=gz
-# else
-#     compress=bz2
-# fi
-# cat > $package_name/_service <<EOF
-# <services>
-# <service name="download_url">
-#     <param name="host">archive.ubuntu.com</param>
-#     <param name="path">/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version.dsc</param>
-# </service>
-# <service name="download_url">
-#     <param name="host">archive.ubuntu.com</param>
-#     <param name="path">/ubuntu/pool/universe/$package_name_prefix/$package_name/${package_name}_$version.tar.$compress</param>
-# </service>
-# </services>
-# EOF
-# fi
-# 
-# if test -z "$existed_before"; then
-#     osc add $package_name
-# fi
-# osc ci $package_name -m "register ubuntu Universe package $package_name"

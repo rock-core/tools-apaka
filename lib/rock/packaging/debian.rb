@@ -32,11 +32,23 @@ module Autoproj
                 else
                     Autoproj.manifest.load_package_manifest(pkg.name)
 
+                    # Test whether there is a local
+                    # version of the package to use.
+                    # If it is not available import package
+                    # from the original source
                     if pkg.importer.kind_of?(Autobuild::Git)
+                        if not File.exists?(pkg.srcdir)
+                            Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
+                            pkg.importer.import(pkg)
+                        else
+                            Packager.debug "Using locally available git repository of '#{pkg.name}'"
+                        end
                         pkg.importer.repository = pkg.srcdir
                     end
+
                     pkg.srcdir = File.join(OBS_BUILD_DIR, debian_name(pkg), dir_name(pkg))
                     begin
+                        Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
                     rescue Exception => e
                         if not e.message =~ /failed in patch phase/
@@ -70,7 +82,7 @@ module Autoproj
             # use a specific file pattern to set allowed files
             # source directory
             # obs_dir target obs checkout directory
-            # src_dir wher the source dir is
+            # src_dir where the source dir is
             # pkg_name
             # allowed file patterns
             def self.update_dir(obs_dir, src_dir, pkg_obs_name, file_suffix_patterns = ".*", commit = true)
@@ -149,14 +161,14 @@ module Autoproj
                 if $?.exitstatus != 0
                     raise
                 end
-                
+
                 depends_on = []
                 record.each do |line|
                     if line =~ /^\s*Depends:\s*[<]?([^>]*)[>]?/
                         depends_on << $1.strip
                     end
                 end
-                
+
                 depends_on
             end
         end
@@ -175,6 +187,10 @@ module Autoproj
         # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
+
+            # Package like tools/rtt etc. require a custom naming schema, i.e. the base name rtt should be used for tools/rtt
+            attr_reader :package_aliases
+
             attr_reader :existing_debian_directories
 
             # List of gems, which need to be converted to debian packages
@@ -191,6 +207,7 @@ module Autoproj
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
+                @package_aliases = Hash.new
 
                 if not File.exists?(OBS_LOCAL_TMP)
                     FileUtils.mkdir_p OBS_LOCAL_TMP
@@ -214,20 +231,32 @@ module Autoproj
                 name
             end
 
+            def add_package_alias(pkg_name, pkg_alias)
+                @package_aliases[pkg_name] = pkg_alias
+            end
+
             # The debian name of a package -- either 
             # rock-<canonized-package-name>
             # or for ruby packages
             # ruby-<canonized-package-name>
             def debian_name(pkg)
+                name = pkg.name
                 if pkg.kind_of?(Autobuild::Ruby)
                     debian_ruby_name(pkg.name)
+                    if @package_aliases.has_key?(name)
+                        name = @package_aliases[name]
+                    end
+                end
+
+                if pkg.kind_of?(Autobuild::Ruby)
+                    debian_ruby_name(name)
                 else
-                   "rock-" + canonize(pkg.name)
+                    "rock-" + canonize(name)
                 end
             end
 
             def debian_ruby_name(name)
-               "ruby-" + canonize(name)
+                "ruby-" + canonize(name)
             end
 
             def debian_version(pkg)
@@ -266,6 +295,7 @@ module Autoproj
                 deps_rock_packages = pkg.dependencies.map do |pkg_name|
                     debian_name(Autoproj.manifest.package(pkg_name).autobuild)
                 end.sort
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -275,12 +305,13 @@ module Autoproj
                 # 
                 # Generation of the debian packages from the gems can be done in postprocessing step
                 # i.e. see convert_gems
-               
+
                 deps_osdeps_packages = []
                 native_package_manager = Autoproj.osdeps.os_package_handler
                 _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
+                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 # Update global list
                 @osdeps += deps_osdeps_packages
@@ -380,7 +411,7 @@ module Autoproj
             end
 
             # Create an osc package of an existing ruby package
-            def package_ruby(pkg, options) 
+            def package_ruby(pkg, options)
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
@@ -388,13 +419,43 @@ module Autoproj
                         logname = "obs-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
                         gem = FileList["pkg/*.gem"].first
                         if not gem 
-                            Packager.info "Debian: creating gem from package #{pkg.name}"
-                            if !system("rake gem 2> #{File.join(OBS_LOG_DIR, logname)}")
-                                Packager.warn("rake gem failed, trying rake dist:gem")
-                                if !system("rake dist:gem 2> #{File.join(OBS_LOG_DIR, logname)}")
-                                    Packager.warn "        check: #{File.expand_path(logname)}"
-                                    raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
+                            Packager.info "Debian: preparing gem generation in #{Dir.pwd}"
+
+                            # Rake targets that should be tried for cleaning
+                            gem_clean_alternatives = ['clean','dist:clean','clobber']
+                            gem_clean_success = false
+                            gem_clean_alternatives.each do |target|
+                                if !system("rake #{target} > #{File.join(OBS_LOG_DIR, logname)} 2> #{File.join(OBS_LOG_DIR, logname)}")
+                                    Packager.info "Debian: failed to clean package '#{pkg.name}' using target '#{target}'"
+                                else
+                                    Packager.info "Debian: succeeded to clean package '#{pkg.name}' using target '#{target}'"
+                                    gem_clean_success = true
+                                    break
                                 end
+                            end
+                            if not gem_clean_success
+                                Packager.warn "Debian: failed to cleanup ruby package '#{pkg.name}' -- continuing without cleanup"
+                            end
+
+                            Packager.info "Debian: ruby package Manifest.txt is being autogenerated"
+                            if !system('find . -type f | grep -v .git/ | grep -v build/ | grep -v tmp/ | sed \'s/\.\///\' > Manifest.txt')
+                                raise "Debian: failed to create an up to date Manifest.txt"
+                            end
+                            Packager.info "Debian: creating gem from package #{pkg.name} [#{File.join(OBS_LOG_DIR, logname)}]"
+
+                            gem_creation_alternatives = ['gem','dist:gem','build']
+                            gem_creation_success = false
+                            gem_creation_alternatives.each do |target|
+                                if !system("rake #{target} >> #{File.join(OBS_LOG_DIR, logname)} 2>> #{File.join(OBS_LOG_DIR, logname)}")
+                                    Packager.info "Debian: failed to create gem using target '#{target}'"
+                                else
+                                    Packager.info "Debian: succeeded to create gem using target '#{target}'"
+                                    gem_creation_success = true
+                                    break
+                                end
+                            end
+                            if not gem_creation_success
+                                raise "Debian: failed to create gem from RubyPackage #{pkg.name}"
                             end
                         end
 
@@ -405,16 +466,15 @@ module Autoproj
                         #
                         # Make sure the gem has the fullname, e.g.
                         # tools-metaruby instead of just metaruby
+                        Packager.info "Debian: '#{pkg.name}' -- basename: #{basename(pkg.name)} will be canonized to: #{canonize(pkg.name)}"
                         gem_rename = gem.sub(basename(pkg.name), canonize(pkg.name))
                         if gem != gem_rename
                             Packager.info "Debian: renaming #{gem} to #{gem_rename}"
-                            FileUtils.mv gem, gem_rename
-                            gem = gem_rename
                         end
 
                         Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
-                        FileUtils.cp gem, packaging_dir(pkg)
-                        gem_final_path = File.join(packaging_dir(pkg), File.basename(gem))
+                        gem_final_path = File.join(packaging_dir(pkg), File.basename(gem_rename))
+                        FileUtils.cp gem, gem_final_path
 
                         # Prepare injection of dependencies
                         options[:deps] = deps
@@ -471,24 +531,25 @@ module Autoproj
 
                 Dir.chdir(packaging_dir(pkg)) do
                     dir_name = versioned_name(pkg)
-                FileUtils.rm_rf File.join(pkg.srcdir, "debian")
-                FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
-                # Generate a CMakeLists which installs every file
-                cmake = File.new(dir_name + "/CMakeLists.txt", "w+")
-                cmake.puts "cmake_minimum_required(VERSION 2.6)"
-                add_folder_to_cmake "#{Dir.pwd}/#{dir_name}", cmake, pkg.name
-                cmake.close
+                    FileUtils.rm_rf File.join(pkg.srcdir, "debian")
+                    FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
-                # First, generate the source tarball
-                tarball = "#{dir_name}.orig.tar.gz"
+                    # Generate a CMakeLists which installs every file
+                    cmake = File.new(dir_name + "/CMakeLists.txt", "w+")
+                    cmake.puts "cmake_minimum_required(VERSION 2.6)"
+                    add_folder_to_cmake "#{Dir.pwd}/#{dir_name}", cmake, pkg.name
+                    cmake.close
 
-                # Check first if actual source contains newer information than existing 
-                # orig.tar.gz -- only then we create a new debian package
-                if package_updated?(pkg)
+                    # First, generate the source tarball
+                    tarball = "#{dir_name}.orig.tar.gz"
 
-                    Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                    system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
+                    # Check first if actual source contains newer information than existing
+                    # orig.tar.gz -- only then we create a new debian package
+                    if package_updated?(pkg)
+
+                        Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
+                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir)
@@ -503,15 +564,12 @@ module Autoproj
                         ["#{versioned_name(pkg)}.debian.tar.gz",
                          "#{versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg)}.dsc"]
-                    else 
+                    else
                         # just to update the required gem property
                         dependencies(pkg)
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
-          #          FileUtils.rm_rf( File.basename(pkg.srcdir) )
                 end
-                
-
             end
 
             # For importer-packages we need to add every file in the deb-package, for that we "install" every file with CMake

@@ -73,7 +73,7 @@ if ! test "$ROCK_DOC_API" = "0"; then
         echo "could not find the autoproj API in $autoproj_api_dir"
     fi
     
-    autobuild_version=`ruby -e "require 'autobuild'; puts autobuild::VERSION"`
+    autobuild_version=`ruby -e "require 'autobuild'; puts Autobuild::VERSION"`
     autobuild_api_dir=$GEM_HOME/doc/autobuild-$autobuild_version
     if test -d $autobuild_api_dir; then
         echo "copying autobuild API documentation to $target_dir/api/autobuild"

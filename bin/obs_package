@@ -1,7 +1,7 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
 
-o_skip = false
+o_skip_existing = false
 o_obs_dir = nil
 o_patch_dir = nil
 o_osdeps = false
@@ -16,8 +16,8 @@ o_ps_dir = nil
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
-    opt.on('--skip', 'Skip existing packages') do
-        o_skip = true
+    opt.on('--skip-existing', 'Skip existing packages') do
+        o_skip_existing = true
     end
     opt.on("--obs DIR", String, "OpenBuildService checkout in which the generated packages should be registered, in combination with osdeps it limits the update to the osdeps packages") do |dir|
         o_obs_dir = File.expand_path(dir)
@@ -106,6 +106,10 @@ class OBSConfiguration
         @override_osdeps["ruby-nokogiri"] = :gem
         @override_osdeps
     end
+
+    def osdeps_target_directory(root_dir)
+        root_dir
+    end
 end
 
 obs_configuration = OBSConfiguration.new
@@ -137,6 +141,11 @@ selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+
+packager.add_package_alias("tools/rtt","rtt")
+packager.add_package_alias("tools/rtt-typelib", "rtt-typelib")
+packager.add_package_alias("tools/typelib","typelib")
+
 packager.prepare
 
 # Make sure that when we request a package build we only get this one,
@@ -156,7 +165,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
 
-            if o_skip && o_obs_dir
+            if o_skip_existing && o_obs_dir
                 pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkg))
                 if File.directory?(pkg_obs_dir)
                     puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
@@ -185,10 +194,11 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     # Check for osdeps -- fixed set of repositories at the moment
     if o_osdeps
-
         # Opendeps to process and check whether they and their dependencies are
         # available
         openlist_osdeps = packager.osdeps
+        Autoproj.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
+
         # List of which osdeps which already have dealt with
         blacklist_osdeps = []
         # Maintain a listof which osdeps to update
@@ -206,8 +216,8 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
-            # Workaround for nokogiri -- insert to ruby_gems list to force
-            # gem2deb usage instead of default os package
+            # Workaround,e.g., for nokogiri -- insert to ruby_gems list to force
+            # gem2deb usage instead of using the default os package
             if override_osdeps.has_key?(osdeps_name)
                 type = override_osdeps[osdeps_name]
                 if  type == :gem
@@ -218,13 +228,19 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
+            # Check if the osdeps package is already available, otherwise add it
+            # to the current obs project
             if not available_packages.include?(osdeps_name)
                 Autoproj.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
                 if !File.directory?(Autoproj::Packaging::OBS_BUILD_DIR)
                     FileUtils.mkdir(Autoproj::Packaging::OBS_BUILD_DIR)
                 end
 
+                # Create the package, but keep a blacklist. This makes sure that each package dependency creation is tried only once while
+                # going recursively through all package dependencies
                 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
+                    # Use the existing script to create a corresponding '_service' file for OBS, that allow to include existing
+                    # deps into the current project
                     if system("obs_ubuntu_universe_package #{osdeps_name}")
                         update_osdeps << osdeps_name
                     else 
@@ -244,21 +260,22 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
         # Update the obs directory if given
         if o_obs_dir
-            Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
+            Dir.chdir(obs_configuration.osdeps_target_directory(o_obs_dir)) do
                 update_osdeps.each do |name|
                     puts "OBS -- update osdeps gem: #{name}"
+                    # Check if directory exists -- if not, the osdeps
                     if File.directory?(name)
-                       Autoproj::Packaging::OBS.update_dir(o_obs_dir,Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
+                        Autoproj::Packaging::OBS.update_dir(obs_configuration.osdeps_target_directory(o_obs_dir),Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
                     else
-                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}"
+                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
                     end
                 end
             end
         end
-
     end
 
     if o_extra_gem
+        # Allow to build a gem explicitely
         packager.ruby_gems << o_extra_gem
     end
 
