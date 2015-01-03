@@ -714,6 +714,7 @@ module Autoproj
                     else
                         raise ArgumentError, "Converting gem: unknown formatting"
                     end
+                    puts "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
 
                     Packager.debug "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                     # Convert .gem to .tar.gz

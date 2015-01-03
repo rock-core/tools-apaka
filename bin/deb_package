@@ -168,8 +168,8 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 if pkg.kind_of?(Autobuild::Ruby)
                     next
                 end
-            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)
                 pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkg)
+            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)
 
                 # sync the directory in build/obs and the target directory based on an existing
                 # files pattern
@@ -197,6 +197,19 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 puts "OBS -- update gem: #{gem_name}"
             end
             pkg_obs_name = packager.debian_ruby_name(gem_name)
+                files = []
+                packager.file_suffix_patterns.map do |p|
+                    # Finding files that exist in the source directory
+                    # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
+                    # and ruby-hoe/_service
+                    glob_exp = File.join(Autoproj::Packaging::OBS_BUILD_DIR,pkg_obs_name,"*#{p}")
+                    files += Dir.glob(glob_exp)
+                end
+                files = files.flatten.uniq
+            dest_dir = File.join(o_dest_dir, pkg_obs_name)
+
+            FileUtils.mkdir_p dest_dir
+            FileUtils.cp files, dest_dir
         end
 
         # Update rock gems
