@@ -343,6 +343,17 @@ module Autoproj
                     system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
             end
 
+            def create_ruby_job(pkg_name, gem_name)
+                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-ruby-job.xml")), nil, "%<>")
+                    rendered = template.result(binding)
+                    File.open("#{gem_name}.xml", 'w') do |f|
+                          f.write rendered
+                    end
+                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
+
+                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name}' --username test --password test < #{gem_name}.xml")
+            end
+
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
             def dpkg_commit_changes(patch_name, directory = Dir.pwd)
