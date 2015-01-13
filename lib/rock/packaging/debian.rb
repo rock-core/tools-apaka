@@ -275,6 +275,74 @@ module Autoproj
                 File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
             end
 
+            def create_flow_job(name, selection)
+                flow = Array.new
+                x = 0
+                debug = false
+                size = 0 
+                while !selection.empty? do
+                    if size == selection.size
+                        puts "entering debug mode"
+                        debug = true
+                        break
+                    end
+                    size = selection.size
+                    flow[x] = Array.new
+                    selection.each do |pkg_name|
+                        flow_old = flow.flatten
+
+                        pkg = Autoproj.manifest.package(pkg_name).autobuild
+                        if deps_fulfilled(flow_old.flatten, pkg, debug)
+                            flow[x] << debian_name(pkg)
+                            selection.delete(pkg_name)
+                            puts debian_name(pkg)
+                        end
+                    end
+
+                    x += 1
+                end
+                
+                create_flow_job_xml(name, flow)
+
+            end
+
+            def deps_fulfilled(deps, pkg, debug = false)
+                dependencies(pkg)[0].each do |dep|
+                    if !deps.include? dep
+                        if debug
+                            puts dep
+                            puts deps.join ','
+                            exit -1
+                        end
+                        return false
+                    end
+                end
+                true
+            end
+
+            def create_flow_job_xml(name, flow)
+                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), nil, "%<>")
+                    rendered = template.result(binding)
+                    File.open("#{name}.xml", 'w') do |f|
+                          f.write rendered
+                    end
+                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
+
+                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
+            end
+
+            def create_job(pkg)
+                    deb_name = debian_name(pkg)
+                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), nil, "%<>")
+                    rendered = template.result(binding)
+                    File.open("#{deb_name}.xml", 'w') do |f|
+                          f.write rendered
+                    end
+                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
+
+                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
+            end
+
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
             def dpkg_commit_changes(patch_name, directory = Dir.pwd)

@@ -10,6 +10,8 @@ o_all_packages = true
 o_rebuild = false
 o_src_dir = nil
 o_ps_dir = nil
+o_job = false
+o_flow = nil
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
@@ -60,6 +62,17 @@ options = OptionParser.new do |opt|
             puts "Given source directory '#{o_ps_dir}' does not exist"
             exit -1
         end
+    end
+    opt.on("--create-job", "Create a jenkins-job") do
+        o_job = true
+    end
+    opt.on("--create-flow-job name", String, "Create the jenkins-FLOW-job") do |name|
+        o_flow = name
+        if o_flow.nil? or o_flow == ""
+            puts "no jobname given"
+            exit -1
+        end
+
     end
 end
 
@@ -120,7 +133,7 @@ end
 
 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
-    if o_all_packages
+    if o_all_packages && o_flow.nil? && !o_job
         Autobuild.do_update = true
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
@@ -150,6 +163,18 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
         end
+    end
+    if o_job
+        selection.each_with_index do |pkg_name, i|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            puts "Creating Jenkins-job: #{pkg_name}"
+            packager.create_job(pkg)
+        end
+    end
+
+    if o_flow
+        puts "Creating FLOW-Job"
+        packager.create_flow_job(o_flow, selection)
     end
 
     if o_extra_gem
