@@ -260,7 +260,7 @@ module Autoproj
             end
 
             def debian_version(pkg)
-                (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d")
+                (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d-%H%M")
             end
 
             def versioned_name(pkg)
@@ -763,6 +763,7 @@ module Autoproj
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
                         deps = options[:deps].flatten.uniq
+                        deps << "dh-autoreconf"
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
