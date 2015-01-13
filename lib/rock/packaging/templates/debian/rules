@@ -39,8 +39,8 @@ pre-build::
 	find .
 	
 	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set /opt/rock/bin/ruby
-	if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
-	if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
+	#if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
+	#if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
 # END ENVIRONMENT SETUP
 ######################################
