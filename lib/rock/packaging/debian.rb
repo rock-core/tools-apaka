@@ -260,7 +260,7 @@ module Autoproj
             end
 
             def debian_version(pkg)
-                (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d-%H%M")
+                (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
             end
 
             def versioned_name(pkg)
