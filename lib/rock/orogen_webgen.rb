@@ -86,16 +86,6 @@ module Rock
         end
 
         class OrogenRender
-            def self.load_orogen_project(master_project, name, debug)
-                master_project.load_orogen_project(name)
-            rescue Exception => e
-                if debug
-                    raise
-                end
-                STDERR.puts "WARN: cannot load the installed oroGen project #{name}"
-                STDERR.puts "WARN:     #{e.message}"
-            end
-
             def self.render_task_list(tasks)
                 Doc.render_main_list(nil, 0, tasks.sort_by(&:name)) do |task|
                     "<tr><td>#{Doc.orogen_task_link(task.model, :orogen_tasks)}</td></tr>"
@@ -202,10 +192,9 @@ Defined in the task library of #{Doc.package_link(package_name, depth)}
                 require 'orocos'
 
                 Orocos.load
-                master_project = Orocos::Generation::Project.new
 
                 all = []
-                Orocos.available_projects.each_key do |project_name|
+                orogen_loader.each_available_project_name do |project_name|
                     autoproj_name = Doc.orogen_to_autoproj[project_name]
                     if !autoproj_name
                         STDERR.puts "WARN: cannot find the autoproj package for the oroGen project #{project_name}"
@@ -213,11 +202,16 @@ Defined in the task library of #{Doc.package_link(package_name, depth)}
                     end
 
                     project = 
-                        begin load_orogen_project(master_project, project_name, debug)
+                        begin orogen_loader.project_model_from_name(project_name)
                         rescue Interrupt
                             raise
                         rescue Exception => e
-                            STDERR.puts "WARN: cannot load project #{project_name}, ignoring it"
+                            if debug
+                                raise
+                            end
+                            STDERR.puts "WARN: cannot load the installed oroGen project #{name}"
+                            STDERR.puts "WARN:     #{e.message}"
+                            STDERR.puts "WARN: it will be ignored"
                             next
                         end
 

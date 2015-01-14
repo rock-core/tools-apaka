@@ -8,6 +8,10 @@ module Rock
         class PackageDirectory
             extend Logger::Root('PackageDirectory', Logger::WARN)
 
+            def available_task_models
+                Orocos.default_pkgconfig_loader.available_task_models
+            end
+
             TEMPLATE_DIR = File.expand_path(File.join('templates', 'html'), File.dirname(__FILE__))
 
             SORT_INFO_PACKAGE_SETS_INDEX = 2
@@ -45,6 +49,9 @@ module Rock
                 @generated_indexes = Set.new
                 @handle_vizkit = false
                 @api_base_url = "/api"
+
+                @loader = OroGen::Loaders::PkgConfig.new(OroGen.orocos_target)
+                OroGen::Loaders::RTT.setup_loader(loader)
             end
 
             @templates = Hash.new
@@ -170,7 +177,7 @@ module Rock
                 relative_path = nil
                 case obj
                 when Orocos::Spec::TaskContext
-                    if Orocos.available_task_models.include?(obj.name)
+                    if loader.available_task_models.include?(obj.name)
                         relative_path = "tasks/#{obj.name}.html"
                     else
                         return obj.name
@@ -196,7 +203,7 @@ module Rock
                         elsif obj <= Typelib::ContainerType
                             return "#{Doc::HTML.escape_html(obj.container_kind)}&lt;#{link_to(obj.deference)}&gt;"
                         elsif !orogen_types.include?(obj)
-                            opaque = Orocos.master_project.find_opaque_for_intermediate(obj)
+                            opaque = loader.opaque_type_for(obj)
                             if opaque != obj && opaque
                                 return link_to(opaque)
                             else
@@ -285,6 +292,8 @@ module Rock
 
             attr_predicate :handle_vizkit?, true
 
+            attr_reader :loader
+
             def prepare
                 @autoproj_packages = Autoproj.manifest.packages.values.sort_by(&:name).
                     find_all { |pkg| File.directory?(pkg.autobuild.srcdir) }
@@ -297,10 +306,10 @@ module Rock
                 @orogen_type_producers = Hash.new { |h, k| h[k] = Array.new }
                 @orogen_type_consumers = Hash.new { |h, k| h[k] = Array.new }
 
-                @orogen_task_models = Orocos.available_task_models.keys.sort.map do |model_name|
+                @orogen_task_models = loader.available_task_models.keys.sort.map do |model_name|
                     begin
                         PackageDirectory.debug "loading task model #{model_name}"
-                        task_model = Orocos.task_model_from_name(model_name)
+                        task_model = loader.task_model_from_name(model_name)
                         task_model.each_input_port do |p|
                             orogen_type_consumers[p.type.name] << p
                         end
@@ -315,26 +324,26 @@ module Rock
                     end
                 end.compact
 
-                @orogen_types = Orocos.available_types.keys.sort.map do |type_name|
-                    typekit =
-                        begin
-                            PackageDirectory.debug "loading typekit for #{type_name}"
-                            Orocos.load_typekit_for(type_name, false)
-                        rescue Interrupt; raise
-                        rescue Exception => e
-                            PackageDirectory.warn "cannot load typekit for #{type_name}: #{e.message}"
-                            next
-                        end
-
-                    type = nil
+                @orogen_types = loader.available_types.keys.sort.map do |type_name|
                     begin
-                        type = Orocos.registry.get(type_name)
+                        PackageDirectory.debug "loading typekit for #{type_name}"
+                        typekit = loader.typekit_for(type_name, false)
+                    rescue Interrupt; raise
+                    rescue Exception => e
+                        PackageDirectory.warn "cannot load typekit for #{type_name}: #{e.message}"
+                        next
+                    end
+
+                    begin
+                        type = loader.resolve_type(type_name)
                     rescue Typelib::NotFound => e
-                        PackageDirectory.warn "Could not load typekit for #{type_name}, but it was defined in #{typekit.name}"
+                        PackageDirectory.warn "Could not load typekit for #{type_name}, but it was supposed to be defined in #{typekit.name}"
+                        PackageDirectory.warn "   #{e.message}"
                         next
                         #raise e #TODO add this see bug https://rock.opendfki.de/ticket/443#ticket
                     end
-                    if typekit.m_type?(type) && (Orocos.master_project.find_opaque_for_intermediate(type) != type)
+
+                    if loader.m_type?(type) && (loader.opaque_type_for(type) != type)
                         PackageDirectory.debug "ignoring #{type_name}: is an m-type"
                         next
                     elsif !(type <= Typelib::ArrayType)
@@ -438,7 +447,7 @@ module Rock
                     :sort_info => SORT_INFO_OROGEN_TASKS_INDEX)
                 orogen_task_models.each_with_index do |object, index|
                     index = SORT_INFO_OROGEN_TASKS + index
-                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::TaskContext)
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, OroGen::HTML::TaskContext)
                     write(File.join('tasks', "#{object.name}.page"), 'object_page.page', binding)
                 end
             end
@@ -494,7 +503,7 @@ module Rock
                                      'types', '/', names, path[0..-2], 'orogen_type_list.page')
 
                     index = SORT_INFO_OROGEN_TYPES + index
-                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, Orocos::HTML::Type)
+                    fragment = MetaRuby::GUI::HTML::Page.to_html_body(object, OroGen::HTML::Type)
                     write(File.join('types', *path), 'object_page.page', binding)
                 end
             end
