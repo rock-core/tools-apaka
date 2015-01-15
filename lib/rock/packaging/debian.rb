@@ -345,6 +345,7 @@ module Autoproj
 
             def create_ruby_job(gem_name)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-ruby-job.xml")), nil, "%<>")
+                    dir_name = debian_ruby_name(gem_name)
                     rendered = template.result(binding)
                     File.open("#{gem_name}.xml", 'w') do |f|
                           f.write rendered

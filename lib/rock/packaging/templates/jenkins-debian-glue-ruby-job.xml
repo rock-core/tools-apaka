@@ -35,9 +35,9 @@
       <command>dir=`pwd`
 cd /var/lib/jenkins/rock
 . /var/lib/jenkins/rock/env.sh
-deb_package --patch-dir /home/clausen/dfki/bootstraps/rock_master/obs_patches --dest $dir --package --rebuild <%= gem_name %>
+deb_package --patch-dir /home/clausen/dfki/bootstraps/rock_master/obs_patches --dest $dir --package --rebuild --gem <%= gem_name %>
 cd -
-mv <%= gem_name %>/* .</command>
+mv <%= dir_name %>/* .</command>
     </hudson.tasks.Shell>
     <hudson.tasks.Shell>
       <command>/usr/bin/build-and-provide-package</command>
