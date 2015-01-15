@@ -343,7 +343,7 @@ module Autoproj
                     system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
             end
 
-            def create_ruby_job(pkg_name, gem_name)
+            def create_ruby_job(gem_name)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-ruby-job.xml")), nil, "%<>")
                     rendered = template.result(binding)
                     File.open("#{gem_name}.xml", 'w') do |f|

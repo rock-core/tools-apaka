@@ -4,7 +4,6 @@ require 'rock/packaging/debian'
 o_skip = false
 o_dest_dir = nil
 o_patch_dir = nil
-o_osdeps = false
 o_extra_gem = nil
 o_all_packages = true
 o_rebuild = false
@@ -12,7 +11,8 @@ o_src_dir = nil
 o_ps_dir = nil
 o_job = false
 o_flow = nil
-o_ruby_job
+o_ruby_job = nil
+o_package = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
@@ -32,10 +32,6 @@ options = OptionParser.new do |opt|
             puts "Given patch directory '#{o_patch_dir}' does not exist"
             exit -1
         end
-    end
-
-    opt.on("--osdeps","Generate osdeps directories which are not yet available as packages") do
-        o_osdeps = true
     end
 
     opt.on("--[no-]verbose", "display output of commands on stdout") do |v| Autobuild.verbose = v end
@@ -76,7 +72,9 @@ options = OptionParser.new do |opt|
             puts "no jobname given"
             exit -1
         end
-
+    end
+    opt.on("--package", "Create choosen packages") do
+        o_package = true
     end
 end
 
@@ -85,38 +83,7 @@ end
 o_selected_packages = options.parse(ARGV)
 
 ################################################################################
-# TODO: could be part of some extra configuration
-#
-# OBS Content -- entry of repositories hosting rock debian source packages
-class OBSConfiguration
 
-    attr_reader :build_projects
-    attr_reader :osdeps_override
-
-    def initialize
-        @build_projects = []
-        @override_osdeps = {}
-    end
-
-    def build_projects
-        #@build_projects << [ "Ubuntu:12.04","standard"]
-    end
-
-    def osdeps_override
-        # Set list of osdeps, which need to be manually packaged
-        @override_osdeps["ruby-nokogiri"] = :gem
-        @override_osdeps
-    end
-end
-
-obs_configuration = OBSConfiguration.new
-################################################################################
-
-# Listing available packages
-#if o_available
-#    puts available_packages.join("\n")
-#    exit 0
-#end
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
@@ -128,16 +95,15 @@ packager.prepare
 # Make sure that when we request a package build we only get this one,
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
-    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name) or o_selected_packages.include?(pkg_name + '/')
+    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
         true
     else
         false
     end
 end
-
 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
-    if o_all_packages && o_flow.nil? && !o_job
+    if o_package && o_all_packages 
         Autobuild.do_update = true
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
@@ -168,6 +134,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             end
         end
     end
+
     if o_job
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
@@ -181,14 +148,32 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         packager.create_flow_job(o_flow, selection)
     end
 
+    if o_ruby_job
+        puts "Creating Gem-Jobs"
+        selection.each do |pkg_name|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            packager.dependencies pkg
+        end
+        if o_extra_gem
+            packager.ruby_gems << o_extra_gem
+        end
+        packager.ruby_gems.each do |gem_name,version|
+            puts "Creating Jenkins-job: #{gem_name}"
+            packager.create_ruby_job(gem_name)
+        end
+        packager.ruby_rock_gems.each do |gem_name,version|
+            puts "Creating Jenkins-job: #{gem_name}"
+            packager.create_ruby_job(gem_name)
+        end
+    end
+
     if o_extra_gem
         packager.ruby_gems << o_extra_gem
     end
-
     # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
     packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
 
-    if o_dest_dir
+    if o_dest_dir && o_package
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
@@ -239,10 +224,6 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
             FileUtils.mkdir_p dest_dir
             FileUtils.cp files, dest_dir
-            if o_ruby_job
-                puts "Creating Jenkins-Ruby-Job: #{pkg_obs_name}"
-                packager.create_ruby_job(pkg_name, pkg_obs_name)
-            end
         end
 
         # Update rock gems

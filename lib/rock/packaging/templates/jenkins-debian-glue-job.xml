@@ -35,7 +35,7 @@
       <command>dir=`pwd`
 cd /var/lib/jenkins/rock
 . /var/lib/jenkins/rock/env.sh
-deb_package --patch-dir /home/clausen/dfki/bootstraps/rock_master/obs_patches --dest $dir --rebuild <%= pkg.name %>
+deb_package --patch-dir /home/clausen/dfki/bootstraps/rock_master/obs_patches --dest $dir --rebuild --package <%= pkg.name %>
 cd -
 mv <%= debian_name(pkg) %>/* .</command>
     </hudson.tasks.Shell>
