@@ -860,6 +860,8 @@ module Autoproj
                         # export DH_RUBY_IGNORE_TESTS=all
                         Packager.debug "Disabling ruby test result evaluation"
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
+                        `sed -i "s#Architecture: all#Architecture: any#" debian/control`
+                        dpkg_commit_changes("any-architecture")
                     end
 
                     # Build only a debian source package -- do not compile binary package
