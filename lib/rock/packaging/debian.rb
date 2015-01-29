@@ -277,25 +277,24 @@ module Autoproj
 
             def create_flow_job(name, selection)
                 flow = Array.new
-                x = 0
+                flow[0] = Array.new
+                x = 1
                 debug = false
                 size = 0 
                 while !selection.empty? do
                     if size == selection.size
                         puts "entering debug mode"
                         debug = true
-                        break
                     end
                     size = selection.size
                     flow[x] = Array.new
                     selection.each do |pkg_name|
                         flow_old = flow.flatten
-
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
-                        if deps_fulfilled(flow_old.flatten, pkg, debug)
+                        if deps_fulfilled(flow_old.flatten, pkg, flow, debug)
                             flow[x] << debian_name(pkg)
                             selection.delete(pkg_name)
-                            puts debian_name(pkg)
+                            #puts debian_name(pkg)
                         end
                     end
 
@@ -306,21 +305,29 @@ module Autoproj
 
             end
 
-            def deps_fulfilled(deps, pkg, debug = false)
-                dependencies(pkg)[0].each do |dep|
+            def deps_fulfilled(deps, pkg, flow, debug = false)
+                pkg_deps = dependencies(pkg)
+                pkg_deps[0].each do |dep|
                     if !deps.include? dep
-                        if debug
-                            puts dep
-                            puts deps.join ','
+                        #if (debug && debian_name(pkg) == "rock-utilmm")
+                        if (debug)
+                            puts "Missing: #{dep}"
                             exit -1
                         end
                         return false
                     end
                 end
+                pkg_deps[1].each do |dep|
+                    if (dep.start_with? "ruby-") && (!flow[0].include? dep[5..dep.size])
+                        flow[0] << dep[5..dep.size]
+                    end
+                end
                 true
             end
 
-            def create_flow_job_xml(name, flow)
+            def create_flow_job_xml(name, flow, force = false)
+                    gems = flow[0].uniq
+                    flow.delete_at(0)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), nil, "%<>")
                     rendered = template.result(binding)
                     File.open("#{name}.xml", 'w') do |f|
