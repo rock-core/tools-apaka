@@ -275,7 +275,7 @@ module Autoproj
                 File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
             end
 
-            def create_flow_job(name, selection)
+            def create_flow_job(name, selection, force = false)
                 flow = Array.new
                 flow[0] = Array.new
                 x = 1
@@ -301,7 +301,7 @@ module Autoproj
                     x += 1
                 end
                 
-                create_flow_job_xml(name, flow)
+                create_flow_job_xml(name, flow, force)
 
             end
 
@@ -333,32 +333,38 @@ module Autoproj
                     File.open("#{name}.xml", 'w') do |f|
                           f.write rendered
                     end
-                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
 
+                    if force
+                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{name}' --username test --password test")
+                    end
                     system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
             end
 
-            def create_job(pkg)
+            def create_job(pkg, force = false)
                     deb_name = debian_name(pkg)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), nil, "%<>")
                     rendered = template.result(binding)
                     File.open("#{deb_name}.xml", 'w') do |f|
                           f.write rendered
                     end
-                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
 
+                    if force
+                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{deb_name}' --username test --password test")
+                    end
                     system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
             end
 
-            def create_ruby_job(gem_name)
+            def create_ruby_job(gem_name, force = false)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-ruby-job.xml")), nil, "%<>")
                     dir_name = debian_ruby_name(gem_name)
                     rendered = template.result(binding)
                     File.open("#{gem_name}.xml", 'w') do |f|
                           f.write rendered
                     end
-                    #puts "java -jar jenkins-cli.jar -s http://localhost:8080/ create-job #{pkg_name}\n#{rendered}"
 
+                    if force
+                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{gem_name}' --username test --password test < #{gem_name}.xml")
+                    end
                     system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name}' --username test --password test < #{gem_name}.xml")
             end
 

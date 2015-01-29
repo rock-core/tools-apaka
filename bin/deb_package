@@ -13,6 +13,7 @@ o_job = false
 o_flow = nil
 o_ruby_job = nil
 o_package = false
+o_overwrite = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
@@ -75,6 +76,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--package", "Create choosen packages") do
         o_package = true
+    end
+    opt.on("--overwrite", "Overwrite existing Jenkins Jobs (History-loss!)") do
+        o_overwrite = true
     end
 end
 
@@ -139,13 +143,13 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
             puts "Creating Jenkins-job: #{pkg_name}"
-            packager.create_job(pkg)
+            packager.create_job(pkg, o_overwrite)
         end
     end
 
     if o_flow
         puts "Creating FLOW-Job"
-        packager.create_flow_job(o_flow, selection)
+        packager.create_flow_job(o_flow, selection, o_overwrite)
     end
 
     if o_ruby_job
@@ -159,11 +163,11 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         end
         packager.ruby_gems.each do |gem_name,version|
             puts "Creating Jenkins-job: #{gem_name}"
-            packager.create_ruby_job(gem_name)
+            packager.create_ruby_job(gem_name, o_overwrite)
         end
         packager.ruby_rock_gems.each do |gem_name,version|
             puts "Creating Jenkins-job: #{gem_name}"
-            packager.create_ruby_job(gem_name)
+            packager.create_ruby_job(gem_name, o_overwrite)
         end
     end
 
