@@ -16,22 +16,21 @@
   <buildWrappers/>
   <icon/>
   <dsl>
-      //parallel (
-    // ruby-gem-jobs will be scheduled in parallel as they don't depend on each other
+ignore(FAILURE){
+parallel (
     <% gems.each_with_index do |gem,i| %>
-    //{ build(&quot;<%= gem%>&quot;, param1: &quot;test&quot;) }<%= gems.size == (i+1) ? "" : "," %>
+    {
+	build(&quot;<%= gem%>&quot;, param1: &quot;test&quot;)}<%= gems.size == (i+1) ? "" : "," %>
     <% end %>
-    //)
-
-<% gems.each do |gem| %>
-ignore(FAILURE) {
-    build(&quot;<%= gem%>&quot;, param1: &quot;test&quot;)
+    )
 }
-<% end %>
-
-<% flow.flatten.each do |job| %>
-ignore(FAILURE) {
-    build(&quot;<%= job %>&quot;, param1: &quot;test&quot;)
+<% flow.each do |jobs| %>
+ignore(FAILURE){
+    parallel (
+    <% jobs.each_with_index do |job,i| %>
+        { build(&quot;<%= job %>&quot;, param1: &quot;test&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
+    <% end %>
+    )
 }
 <% end %>
 </dsl>

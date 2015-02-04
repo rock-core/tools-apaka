@@ -288,8 +288,8 @@ module Autoproj
                     end
                     size = selection.size
                     flow[x] = Array.new
+                    flow_old = flow.flatten
                     selection.each do |pkg_name|
-                        flow_old = flow.flatten
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
                         if deps_fulfilled(flow_old.flatten, pkg, flow, debug)
                             flow[x] << debian_name(pkg)
@@ -311,7 +311,7 @@ module Autoproj
                     if !deps.include? dep
                         #if (debug && debian_name(pkg) == "rock-utilmm")
                         if (debug)
-                            puts "Missing: #{dep}"
+                            puts "Missing: #{dep} for #{pkg.name}"
                             exit -1
                         end
                         return false
@@ -335,9 +335,9 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{name}' --username test --password test")
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{name}' --username test --password test")
                     end
-                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
             end
 
             def create_job(pkg, force = false)
@@ -349,9 +349,9 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{deb_name}' --username test --password test")
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{deb_name}' --username test --password test")
                     end
-                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
             end
 
             def create_ruby_job(gem_name, force = false)
@@ -363,16 +363,16 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{gem_name}' --username test --password test < #{gem_name}.xml")
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
                     end
-                    system("java -jar /usr/bin/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name}' --username test --password test < #{gem_name}.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
             end
 
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
             def dpkg_commit_changes(patch_name, directory = Dir.pwd)
                 Dir.chdir(directory) do
-                    Packager.info ("commit changes to debian pkg: #{patch_name}")
+                    Packager.debug ("commit changes to debian pkg: #{patch_name}")
                     # Since dpkg-source will open an editor we have to
                     # take this approach to make it pass directly in an
                     # automated workflow
@@ -388,7 +388,7 @@ module Autoproj
                 deps_rock_packages = pkg.dependencies.map do |pkg_name|
                     debian_name(Autoproj.manifest.package(pkg_name).autobuild)
                 end.sort
-                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
+                Packager.debug "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -404,7 +404,7 @@ module Autoproj
                 _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
+                Packager.debug "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 # Update global list
                 @osdeps += deps_osdeps_packages

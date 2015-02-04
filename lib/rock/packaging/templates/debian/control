@@ -10,7 +10,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     if package.using[:libtool]
 %         build_dependencies << "libtool"
 %     end
-%     build_dependencies << "autotools"
+%     build_dependencies << "autotools-dev" # as autotools seems to be virtual...
 %     build_dependencies << "autoconf"
 %     build_dependencies << "automake"
 % elsif package.kind_of?(Autobuild::Ruby)

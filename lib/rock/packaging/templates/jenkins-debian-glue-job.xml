@@ -33,14 +33,31 @@
   <builders>
     <hudson.tasks.Shell>
       <command>dir=`pwd`
-cd /var/lib/jenkins/rock
-. /var/lib/jenkins/rock/env.sh
-deb_package --patch-dir /home/clausen/dfki/bootstraps/rock_master/obs_patches --dest $dir --rebuild --package <%= pkg.name %>
+cd <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>
+. <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/env.sh
+LOCK=true
+while $LOCK
+do
+    if mkdir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
+    then
+	touch <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock/<%= debian_name(pkg) %>
+	LOCK=false
+        deb_package --patch-dir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/obs_patches --dest $dir --rebuild --package <%= pkg.name %>
+	rm -rf <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
+
+    else
+        echo "waiting for lock"
+        sleep 2
+    fi 
+done
 cd -
 mv <%= debian_name(pkg) %>/* .</command>
     </hudson.tasks.Shell>
     <hudson.tasks.Shell>
-      <command>/usr/bin/build-and-provide-package</command>
+      <command>
+export REMOVE_FROM_RELEASE=true
+/usr/bin/build-and-provide-package
+</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers>
