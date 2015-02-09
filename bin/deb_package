@@ -1,0 +1,256 @@
+#! /usr/bin/env ruby
+require 'rock/packaging/debian'
+
+o_skip = false
+o_dest_dir = nil
+o_patch_dir = nil
+o_extra_gem = nil
+o_all_packages = true
+o_rebuild = false
+o_src_dir = nil
+o_ps_dir = nil
+o_job = false
+o_flow = nil
+o_ruby_job = nil
+o_package = false
+o_overwrite = false
+
+options = OptionParser.new do |opt|
+    opt.banner = "Usage: obs_package [options]"
+    opt.on('--skip', 'Skip existing packages') do
+        o_skip = true
+    end
+    opt.on("--dest DIR", String, "Destination Folder of the source-package") do |dir|
+        o_dest_dir = File.expand_path(dir)
+        if !File.directory?(o_dest_dir)
+            puts "Given obs directory '#{o_dest_dir}' does not exist"
+            exit -1
+        end
+    end
+    opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
+        o_patch_dir = File.expand_path(dir)
+        if !File.directory?(o_patch_dir)
+            puts "Given patch directory '#{o_patch_dir}' does not exist"
+            exit -1
+        end
+    end
+
+    opt.on("--[no-]verbose", "display output of commands on stdout") do |v| Autobuild.verbose = v end
+    opt.on("--[no-]debug", "debug information (for debugging purposes)") do |v| Autobuild.debug = v end
+
+    opt.on("--gem NAME", "provide the name of a gem to convert") do |gem|
+        o_all_packages = false
+        o_extra_gem = gem
+    end
+
+    opt.on("--rebuild", "rebuild package") do
+        o_rebuild = true
+    end
+
+    opt.on("--src-dir DIR","don't import but use existing source directory") do |dir|
+        o_src_dir = dir
+        if !File.directory?(o_src_dir)
+            puts "Given source directory '#{o_src_dir}' does not exist"
+            exit -1
+        end
+    end
+    opt.on("--package-set-dir DIR", String, "Directory with the binary-package set to update") do |dir|
+        o_ps_dir = dir
+        if !File.directory?(o_ps_dir)
+            puts "Given source directory '#{o_ps_dir}' does not exist"
+            exit -1
+        end
+    end
+    opt.on("--create-job", "Create jenkins-jobs") do
+        o_job = true
+    end
+    opt.on("--create-ruby-job", "Create jenkins-ruby-job") do
+        o_ruby_job = true
+    end
+    opt.on("--create-flow-job name", String, "Create the jenkins-FLOW-job") do |name|
+        o_flow = name
+        if o_flow.nil? or o_flow == ""
+            puts "no jobname given"
+            exit -1
+        end
+    end
+    opt.on("--package", "Create choosen packages") do
+        o_package = true
+    end
+    opt.on("--overwrite", "Overwrite existing Jenkins Jobs (History-loss!)") do
+        o_overwrite = true
+    end
+end
+
+# The remaining arguments are the packages that have been selected on console
+# only these ones should be considered
+o_selected_packages = options.parse(ARGV)
+
+################################################################################
+
+
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
+selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
+packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+packager.prepare
+
+# Make sure that when we request a package build we only get this one,
+# and not the pattern matched to other packages, e.g. for orogen
+selection = selection.select do |pkg_name, i|
+    if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
+        true
+    else
+        false
+    end
+end
+Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
+
+    if o_package && o_all_packages 
+        Autobuild.do_update = true
+        selection.each_with_index do |pkg_name, i|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+
+            if o_skip && o_obs_dir
+                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkg))
+                if File.directory?(pkg_obs_dir)
+                    puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
+                    next
+                end
+            end
+
+            puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+            if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
+                cmakelists_txt = File.read(File.join(pkg.srcdir, "CMakeLists.txt"))
+                if cmakelists_txt =~ /include\(Rock\)|Rock\.cmake/ || cmakelists_txt =~ /find_package\(Rock\)/
+                    pkg.depends_on "base/cmake" unless pkg.name == "base/cmake"
+                end
+            end
+
+            begin
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
+            rescue Interrupt
+                raise
+            rescue Exception => e
+                puts "failed to package #{pkg.name}: #{e.message} #{e.backtrace}"
+                next
+            end
+        end
+    end
+
+    if o_job
+        selection.each_with_index do |pkg_name, i|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            puts "Creating Jenkins-job: #{pkg_name}"
+            packager.create_job(pkg, o_overwrite)
+        end
+    end
+
+    if o_flow
+        puts "Creating FLOW-Job"
+        packager.create_flow_job(o_flow, selection, o_overwrite)
+    end
+
+    if o_ruby_job
+        puts "Creating Gem-Jobs"
+        selection.each do |pkg_name|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            packager.dependencies pkg
+        end
+        if o_extra_gem
+            packager.ruby_gems << o_extra_gem
+        end
+        packager.ruby_gems.each do |gem_name,version|
+            puts "Creating Jenkins-job: #{gem_name}"
+            packager.create_ruby_job(gem_name, o_overwrite)
+        end
+        packager.ruby_rock_gems.each do |gem_name,version|
+            puts "Creating Jenkins-job: #{gem_name}"
+            packager.create_ruby_job(gem_name, o_overwrite)
+        end
+    end
+
+    if o_extra_gem
+        packager.ruby_gems << o_extra_gem
+    end
+    # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
+    packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
+
+    if o_dest_dir && o_package
+        if o_all_packages
+            # Update all packages
+            selection.each_with_index do |pkg_name, i|
+                pkg = Autoproj.manifest.package(pkg_name).autobuild
+                # Excluding ruby packages here since they need a special treatment
+                if pkg.kind_of?(Autobuild::Ruby)
+                    next
+                end
+                pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkg)
+            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)
+
+                # sync the directory in build/obs and the target directory based on an existing
+                # files pattern
+                files = []
+                packager.file_suffix_patterns.map do |p|
+                    # Finding files that exist in the source directory
+                    # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
+                    # and ruby-hoe/_service
+                    glob_exp = File.join(Autoproj::Packaging::OBS_BUILD_DIR,pkg_obs_name,"*#{p}")
+                    files += Dir.glob(glob_exp)
+                end
+                files = files.flatten.uniq
+                dest_dir = File.join(o_dest_dir, pkg_obs_name)
+
+                FileUtils.mkdir_p dest_dir
+                FileUtils.cp files, dest_dir
+            end
+        end
+
+        # Update all gems
+        packager.ruby_gems.each do |gem_name, version|
+            if version
+                puts "OBS -- update gem: #{gem_name} with version #{version}"
+            else
+                puts "OBS -- update gem: #{gem_name}"
+            end
+            pkg_obs_name = packager.debian_ruby_name(gem_name)
+                files = []
+                packager.file_suffix_patterns.map do |p|
+                    # Finding files that exist in the source directory
+                    # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
+                    # and ruby-hoe/_service
+                    glob_exp = File.join(Autoproj::Packaging::OBS_BUILD_DIR,pkg_obs_name,"*#{p}")
+                    files += Dir.glob(glob_exp)
+                end
+                files = files.flatten.uniq
+            dest_dir = File.join(o_dest_dir, pkg_obs_name)
+
+            FileUtils.mkdir_p dest_dir
+            FileUtils.cp files, dest_dir
+        end
+
+        # Update rock gems
+        packager.ruby_rock_gems.each do |gem_name, version|
+            puts "OBS -- update rock gem (converted ruby package): #{gem_name}"
+            pkg_obs_name = gem_name
+            files = []
+            packager.file_suffix_patterns.map do |p|
+                # Finding files that exist in the source directory
+                # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
+                # and ruby-hoe/_service
+                glob_exp = File.join(Autoproj::Packaging::OBS_BUILD_DIR,pkg_obs_name,"*#{p}")
+                files += Dir.glob(glob_exp)
+            end
+            files = files.flatten.uniq
+            dest_dir = File.join(o_dest_dir, pkg_obs_name)
+
+            FileUtils.mkdir_p dest_dir
+            FileUtils.cp files, dest_dir
+        end
+    end # if o_dest_dir
+
+
+    packager.cleanup
+
+end # Dir.chdir

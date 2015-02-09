@@ -10,13 +10,17 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     if package.using[:libtool]
 %         build_dependencies << "libtool"
 %     end
-%     build_dependencies << "autotools"
-% elsif package.kind_of?(Autoproj::RubyPackage)
+%     build_dependencies << "autotools-dev" # as autotools seems to be virtual...
+%     build_dependencies << "autoconf"
+%     build_dependencies << "automake"
+% elsif package.kind_of?(Autobuild::Ruby)
 %     raise "debian/control: cannot handle ruby package"
+% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage)
+%     build_dependencies << "cmake"
 % else
 %     raise "debian/control: cannot handle package type #{package.class} for #{package.name}"
 % end
-Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, <%= build_dependencies.sort.join(", ") %>
+Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: http://rock-robotics.org
 #Vcs-Git: git://git.debian.org/collab-maint/bla.git

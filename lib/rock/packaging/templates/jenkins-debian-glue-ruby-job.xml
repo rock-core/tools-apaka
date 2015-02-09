@@ -1,0 +1,89 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<matrix-project plugin="matrix-project@1.4">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>release</name>
+          <description></description>
+          <defaultValue>test</defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <axes>
+    <hudson.matrix.TextAxis>
+      <name>architecture</name>
+      <values>
+        <string>amd64</string>
+        <string>i386</string>
+      </values>
+    </hudson.matrix.TextAxis>
+  </axes>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>dir=`pwd`
+cd <%= ENV['AUTOPROJ_CURRENT_ROOT'] %> 
+. <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/env.sh
+LOCK=true
+while $LOCK
+do
+    if mkdir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
+    then
+	touch <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock/<%= gem_name %>
+	LOCK=false
+	deb_package --patch-dir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/obs_patches --dest $dir --package --rebuild --gem <%= gem_name %>
+	rm -rf <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
+
+    else
+        echo "waiting for lock"
+        sleep 2
+    fi 
+done
+cd -
+mv <%= dir_name %>/* .</command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>
+export REMOVE_FROM_RELEASE=true
+/usr/bin/build-and-provide-package
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>*.gz,*.bz2,*.xz,*.deb,*.dsc,*.changes</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.24">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+  <executionStrategy class="hudson.matrix.DefaultMatrixExecutionStrategyImpl">
+    <runSequentially>true</runSequentially>
+    <touchStoneCombinationFilter></touchStoneCombinationFilter>
+    <touchStoneResultCondition>
+      <name>SUCCESS</name>
+      <ordinal>0</ordinal>
+      <color>BLUE</color>
+      <completeBuild>true</completeBuild>
+    </touchStoneResultCondition>
+  </executionStrategy>
+</matrix-project>

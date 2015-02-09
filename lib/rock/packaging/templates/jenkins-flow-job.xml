@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<com.cloudbees.plugins.flow.BuildFlow plugin="build-flow-plugin@0.17">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders/>
+  <publishers/>
+  <buildWrappers/>
+  <icon/>
+  <dsl>
+ignore(FAILURE){
+parallel (
+    <% gems.each_with_index do |gem,i| %>
+    {
+	build(&quot;<%= gem%>&quot;, param1: &quot;test&quot;)}<%= gems.size == (i+1) ? "" : "," %>
+    <% end %>
+    )
+}
+<% flow.each do |jobs| %>
+ignore(FAILURE){
+    parallel (
+    <% jobs.each_with_index do |job,i| %>
+        { build(&quot;<%= job %>&quot;, param1: &quot;test&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
+    <% end %>
+    )
+}
+<% end %>
+</dsl>
+  <buildNeedsWorkspace>false</buildNeedsWorkspace>
+</com.cloudbees.plugins.flow.BuildFlow>
