@@ -276,6 +276,7 @@ module Autoproj
             end
 
             def create_flow_job(name, selection, force = false)
+                Packager.info ("#{selection.size} packages selected")
                 flow = Array.new
                 flow[0] = Array.new
                 x = 1

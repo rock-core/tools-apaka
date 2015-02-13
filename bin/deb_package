@@ -142,7 +142,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
     if o_job
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
-            puts "Creating Jenkins-job: #{pkg_name}"
+            puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg_name}"
             packager.create_job(pkg, o_overwrite)
         end
     end
@@ -161,13 +161,16 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         if o_extra_gem
             packager.ruby_gems << o_extra_gem
         end
+        i = 1
         packager.ruby_gems.each do |gem_name,version|
-            puts "Creating Jenkins-job: #{gem_name}"
+            puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
             packager.create_ruby_job(gem_name, o_overwrite)
+            i = i+1
         end
         packager.ruby_rock_gems.each do |gem_name,version|
-            puts "Creating Jenkins-job: #{gem_name}"
+            puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
             packager.create_ruby_job(gem_name, o_overwrite)
+            i = i+1
         end
     end
 
