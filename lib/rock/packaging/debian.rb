@@ -275,7 +275,7 @@ module Autoproj
                 File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
             end
 
-            def create_flow_job(name, selection, force = false)
+            def create_flow_job(name, selection, flavor, force = false)
                 Packager.info ("#{selection.size} packages selected")
                 flow = Array.new
                 flow[0] = Array.new
@@ -302,7 +302,7 @@ module Autoproj
                     x += 1
                 end
                 
-                create_flow_job_xml(name, flow, force)
+                create_flow_job_xml(name, flow, flavor, force)
 
             end
 
@@ -326,7 +326,7 @@ module Autoproj
                 true
             end
 
-            def create_flow_job_xml(name, flow, force = false)
+            def create_flow_job_xml(name, flow, flavor, force = false)
                     gems = flow[0].uniq
                     flow.delete_at(0)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), nil, "%<>")

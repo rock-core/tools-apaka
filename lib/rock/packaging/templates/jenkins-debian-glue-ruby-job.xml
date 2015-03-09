@@ -33,22 +33,22 @@
   <builders>
     <hudson.tasks.Shell>
       <command>dir=`pwd`
-cd <%= ENV['AUTOPROJ_CURRENT_ROOT'] %> 
-. <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/env.sh
+cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release} 
+. <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
 LOCK=true
 while $LOCK
 do
-    if mkdir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
-    then
-	touch <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock/<%= gem_name %>
-	LOCK=false
-	deb_package --patch-dir <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/obs_patches --dest $dir --package --rebuild --gem <%= gem_name %>
-	rm -rf <%= ENV['AUTOPROJ_CURRENT_ROOT'] %>/autoproj.lock
+        if mkdir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
+        then
+                touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= gem_name %>
+	        LOCK=false
+                deb_package --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest $dir --package --rebuild --gem <%= gem_name %>
+                rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
 
-    else
-        echo "waiting for lock"
-        sleep 2
-    fi 
+        else
+                echo "waiting for lock"
+                sleep 2
+        fi 
 done
 cd -
 mv <%= dir_name %>/* .</command>

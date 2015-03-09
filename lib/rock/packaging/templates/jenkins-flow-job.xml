@@ -20,7 +20,7 @@ ignore(FAILURE){
 parallel (
     <% gems.each_with_index do |gem,i| %>
     {
-	build(&quot;<%= gem%>&quot;, param1: &quot;test&quot;)}<%= gems.size == (i+1) ? "" : "," %>
+    build(&quot;<%= gem%>&quot;, param1: &quot;<%= flavor %>&quot;)}<%= gems.size == (i+1) ? "" : "," %>
     <% end %>
     )
 }
@@ -28,7 +28,7 @@ parallel (
 ignore(FAILURE){
     parallel (
     <% jobs.each_with_index do |job,i| %>
-        { build(&quot;<%= job %>&quot;, param1: &quot;test&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
+    { build(&quot;<%= job %>&quot;, param1: &quot;<%=  flavor %>&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
     <% end %>
     )
 }

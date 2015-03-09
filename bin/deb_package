@@ -14,6 +14,7 @@ o_flow = nil
 o_ruby_job = nil
 o_package = false
 o_overwrite = false
+o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: obs_package [options]"
@@ -80,6 +81,12 @@ options = OptionParser.new do |opt|
     opt.on("--overwrite", "Overwrite existing Jenkins Jobs (History-loss!)") do
         o_overwrite = true
     end
+    opt.on("--flavor name", "Use a specific flavor (defaults to directory-name)") do |name|
+        if not (o_flavor.nil? or o_flavor == "")
+            o_flavor = name
+        end
+    end
+
 end
 
 # The remaining arguments are the packages that have been selected on console
@@ -149,7 +156,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     if o_flow
         puts "Creating FLOW-Job"
-        packager.create_flow_job(o_flow, selection, o_overwrite)
+        packager.create_flow_job(o_flow, selection, o_flavor, o_overwrite)
     end
 
     if o_ruby_job
