@@ -310,7 +310,7 @@ module Autoproj
                 pkg_deps = dependencies(pkg)
                 pkg_deps[0].each do |dep|
                     if !deps.include? dep
-                        #if (debug && debian_name(pkg) == "rock-utilmm")
+                        #if (debian_name(pkg) == "rock-gui-map2d")
                         if (debug)
                             puts "Missing: #{dep} for #{pkg.name}"
                             exit -1
@@ -329,6 +329,16 @@ module Autoproj
             def create_flow_job_xml(name, flow, flavor, force = false)
                     gems = flow[0].uniq
                     flow.delete_at(0)
+		    # Create-unlock-job
+	            template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-unlock-job.xml")), nil, "%<>")
+                    rendered = template.result(binding)
+                    File.open("unlock.xml", 'w') do |f|
+                          f.write rendered
+                    end
+                    if not system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job 'unlock' --username test --password test < unlock.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job 'unlock' --username test --password test < unlock.xml")
+		    end
+
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), nil, "%<>")
                     rendered = template.result(binding)
                     File.open("#{name}.xml", 'w') do |f|
@@ -336,9 +346,10 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{name}' --username test --password test")
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' --username test --password test < #{name}.xml")
+                    else
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
                     end
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
             end
 
             def create_job(pkg, force = false)
@@ -350,9 +361,10 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{deb_name}' --username test --password test")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
+                    else
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
                     end
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
             end
 
             def create_ruby_job(gem_name, force = false)
@@ -364,9 +376,10 @@ module Autoproj
                     end
 
                     if force
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
+                    else
+                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
                     end
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
             end
 
             # Commit changes of a debian package using dpkg-source --commit

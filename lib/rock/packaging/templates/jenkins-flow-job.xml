@@ -16,19 +16,23 @@
   <buildWrappers/>
   <icon/>
   <dsl>
+//out.println 'Initial unlock'
+build(&quot;unlock&quot;)
+//out.println 'Ruby-Gem-Packages'
 ignore(FAILURE){
 parallel (
     <% gems.each_with_index do |gem,i| %>
     {
-    build(&quot;<%= gem%>&quot;, param1: &quot;<%= flavor %>&quot;)}<%= gems.size == (i+1) ? "" : "," %>
+    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)}<%= gems.size == (i+1) ? "" : "," %>
     <% end %>
     )
 }
+//out.println 'Rock-Packages'
 <% flow.each do |jobs| %>
 ignore(FAILURE){
     parallel (
     <% jobs.each_with_index do |job,i| %>
-    { build(&quot;<%= job %>&quot;, param1: &quot;<%=  flavor %>&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
+    { build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
     <% end %>
     )
 }
