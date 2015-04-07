@@ -77,11 +77,13 @@ export REMOVE_FROM_RELEASE=true
     <org.jenkinsci.plugins.postbuildscript.PostBuildScript plugin="postbuildscript@0.17">
       <buildSteps>
         <hudson.tasks.Shell>
-          <command>rm -rf /stuff/rock/${release}/autoproj.lock</command>
+            <command>
+                deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps %> <%= pkg.name %>
+            </command>
         </hudson.tasks.Shell>
       </buildSteps>
-      <scriptOnlyIfSuccess>false</scriptOnlyIfSuccess>
-      <scriptOnlyIfFailure>true</scriptOnlyIfFailure>
+      <scriptOnlyIfSuccess>true</scriptOnlyIfSuccess>
+      <scriptOnlyIfFailure>false</scriptOnlyIfFailure>
       <markBuildUnstable>false</markBuildUnstable>
       <executeOn>MATRIX</executeOn>
     </org.jenkinsci.plugins.postbuildscript.PostBuildScript>

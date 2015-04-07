@@ -14,6 +14,7 @@ o_flow = nil
 o_ruby_job = nil
 o_package = false
 o_overwrite = false
+o_list = false
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
 
 options = OptionParser.new do |opt|
@@ -86,7 +87,9 @@ options = OptionParser.new do |opt|
             o_flavor = name
         end
     end
-
+    opt.on("--update-list FILE", String, "Update the given osdep-file") do |file|
+        o_list = file
+    end
 end
 
 # The remaining arguments are the packages that have been selected on console
@@ -157,6 +160,14 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
     if o_flow
         puts "Creating FLOW-Job"
         packager.create_flow_job(o_flow, selection, o_flavor, o_overwrite)
+    end
+
+    if o_list
+        puts "Updating osdep-list"
+        selection.each do |pkg_name|
+            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            packager.update_list(pkg, o_list)
+        end
     end
 
     if o_ruby_job

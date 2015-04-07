@@ -352,6 +352,17 @@ module Autoproj
                     end
             end
 
+            def update_list(pkg, file)
+                if File.exist? file
+                    list = YAML.load_file(file)
+                else
+                    list = Array.new
+                end
+                list << {pkg.name => {"debian,ubuntu" => debian_name(pkg)}}
+                list.uniq!
+                File.open(file, 'w') {|f| f.write list.to_yaml }
+            end
+
             def create_job(pkg, force = false)
                     deb_name = debian_name(pkg)
                     template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), nil, "%<>")
