@@ -27,6 +27,9 @@
       <values>
         <string>amd64</string>
         <string>i386</string>
+        <string>armhf</string>
+        <string>arm64</string>
+        <string>armel</string>
       </values>
     </hudson.matrix.TextAxis>
   </axes>
