@@ -22,17 +22,25 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <axes>
-    <hudson.matrix.TextAxis>
-      <name>architecture</name>
-      <values>
-        <string>amd64</string>
-        <string>i386</string>
-        <string>armhf</string>
-        <string>arm64</string>
-        <string>armel</string>
-      </values>
-    </hudson.matrix.TextAxis>
+      <hudson.matrix.TextAxis>
+          <name>architecture</name>
+          <values>
+              <string>amd64</string>
+              <string>i386</string>
+              <string>armhf</string>
+              <string>arm64</string>
+              <string>armel</string>
+          </values>
+      </hudson.matrix.TextAxis>
+      <hudson.matrix.TextAxis>
+          <name>distribution</name>
+          <values>
+              <string>trusty</string>
+              <string>wheezy</string>
+          </values>
+      </hudson.matrix.TextAxis>
   </axes>
+  <combinationFilter>!(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armel&quot;) &amp;&amp; !(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armhf&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;arm64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;amd64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;i386&quot;) </combinationFilter>
   <builders>
     <hudson.tasks.Shell>
       <command>dir=`pwd`
