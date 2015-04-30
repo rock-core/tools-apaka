@@ -19,7 +19,7 @@
 //out.println 'Initial unlock'
 build(&quot;unlock&quot;)
 //out.println 'Ruby-Gem-Packages'
-rm <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps %>
+//rm <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps
 ignore(FAILURE){
 parallel (
     <% gems.each_with_index do |gem,i| %>

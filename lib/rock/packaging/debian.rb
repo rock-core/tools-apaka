@@ -846,6 +846,7 @@ module Autoproj
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)
 
+
                     # Check if patching is needed
                     # To allow patching we need to split `gem2deb -S #{gem_name}`
                     # into its substeps
@@ -887,6 +888,9 @@ module Autoproj
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
 
+
+			#remove version-info as debian does use older versions
+                            `sed -i s#'([^)]*)'#''#g  debian/control`
                             dpkg_commit_changes("ocl_extra_dependencies")
                         end
 
