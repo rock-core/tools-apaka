@@ -89,7 +89,7 @@ export REMOVE_FROM_RELEASE=true
       <buildSteps>
         <hudson.tasks.Shell>
             <command>
-                deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps %> <%= pkg.name %>
+                deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps <%= pkg.name %>
             </command>
         </hudson.tasks.Shell>
       </buildSteps>
