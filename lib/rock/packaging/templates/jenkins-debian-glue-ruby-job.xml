@@ -73,6 +73,11 @@ mv <%= dir_name %>/* .</command>
       <command>
 export REMOVE_FROM_RELEASE=true
 /usr/bin/build-and-provide-package
+
+cd /stuff/rock/${release}
+. /stuff/rock/${release}/env.sh
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps <%= gem_name %>
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps-${architecture}.osdeps <%= gem_name %>
 </command>
     </hudson.tasks.Shell>
   </builders>
