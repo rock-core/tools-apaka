@@ -310,9 +310,11 @@ module Autoproj
                 pkg_deps = dependencies(pkg)
                 pkg_deps[0].each do |dep|
                     if !deps.include? dep
-                        #if (debian_name(pkg) == "rock-gui-map2d")
-                        if (debug)
+                        #if (debian_name(pkg) == "data_processing/orogen/type_to_vector")
+                        if debug
                             puts "Missing: #{dep} for #{pkg.name}"
+                            #binding.pry
+                            #puts "the dep's deps: #{dependencies(Autoproj.manifest.package(dep).autobuild)}"
                             exit -1
                         end
                         return false
@@ -358,8 +360,13 @@ module Autoproj
                 else
                     list = Array.new
                 end
-                list << {pkg.name => {"debian,ubuntu" => debian_name(pkg)}}
-                list.uniq!
+                if pkg.is_a? String
+                    list << {pkg => {"debian,ubuntu" => debian_ruby_name(pkg)}}
+                    list.uniq!
+                else
+                    list << {pkg.name => {"debian,ubuntu" => debian_name(pkg)}}
+                    list.uniq!
+                end
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
 
