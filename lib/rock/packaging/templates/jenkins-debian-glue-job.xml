@@ -106,11 +106,13 @@ deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${rel
       <externalDelete></externalDelete>
     </hudson.plugins.ws__cleanup.PreBuildCleanup>
     <hudson.plugins.build__timeout.BuildTimeoutWrapper plugin="build-timeout@1.14.1">
-      <strategy class="hudson.plugins.build_timeout.impl.ElasticTimeOutStrategy">
+      <strategy class="hudson.plugins.build_timeout.impl.LikelyStuckTimeOutStrategy"/>
+<!--      <strategy class="hudson.plugins.build_timeout.impl.ElasticTimeOutStrategy">
         <timeoutPercentage>150</timeoutPercentage>
         <numberOfBuilds>5</numberOfBuilds>
         <timeoutMinutesElasticDefault>60</timeoutMinutesElasticDefault>
       </strategy>
+-->
       <operationList>
         <hudson.plugins.build__timeout.operations.FailOperation/>
       </operationList>
