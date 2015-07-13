@@ -9,7 +9,7 @@
         <hudson.model.StringParameterDefinition>
           <name>release</name>
           <description></description>
-          <defaultValue>test</defaultValue>
+          <defaultValue>master</defaultValue>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
