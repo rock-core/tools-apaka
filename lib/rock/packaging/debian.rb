@@ -9,18 +9,27 @@ module Autoproj
 
         # Directory for temporary data to 
         # validate obs_packages
-        OBS_BUILD_DIR=File.join(Autoproj.root_dir, "build/obs")
-        OBS_LOG_DIR=File.join(Autoproj.root_dir, OBS_BUILD_DIR, "logs")
-        OBS_LOCAL_TMP = File.join(OBS_BUILD_DIR,".obs_package")
+        BUILD_DIR=File.join(Autoproj.root_dir, "build/obs")
+        LOG_DIR=File.join(Autoproj.root_dir, BUILD_DIR, "logs")
+        LOCAL_TMP = File.join(BUILD_DIR,".obs_package")
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
+            attr_accessor :build_dir
+            attr_accessor :log_dir
+            attr_accessor :local_tmp_dir
+
+            def initialize
+                @build_dir = BUILD_DIR
+                @log_dir = LOG_DIR
+                @local_tmp_dir = LOCAL_TMP
+            end
             def prepare_source_dir(pkg, options = Hash.new)
                 Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir]
                     Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
-                    pkg_dir = File.join(OBS_BUILD_DIR, debian_name(pkg))
+                    pkg_dir = File.join(@build_dir, debian_name(pkg))
                     if not File.directory?(pkg_dir)
                         FileUtils.mkdir_p pkg_dir
                     end
@@ -46,7 +55,7 @@ module Autoproj
                         pkg.importer.repository = pkg.srcdir
                     end
 
-                    pkg.srcdir = File.join(OBS_BUILD_DIR, debian_name(pkg), dir_name(pkg))
+                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg))
                     begin
                         Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
@@ -203,18 +212,19 @@ module Autoproj
             attr_accessor :osdeps
 
             def initialize(existing_debian_directories)
+                super()
                 @existing_debian_directories = existing_debian_directories
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
                 @package_aliases = Hash.new
 
-                if not File.exists?(OBS_LOCAL_TMP)
-                    FileUtils.mkdir_p OBS_LOCAL_TMP
+                if not File.exists?(local_tmp_dir)
+                    FileUtils.mkdir_p local_tmp_dir
                 end
 
-                if not File.exists?(OBS_LOG_DIR)
-                    FileUtils.mkdir_p OBS_LOG_DIR
+                if not File.exists?(log_dir)
+                    FileUtils.mkdir_p log_dir
                 end
             end
 
@@ -272,7 +282,7 @@ module Autoproj
             end
 
             def packaging_dir(pkg)
-                File.join(Autoproj::Packaging::OBS_BUILD_DIR, debian_name(pkg))
+                File.join(@build_dir, debian_name(pkg))
             end
 
             def create_flow_job(name, selection, flavor, force = false)
@@ -510,7 +520,7 @@ module Autoproj
                     :package_set_dir => nil
 
                 if options[:force_update]
-                    dirname = File.join(OBS_BUILD_DIR, debian_name(pkg))
+                    dirname = File.join(build_dir, debian_name(pkg))
                     if File.directory?(dirname)
                         Packager.info "Debian: rebuild requested -- removing #{dirname}"
                         FileUtils.rm_rf(dirname)
@@ -550,7 +560,7 @@ module Autoproj
                             gem_clean_alternatives = ['clean','dist:clean','clobber']
                             gem_clean_success = false
                             gem_clean_alternatives.each do |target|
-                                if !system("rake #{target} > #{File.join(OBS_LOG_DIR, logname)} 2> #{File.join(OBS_LOG_DIR, logname)}")
+                                if !system("rake #{target} > #{File.join(log_dir, logname)} 2> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to clean package '#{pkg.name}' using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to clean package '#{pkg.name}' using target '#{target}'"
@@ -566,12 +576,12 @@ module Autoproj
                             if !system('find . -type f | grep -v .git/ | grep -v build/ | grep -v tmp/ | sed \'s/\.\///\' > Manifest.txt')
                                 raise "Debian: failed to create an up to date Manifest.txt"
                             end
-                            Packager.info "Debian: creating gem from package #{pkg.name} [#{File.join(OBS_LOG_DIR, logname)}]"
+                            Packager.info "Debian: creating gem from package #{pkg.name} [#{File.join(log_dir, logname)}]"
 
                             gem_creation_alternatives = ['gem','dist:gem','build']
                             gem_creation_success = false
                             gem_creation_alternatives.each do |target|
-                                if !system("rake #{target} >> #{File.join(OBS_LOG_DIR, logname)} 2>> #{File.join(OBS_LOG_DIR, logname)}")
+                                if !system("rake #{target} >> #{File.join(log_dir, logname)} 2>> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to create gem using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to create gem using target '#{target}'"
@@ -730,8 +740,8 @@ module Autoproj
 
                 # Create a local copy/backup of the current orig.tar.gz in .obs_package 
                 # and extract it there -- compare the actual source package
-                FileUtils.cp(orig_file_name, OBS_LOCAL_TMP) 
-                Dir.chdir(OBS_LOCAL_TMP) do
+                FileUtils.cp(orig_file_name, local_tmp_dir)
+                Dir.chdir(local_tmp_dir) do
                     `tar xzf #{orig_file_name}`
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
@@ -747,15 +757,15 @@ module Autoproj
 
             # Prepare the build directory, i.e. cleanup and obsolete file
             def prepare
-                if not File.exists?(OBS_BUILD_DIR)
-                    FileUtils.mkdir_p OBS_BUILD_DIR
+                if not File.exists?(build_dir)
+                    FileUtils.mkdir_p build_dir
                 end
                 cleanup
             end
 
             # Cleanup an existing local tmp folder in the build dir
             def cleanup
-                tmpdir = File.join(OBS_BUILD_DIR,OBS_LOCAL_TMP)
+                tmpdir = File.join(build_dir,local_tmp_dir)
                 if File.exists?(tmpdir)
                     FileUtils.rm_rf(tmpdir)
                 end
