@@ -25,18 +25,17 @@
       <hudson.matrix.TextAxis>
           <name>architecture</name>
           <values>
-              <string>amd64</string>
-              <string>i386</string>
-              <string>armhf</string>
-              <string>arm64</string>
-              <string>armel</string>
+              <% options[:architectures].each do |arch| %>
+              <string><%= arch %></string>
+              <% end %>
           </values>
       </hudson.matrix.TextAxis>
       <hudson.matrix.TextAxis>
           <name>distribution</name>
           <values>
-              <string>trusty</string>
-              <string>wheezy</string>
+              <% options[:distributions].each do |dist| %>
+              <string><%= dist %></string>
+              <% end %>
           </values>
       </hudson.matrix.TextAxis>
   </axes>

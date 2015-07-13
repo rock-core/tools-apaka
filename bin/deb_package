@@ -1,6 +1,8 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
 
+o_architectures = []
+o_distributions = []
 o_skip = false
 o_build_dir = nil
 o_dest_dir = nil
@@ -83,6 +85,12 @@ options = OptionParser.new do |opt|
             puts "no jobname given"
             exit -1
         end
+    end
+    opt.on("--architecture", String, "Comma separated list of architectures to build for") do |architectures|
+        o_architectures = architectures.delete(" ").split(",;")
+    end
+    opt.on("--distributions", String, "Comma separated list of distributions to build for") do |dist|
+        o_distributions = distributions.delete(" ").split(",;")
     end
     opt.on("--package", "Create choosen packages") do
         o_package = true
@@ -167,7 +175,14 @@ Dir.chdir(packager.build_dir) do
         selection.each_with_index do |pkg_name, i|
             pkg = Autoproj.manifest.package(pkg_name).autobuild
             puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg_name}"
-            packager.create_job(pkg, o_overwrite)
+            options = Hash.new
+            if !o_architectures.empty?
+                options[:architectures] = o_architectures
+            end
+            if !o_distributions.empty?
+                options[:distributions] = o_distributions
+            end
+            packager.create_package_job(pkg, options, o_overwrite)
         end
     end
 
@@ -199,15 +214,24 @@ Dir.chdir(packager.build_dir) do
         if o_extra_gem
             packager.ruby_gems << o_extra_gem
         end
+
+        options = Hash.new
+        if !o_architectures.empty?
+            options[:architectures] = o_architectures
+        end
+        if !o_distributions.empty?
+            options[:distributions] = o_distributions
+        end
+
         i = 1
         packager.ruby_gems.each do |gem_name,version|
             puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
-            packager.create_ruby_job(gem_name, o_overwrite)
+            packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end
         packager.ruby_rock_gems.each do |gem_name,version|
             puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
-            packager.create_ruby_job(gem_name, o_overwrite)
+            packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end
     end
