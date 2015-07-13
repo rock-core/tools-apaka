@@ -339,29 +339,32 @@ module Autoproj
             end
 
             def create_flow_job_xml(name, flow, flavor, force = false)
-                    gems = flow[0].uniq
-                    flow.delete_at(0)
-		    # Create-unlock-job
-	            template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-unlock-job.xml")), nil, "%<>")
-                    rendered = template.result(binding)
-                    File.open("unlock.xml", 'w') do |f|
-                          f.write rendered
-                    end
-                    if not system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job 'unlock' --username test --password test < unlock.xml")
+                gems = flow[0].uniq
+                flow.delete_at(0)
+
+                # Create-unlock-job
+                safe_level = nil
+                trim_mode = "%<>"
+                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-unlock-job.xml")), safe_level, trim_mode)
+                rendered = template.result(binding)
+                File.open("unlock.xml", 'w') do |f|
+                      f.write rendered
+                end
+                if not system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job 'unlock' --username test --password test < unlock.xml")
                     system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job 'unlock' --username test --password test < unlock.xml")
-		    end
+                end
 
-                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), nil, "%<>")
-                    rendered = template.result(binding)
-                    File.open("#{name}.xml", 'w') do |f|
-                          f.write rendered
-                    end
+                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
+                rendered = template.result(binding)
+                File.open("#{name}.xml", 'w') do |f|
+                      f.write rendered
+                end
 
-                    if force
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' --username test --password test < #{name}.xml")
-                    else
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
-                    end
+                if force
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' --username test --password test < #{name}.xml")
+                else
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
+                end
             end
 
             def update_list(pkg, file)
@@ -380,34 +383,51 @@ module Autoproj
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
 
-            def create_job(pkg, force = false)
-                    deb_name = debian_name(pkg)
-                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), nil, "%<>")
-                    rendered = template.result(binding)
-                    File.open("#{deb_name}.xml", 'w') do |f|
-                          f.write rendered
-                    end
+            def create_package_job(pkg, options = Hash.new, force = false)
+                    options[:type] = :package
+                    options[:debian_name] = debian_name(pkg)
+                    options[:dir_name] = debian_name(pkg)
+                    options[:job_name] = debian_name(pkg)
 
-                    if force
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
-                    else
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{deb_name}' --username test --password test < #{deb_name}.xml")
-                    end
+                    create_job(pkg.name, options, force)
             end
 
-            def create_ruby_job(gem_name, force = false)
-                    template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-ruby-job.xml")), nil, "%<>")
-                    dir_name = debian_ruby_name(gem_name)
-                    rendered = template.result(binding)
-                    File.open("#{gem_name}.xml", 'w') do |f|
-                          f.write rendered
-                    end
+            def create_ruby_job(gem_name, options = Hash.new, force = false)
+                options[:type] = :gem
+                options[:dir_name] = debian_ruby_name(gem_name)
+                options[:debian_name] = debian_ruby_name(gem_name)
+                options[:job_name] = gem_name
+                create_job(gem_name, options, force)
+            end
 
-                    if force
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
-                    else
-                        system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{gem_name.gsub '_', '-'}' --username test --password test < #{gem_name}.xml")
-                    end
+
+            def create_job(package_name, options = Hash.new, force = false)
+                options[:architectures] ||= [ 'amd64','i386','armhf','arm64','armel' ]
+                options[:distributions] ||= [ 'trusty','wheezy' ]
+                options[:job_name] ||= package_name
+
+                Packager.info "Creating jenkins-debian-glue job with options: #{options}"
+
+                safe_level = nil
+                trim_mode = "%<>"
+                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), safe_level, trim_mode)
+                rendered = template.result(binding)
+                rendered_filename = File.join("/tmp","#{options[:job_name]}.xml")
+                File.open(rendered_filename, 'w') do |f|
+                      f.write rendered
+                end
+
+                username = "test"
+                password = "test"
+
+                update_or_create = "create-job"
+                if force
+                    update_or_create = "update-job"
+                end
+                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
+                    Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
+                end
+
             end
 
             # Commit changes of a debian package using dpkg-source --commit

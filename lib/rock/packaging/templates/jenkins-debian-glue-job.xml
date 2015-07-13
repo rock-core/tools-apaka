@@ -43,32 +43,38 @@
   <combinationFilter>!(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armel&quot;) &amp;&amp; !(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armhf&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;arm64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;amd64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;i386&quot;) </combinationFilter>
   <builders>
     <hudson.tasks.Shell>
-      <command>dir=`pwd`
+      <command>dest_dir=`pwd`
+build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$architecture`
+
+echo "Destination dir for <%= package_name %> ($architecture): $dest_dir"
+echo "Creating build dir for <%= package_name %> ($architecture): $build_dir"
+mkdir -p $build_dir
+
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-LOCK=true
-while $LOCK
+while [ 1 ]
 do
-        if mkdir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
-        then
-                touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= debian_name(pkg) %>
-	        LOCK=false
-                deb_package --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest $dir --rebuild --package <%= pkg.name %>
-                rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
-
-        else
-                echo "waiting for lock"
-                sleep 2
-        fi 
+    mkdir -p <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
+    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
+    then
+        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
+        deb_package --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir --rebuild --<%= options[:type] %> <%= package_name %>
+        break
+    else
+        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"
+        sleep 2
+    fi
 done
 cd -
-mv <%= debian_name(pkg) %>/* .</command>
-    </hudson.tasks.Shell>
-    <hudson.tasks.Shell>
-      <command>
-                rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
-
-</command>
+# Making sure that the artifact land in the workspace directory
+# This is different for the gem, since it creates a directory ruby-my_gem
+# in the workspace -- all files need to be in the workspace dir when
+# calling build-and-provide-package -- so copy them there
+<% if options[:type] == :gem %>
+mv $dest_dir/<%= options[:dir_name] %>/* .
+<% else %>
+mv $build_dir/<%= options[:dir_name] %>/* .
+<% end %> </command>
     </hudson.tasks.Shell>
     <hudson.tasks.Shell>
       <command>
@@ -77,9 +83,12 @@ export REMOVE_FROM_RELEASE=true
 
 cd /stuff/rock/${release}
 . /stuff/rock/${release}/env.sh
-deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps <%= pkg.name %>
-deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps-${architecture}.osdeps <%= pkg.name %>
-</command>
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps <%= package_name %>
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps-${architecture}.osdeps <%= package_name %>
+      </command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers>
