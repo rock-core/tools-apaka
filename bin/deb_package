@@ -237,12 +237,13 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_extra_gem
+        Autoproj.info "Adding extra gems: #{o_extra_gem}"
         packager.ruby_gems << o_extra_gem
     end
 
     if o_dest_dir && o_package
-    	# Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
-    	packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
+        # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
+        packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
@@ -271,7 +272,9 @@ Dir.chdir(packager.build_dir) do
                 FileUtils.cp files, dest_dir
             end
         end
+    end
 
+    if o_dest_dir
         # Update all gems
         packager.ruby_gems.each do |gem_name, version|
             if version
