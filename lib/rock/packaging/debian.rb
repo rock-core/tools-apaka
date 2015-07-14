@@ -383,6 +383,7 @@ module Autoproj
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
 
+            # Create a jenkins job for a rock package (which is not a ruby package)
             def create_package_job(pkg, options = Hash.new, force = false)
                     options[:type] = :package
                     options[:debian_name] = debian_name(pkg)
@@ -392,6 +393,7 @@ module Autoproj
                     create_job(pkg.name, options, force)
             end
 
+            # Create a jenkins job for a ruby package
             def create_ruby_job(gem_name, options = Hash.new, force = false)
                 options[:type] = :gem
                 options[:dir_name] = debian_ruby_name(gem_name)
@@ -401,6 +403,7 @@ module Autoproj
             end
 
 
+            # Create a jenkins job
             def create_job(package_name, options = Hash.new, force = false)
                 options[:architectures] ||= [ 'amd64','i386','armhf','arm64','armel' ]
                 options[:distributions] ||= [ 'trusty','wheezy' ]
@@ -427,7 +430,51 @@ module Autoproj
                 if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
                     Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
                 end
+            end
 
+            def self.list_all_jobs
+                username = "test"
+                password = "test"
+
+                jobs_file = "/tmp/jenkins-jobs"
+                # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ list-jobs --username #{username} --password #{password} > #{jobs_file}"
+                if !system(cmd)
+                    raise RuntimeError, "Failed to list all jobs using: #{cmd}"
+                end
+
+                all_jobs = []
+                File.open(jobs_file,"r") do |file|
+                    all_jobs = file.read.split("\n")
+                end
+                all_jobs
+            end
+
+            def self.cleanup_all_jobs
+                all_jobs = list_all_jobs
+                max_count = all_jobs.size
+                i = 1
+                all_jobs.each do |job|
+                    Packager.info "Cleanup job #{i}/#{max_count}"
+                    cleanup_job job
+                    i += 1
+                end
+            end
+
+            # Cleanup job of a given name
+            def self.cleanup_job(job_name)
+                username = "test"
+                password = "test"
+                # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-builds
+                # java -jar jenkins-cli.jar delete-builds JOB RANGE
+                # Delete build records of a specified job, possibly in a bulk.
+                #   JOB   : Name of the job to build
+                #   RANGE : Range of the build records to delete. 'N-M', 'N,M', or 'N'
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-builds '#{job_name}' '1-10000' --username #{username} --password #{password}"
+                Packager.info "job '#{job_name}': cleanup with #{cmd}"
+                if !system(cmd)
+                    Packager.warn "job '#{job_name}': cleanup failed"
+                end
             end
 
             # Commit changes of a debian package using dpkg-source --commit
