@@ -394,6 +394,15 @@ module Autoproj
                     options[:dir_name] = debian_name(pkg)
                     options[:job_name] = debian_name(pkg)
 
+                    deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
+                    Packager.info "Dependencies of #{pkg.name}: rock: #{deps_rock_packages}, osdeps: #{deps_osdeps_packages}"
+
+                    # Prepare upstream dependencies
+                    deps = deps_rock_packages.join(", ")
+                    if !deps.empty?
+                        deps += ", "
+                    end
+                    options[:dependencies] = deps
                     create_job(pkg.name, options, force)
             end
 
