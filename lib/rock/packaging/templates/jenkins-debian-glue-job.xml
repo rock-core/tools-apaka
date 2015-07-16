@@ -69,19 +69,19 @@ mkdir -p $build_dir
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-while [ 1 ]
-do
-    mkdir -p <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
-    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
-    then
-        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
+#while [ 1 ]
+#do
+#    mkdir -p <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
+#    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
+#    then
+#        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
         deb_package --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir --rebuild --<%= options[:type] %> <%= package_name %>
-        break
-    else
-        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"
-        sleep 2
-    fi
-done
+#        break
+#    else
+#        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"
+#        sleep 2
+#    fi
+#done
 cd -
 # Making sure that the artifact land in the workspace directory
 # This is different for the gem, since it creates a directory ruby-my_gem
@@ -104,9 +104,10 @@ deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${rel
 deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps-${architecture}.osdeps <%= package_name %>
       </command>
     </hudson.tasks.Shell>
-    <hudson.tasks.Shell>
+    <!--    <hudson.tasks.Shell>
       <command>rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock</command>
     </hudson.tasks.Shell>
+    -->
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
