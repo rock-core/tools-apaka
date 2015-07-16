@@ -218,6 +218,7 @@ module Autoproj
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
                 @package_aliases = Hash.new
+                @debian_version = Hash.new
 
                 if not File.exists?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir
@@ -270,7 +271,10 @@ module Autoproj
             end
 
             def debian_version(pkg)
-                (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
+                if !@debian_version.has_key?(pkg.name)
+                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
+                end
+                @debian_version[pkg.name]
             end
 
             def versioned_name(pkg)
@@ -704,7 +708,13 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
+                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}"
+                        if !system(cmd_tar)
+                            Packager.warn "Package: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                            raise RuntimeError, "Debian: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                        else
+                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                        end
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir)
@@ -715,7 +725,10 @@ module Autoproj
 
                         # Run dpkg-source
                         # Use the new tar ball as source
-                        system("dpkg-source", "-I", "-b", pkg.srcdir)
+                        if !system("dpkg-source", "-I", "-b", pkg.srcdir)
+                            Packager.warn "Package: #{pkg.name} failed to perform dpkg-source -- #{Dir.entries(pkg.srcdir)}"
+                            raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
+                        end
                         ["#{versioned_name(pkg)}.debian.tar.gz",
                          "#{versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg)}.dsc"]
@@ -751,7 +764,13 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        system("tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}")
+                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}"
+                        if !system(cmd_tar)
+                            Packager.warn "Package: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                            raise RuntimeError, "Debian: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                        else
+                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                        end
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir)
@@ -762,7 +781,10 @@ module Autoproj
 
                         # Run dpkg-source
                         # Use the new tar ball as source
-                        system("dpkg-source", "-I", "-b", pkg.srcdir)
+                        if !system("dpkg-source", "-I", "-b", pkg.srcdir)
+                            Packager.warn "Package: #{pkg.name} failed to perform dpkg-source: entries #{Dir.entries(pkg.srcdir)}"
+                            raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
+                        end
                         ["#{versioned_name(pkg)}.debian.tar.gz",
                          "#{versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg)}.dsc"]
@@ -798,6 +820,7 @@ module Autoproj
                 # ignoring the current version-timestamp
                 orig_file_name = Dir.glob("#{debian_name(pkg)}*.orig.tar.gz")
                 if orig_file_name.empty?
+                    Packager.info "No filename found for #{debian_name(pkg)} -- package requires update #{Dir.entries('.')}"
                     return true
                 elsif orig_file_name.size > 1
                     Packager.warn "Multiple version of package #{debian_name(pkg)} in #{Dir.pwd} -- you have to fix this first"
@@ -812,8 +835,9 @@ module Autoproj
                     `tar xzf #{orig_file_name}`
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
-                        diff_name = "#{orig_file_name}.diff"
+                        diff_name = File.join(local_tmp_dir, "#{orig_file_name}.diff")
                         `diff -urN --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{pkg.srcdir} . > #{diff_name}`
+                        Packager.info "Package: '#{pkg.name}' checking diff file '#{diff_name}'"
                         if File.open(diff_name).lines.any? 
                             return true
                         end
