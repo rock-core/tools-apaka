@@ -57,11 +57,16 @@
           </values>
       </hudson.matrix.TextAxis>
   </axes>
-  <combinationFilter>!(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armel&quot;) &amp;&amp; !(distribution == &quot;trusty&quot; &amp;&amp; architecture == &quot;armhf&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;arm64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;amd64&quot;) &amp;&amp; !(distribution == &quot;wheezy&quot; &amp;&amp; architecture == &quot;i386&quot;) </combinationFilter>
+  <combinationFilter>
+      !(distribution == 'trusty' &amp;&amp; architecture == 'armel') &amp;&amp; !(distribution == 'trusty' &amp;&amp; architecture == 'armhf') &amp;&amp; 
+      !(distribution == 'wheezy' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'armhf') &amp;&amp;
+      !(distribution == 'jessie' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'armel') &amp;&amp;
+      !(distribution == 'sid' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'armel')
+  </combinationFilter>
   <builders>
     <hudson.tasks.Shell>
       <command>dest_dir=`pwd`
-build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$architecture`
+build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$distribution-$architecture`
 
 echo "Destination dir for <%= package_name %> ($architecture): $dest_dir"
 echo "Creating build dir for <%= package_name %> ($architecture): $build_dir"
@@ -75,7 +80,7 @@ cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 #    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
 #    then
 #        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
-        deb_package --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir --rebuild --<%= options[:type] %> <%= package_name %>
+        deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir --rebuild --<%= options[:type] %> <%= package_name %>
 #        break
 #    else
 #        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"

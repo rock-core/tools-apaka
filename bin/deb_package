@@ -100,11 +100,11 @@ options = OptionParser.new do |opt|
     opt.on("--cleanup-all-jobs", "Cleanup all jenkins jobs") do
         o_job_cleanup_all = true
     end
-    opt.on("--architecture", String, "Comma separated list of architectures to build for") do |architectures|
-        o_architectures = architectures.delete(" ").split(",;")
+    opt.on("--architectures ARCHS", String, "Comma separated list of architectures to build for") do |architectures|
+        o_architectures = architectures.delete(" ").split(/[,;]/)
     end
-    opt.on("--distributions", String, "Comma separated list of distributions to build for") do |dist|
-        o_distributions = distributions.delete(" ").split(",;")
+    opt.on("--distributions DISTS", String, "Comma separated list of distributions to build for") do |distributions|
+        o_distributions = distributions.delete(" ").split(/[,;]/)
     end
     opt.on("--package", "Create choosen packages") do
         o_package = true
@@ -141,6 +141,41 @@ end
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
+options = Hash.new
+
+if o_distributions.size == 1
+    operating_system = []
+    case o_distributions[0]
+    when "precise"
+        operating_system << ["ubuntu","debian"]
+        operating_system << ["12.04","lts","precise"]
+    when "trusty"
+        operating_system << ["ubuntu","debian"]
+        operating_system << ["14.04","lts","trusty"]
+    when "vivid"
+        operating_system << ["ubuntu","debian"]
+        operating_system << ["15.04","lts","vivid"]
+    when "squeeze"
+        operating_system << ["debian"]
+        operating_system << ["6.0","squeeze"]
+    when "wheezy"
+        operating_system << ["debian"]
+        operating_system << ["7.0","wheezy"]
+    when "jessie"
+        operating_system << ["debian"]
+        operating_system << ["8.1","jessie"]
+    when "sid"
+        operating_system << ["debian"]
+        operating_system << ["9.0","sid"]
+    else
+        puts "WARNING: Custom setting of operating system to: #{o_distributions[0]} is not supported"
+    end
+    if !operating_system.empty?
+        Autoproj::OSDependencies.operating_system = operating_system
+        puts "Custom setting of operating system to: #{operating_system}"
+    end
+end
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 packager.prepare

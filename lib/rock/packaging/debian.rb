@@ -418,8 +418,8 @@ module Autoproj
 
             # Create a jenkins job
             def create_job(package_name, options = Hash.new, force = false)
-                options[:architectures] ||= [ 'amd64','i386','armhf','arm64','armel' ]
-                options[:distributions] ||= [ 'trusty','wheezy' ]
+                options[:architectures] ||= [ 'amd64','i386','armhf' ]
+                options[:distributions] ||= [ 'trusty','jessie' ]
                 options[:job_name] ||= package_name
 
                 Packager.info "Creating jenkins-debian-glue job with options: #{options}"
