@@ -574,6 +574,19 @@ module Autoproj
                 versioned_name = versioned_name(pkg)
 
                 deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
+                # Filter ruby versions out -- we assume chroot has installed all 
+                # ruby versions
+                #
+                # This is a workaround, since the information about required packages
+                # comes from the build server platform and might not correspond
+                # with the target platform
+                #
+                # Right approach: bootstrap within chroot and generate source packages
+                # in the chroot
+                deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                    name !~ /^ruby[0-9][0-9.]*/
+                end
+                Packager.info "Required OS Deps: #{deps_osdeps_packages}"
 
                 Find.find(template_dir) do |path|
                     next if File.directory?(path)
@@ -1002,6 +1015,11 @@ module Autoproj
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
                         deps = options[:deps].flatten.uniq
+                        # Filter ruby versions out -- we assume chroot has installed all 
+                        # ruby versions
+                        deps = deps.select do |name|
+                            name !~ /^ruby[0-9][0-9.]*/
+                        end
                         deps << "dh-autoreconf"
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
