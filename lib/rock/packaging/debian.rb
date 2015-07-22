@@ -25,6 +25,7 @@ module Autoproj
                 @log_dir = LOG_DIR
                 @local_tmp_dir = LOCAL_TMP
             end
+
             def prepare_source_dir(pkg, options = Hash.new)
                 Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir]
@@ -317,7 +318,6 @@ module Autoproj
                 end
                 
                 create_flow_job_xml(name, flow, flavor, force)
-
             end
 
             def deps_fulfilled(deps, pkg, flow, debug = false)
@@ -586,6 +586,14 @@ module Autoproj
                 deps_osdeps_packages = deps_osdeps_packages.select do |name|
                     name !~ /^ruby[0-9][0-9.]*/
                 end
+                # Filter out clang
+                deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                    name !~ /clang/
+                end
+                deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                    name !~ /llvm/
+                end
+
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
 
                 Find.find(template_dir) do |path|
@@ -717,6 +725,7 @@ module Autoproj
             end
 
             def package_deb(pkg, options) 
+                Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
                     dir_name = versioned_name(pkg)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
@@ -1047,8 +1056,21 @@ module Autoproj
                     # Build only a debian source package -- do not compile binary package
                     `dpkg-source -I -b #{debian_ruby_name}`
                 end
+            end #end def
+
+            def self.installable_ruby_versions
+                version_file = File.join(local_tmp_dir,"ruby_versions")
+                systems("apt-cache search ruby | grep -e '^ruby[0-9][0-9.]*-dev' | cut -d' ' -f1 > #{version_file}")
+                ruby_versions = []
+                File.open(version_file,"r") do |file|
+                    ruby_versions = file.read.split("\n")
+                end
+                ruby_versions = ruby_versions.collect do |version|
+                    version.gsub(/-dev/,"")
+                end
+                ruby_versions
             end
-        end
+        end #end Debian
     end
 end
 
