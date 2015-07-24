@@ -474,6 +474,17 @@ module Autoproj
                 end
             end
 
+            def self.remove_all_jobs
+                all_jobs = list_all_jobs.delete_if{|job| job.start_with? 'a_' or job.start_with? 'b_'}
+                max_count = all_jobs.size
+                i = 1
+                all_jobs.each do |job|
+                    Packager.info "Remove job #{i}/#{max_count}"
+                    remove_job job
+                    i += 1
+                end
+            end
+
             # Cleanup job of a given name
             def self.cleanup_job(job_name)
                 username = "test"
@@ -490,6 +501,20 @@ module Autoproj
                 end
             end
 
+            # Remove job of a given name
+            def self.remove_job(job_name)
+                username = "test"
+                password = "test"
+                #java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-job
+                #java -jar jenkins-cli.jar delete-job VAL ...
+                #    Deletes job(s).
+                #     VAL : Name of the job(s) to delete
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{job_name}' --username #{username} --password #{password}"
+                Packager.info "job '#{job_name}': remove with #{cmd}"
+                if !system(cmd)
+                    Packager.warn "job '#{job_name}': remove failed"
+                end
+            end
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
             def dpkg_commit_changes(patch_name, directory = Dir.pwd)

@@ -16,6 +16,8 @@ o_job = false
 o_job_name = nil
 o_job_cleanup = false
 o_job_cleanup_all = false
+o_job_remove = false
+o_job_remove_all = false
 o_flow = nil
 o_ruby_job = nil
 o_package = false
@@ -97,8 +99,19 @@ options = OptionParser.new do |opt|
             exit -1
         end
     end
+    opt.on("--remove-job name", String, "Remove jenkins-job") do |name|
+        o_job_remove = true
+        o_job_name = name
+        if o_job_name.nil? or o_job_name.empty?
+            puts "no jobname given"
+            exit -1
+        end
+    end
     opt.on("--cleanup-all-jobs", "Cleanup all jenkins jobs") do
         o_job_cleanup_all = true
+    end
+    opt.on("--remove-all-jobs", "Remove all jenkins jobs except flow- and control-jobs (a_/b_)") do
+        o_job_remove_all = true
     end
     opt.on("--architectures ARCHS", String, "Comma separated list of architectures to build for") do |architectures|
         o_architectures = architectures.delete(" ").split(/[,;]/)
@@ -135,6 +148,16 @@ end
 
 if o_job_cleanup_all
     Autoproj::Packaging::Debian.cleanup_all_jobs
+    exit 0
+end
+
+if o_job_remove && o_job_name
+    Autoproj::Packaging::Debian.remove_job(o_job_name)
+    exit 0
+end
+
+if o_job_remove_all
+    Autoproj::Packaging::Debian.remove_all_jobs
     exit 0
 end
 
