@@ -35,7 +35,7 @@ module Autoproj
                         FileUtils.mkdir_p pkg_dir
                     end
 
-                    target_dir = File.join(pkg_dir, dir_name(pkg))
+                    target_dir = File.join(pkg_dir, dir_name(pkg, options[:distributions]))
                     FileUtils.cp_r existing_source_dir, target_dir
 
                     pkg.srcdir = target_dir
@@ -56,7 +56,7 @@ module Autoproj
                         pkg.importer.repository = pkg.srcdir
                     end
 
-                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg))
+                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg, options[:distributions]))
                     begin
                         Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
@@ -271,19 +271,19 @@ module Autoproj
                 "ruby-" + canonize(name)
             end
 
-            def debian_version(pkg)
+            def debian_version(pkg, distributions)
                 if !@debian_version.has_key?(pkg.name)
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
+                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + '~' + distributions.first
                 end
                 @debian_version[pkg.name]
             end
 
-            def versioned_name(pkg)
-                debian_name(pkg) + "_" + debian_version(pkg)
+            def versioned_name(pkg, distributions)
+                debian_name(pkg) + "_" + debian_version(pkg, distributions)
             end
 
-            def dir_name(pkg)
-                versioned_name(pkg)
+            def dir_name(pkg, distributions)
+                versioned_name(pkg, distributions)
             end
 
             def packaging_dir(pkg)
@@ -442,6 +442,10 @@ module Autoproj
                 end
                 if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
                     Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
+                elsif force
+                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
+                        Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
+                    end
                 end
             end
 
@@ -582,7 +586,7 @@ module Autoproj
                 [deps_rock_packages, deps_osdeps_packages]
             end
 
-            def generate_debian_dir(pkg, dir)
+            def generate_debian_dir(pkg, dir, distributions)
                 existing_dir = File.join(existing_debian_directories, pkg.name)
                 template_dir = 
                     if File.directory?(existing_dir)
@@ -595,8 +599,8 @@ module Autoproj
                 FileUtils.mkdir_p dir
                 package = pkg
                 debian_name = debian_name(pkg)
-                debian_version = debian_version(pkg)
-                versioned_name = versioned_name(pkg)
+                debian_version = debian_version(pkg, distributions)
+                versioned_name = versioned_name(pkg, distributions)
 
                 deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
                 # Filter ruby versions out -- we assume chroot has installed all 
@@ -643,7 +647,8 @@ module Autoproj
                     :force_update => false,
                     :existing_source_dir => nil,
                     :patch_dir => nil,
-                    :package_set_dir => nil
+                    :package_set_dir => nil,
+                    :distributions => []
 
                 if options[:force_update]
                     dirname = File.join(build_dir, debian_name(pkg))
@@ -752,7 +757,7 @@ module Autoproj
             def package_deb(pkg, options) 
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg)
+                    dir_name = versioned_name(pkg, options[:distributions])
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -785,9 +790,9 @@ module Autoproj
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source -- #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
-                        ["#{versioned_name(pkg)}.debian.tar.gz",
-                         "#{versioned_name(pkg)}.orig.tar.gz",
-                         "#{versioned_name(pkg)}.dsc"]
+                        ["#{versioned_name(pkg, options[:distributions])}.debian.tar.gz",
+                         "#{versioned_name(pkg, options[:distributions])}.orig.tar.gz",
+                         "#{versioned_name(pkg, options[:distributions])}.dsc"]
                     else 
                         # just to update the required gem property
                         dependencies(pkg)
@@ -801,7 +806,7 @@ module Autoproj
                 Packager.info "Using package_importer for #{pkg.name}"
 
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg)
+                    dir_name = versioned_name(pkg, options[:distributions])
 
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
@@ -829,7 +834,7 @@ module Autoproj
                         end
 
                         # Generate the debian directory
-                        generate_debian_dir(pkg, pkg.srcdir)
+                        generate_debian_dir(pkg, pkg.srcdir, options[:distributions])
 
                         # Commit local changes, e.g. check for
                         # control/urdfdom as an example
@@ -841,9 +846,9 @@ module Autoproj
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source: entries #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
-                        ["#{versioned_name(pkg)}.debian.tar.gz",
-                         "#{versioned_name(pkg)}.orig.tar.gz",
-                         "#{versioned_name(pkg)}.dsc"]
+                        ["#{versioned_name(pkg, options[:distributions])}.debian.tar.gz",
+                         "#{versioned_name(pkg, options[:distributions])}.orig.tar.gz",
+                         "#{versioned_name(pkg, options[:distributions])}.dsc"]
                     else
                         # just to update the required gem property
                         dependencies(pkg)

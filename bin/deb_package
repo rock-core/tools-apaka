@@ -242,7 +242,7 @@ Dir.chdir(packager.build_dir) do
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir, :distributions => o_distributions })
             rescue Interrupt
                 raise
             rescue Exception => e
