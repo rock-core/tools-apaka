@@ -422,6 +422,9 @@ module Autoproj
                 options[:distributions] ||= [ 'trusty','jessie' ]
                 options[:job_name] ||= package_name
 
+                combinations = combination_filter(options[:architectures], options[:distributions])
+
+
                 Packager.info "Creating jenkins-debian-glue job with options: #{options}"
 
                 safe_level = nil
@@ -447,6 +450,34 @@ module Autoproj
                         Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
                     end
                 end
+            end
+
+            def combination_filter(architectures, distributions)
+                blacklist = [
+                    ["trusty","armhf"],
+                    ["trusty","armel"],
+
+                    ["precise","armel"],
+                    ["precise","armhf"],
+
+                    ["wheezy","arm64"],
+
+                    ["jessie","armel"],
+                    ["jessie","arm64"],
+
+                    ["sid","armel"],
+                    ["sid","arm64"],
+                ]
+                ret = ""
+                aritectures.each do |arch|
+                    distributions.each do |dist|
+                        if blacklist.include? [arch,dist]
+                            ret += "&amp;&amp; !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
+                        end
+                    end
+                end
+
+                ret = ret[11..-1]
             end
 
             def self.list_all_jobs
