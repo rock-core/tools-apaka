@@ -9,9 +9,9 @@ module Autoproj
 
         # Directory for temporary data to 
         # validate obs_packages
-        BUILD_DIR=File.join(Autoproj.root_dir, "build/obs")
+        BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
         LOG_DIR=File.join(Autoproj.root_dir, BUILD_DIR, "logs")
-        LOCAL_TMP = File.join(BUILD_DIR,".obs_package")
+        LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
@@ -968,7 +968,8 @@ module Autoproj
 
                 options, unknown_options = Kernel.filter_options options,
                     :force_update => false,
-                    :patch_dir => nil
+                    :patch_dir => nil,
+                    :distributions => []
 
                 if unknown_options.size > 0
                     Packager.warn "Autoproj::Packaging Unknown options provided to convert gems: #{unknown_options}"
@@ -1017,7 +1018,8 @@ module Autoproj
 
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil,
-                    :deps => [[],[]]
+                    :deps => [[],[]],
+                    :distributions => []
 
                 Dir.chdir(File.dirname(gem_path)) do 
                     gem_file_name = File.basename(gem_path)
@@ -1032,9 +1034,9 @@ module Autoproj
                     else
                         raise ArgumentError, "Converting gem: unknown formatting"
                     end
-                    puts "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
 
-                    Packager.debug "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
+
+                    Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                     # Convert .gem to .tar.gz
                     if not system("gem2tgz #{gem_file_name}")
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
@@ -1047,7 +1049,7 @@ module Autoproj
                     # By default generate for all ruby versions
                     `dh-make-ruby #{gem_versioned_name}.tar.gz`
 
-                    debian_ruby_name = debian_ruby_name(gem_versioned_name)
+                    debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + options[:distributions]
 
 
                     # Check if patching is needed

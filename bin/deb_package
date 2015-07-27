@@ -325,7 +325,7 @@ Dir.chdir(packager.build_dir) do
 
     if o_dest_dir && o_package
         # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
-        packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir})
+        packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
@@ -335,7 +335,7 @@ Dir.chdir(packager.build_dir) do
                     next
                 end
                 pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkg)
-            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)
+            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, packager.build_dir, pkg_obs_name, packager.file_suffix_patterns, o_commit)
 
                 # sync the directory in build/obs and the target directory based on an existing
                 # files pattern
@@ -344,7 +344,7 @@ Dir.chdir(packager.build_dir) do
                     # Finding files that exist in the source directory
                     # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                     # and ruby-hoe/_service
-                    glob_exp = File.join(Autoproj::Packaging::BUILD_DIR,pkg_obs_name,"*#{p}")
+                    glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
                     files += Dir.glob(glob_exp)
                 end
                 files = files.flatten.uniq
@@ -370,7 +370,7 @@ Dir.chdir(packager.build_dir) do
                 # Finding files that exist in the source directory
                 # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                 # and ruby-hoe/_service
-                glob_exp = File.join(Autoproj::Packaging::BUILD_DIR,pkg_obs_name,"*#{p}")
+                glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
                 files += Dir.glob(glob_exp)
             end
             files = files.flatten.uniq
@@ -389,7 +389,7 @@ Dir.chdir(packager.build_dir) do
                 # Finding files that exist in the source directory
                 # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                 # and ruby-hoe/_service
-                glob_exp = File.join(Autoproj::Packaging::BUILD_DIR,pkg_obs_name,"*#{p}")
+                glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
                 files += Dir.glob(glob_exp)
             end
             files = files.flatten.uniq
