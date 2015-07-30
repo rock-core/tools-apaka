@@ -390,6 +390,18 @@ Dir.chdir(packager.build_dir) do
                 # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                 # and ruby-hoe/_service
                 glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
+                #basename = Dir.glob(glob_exp).first[0..(Dir.glob(glob_exp).first.size-(p.size+1))]
+                #if basename[-2] == '-' 
+                #    number = basename[-2..-1]
+                #    basename = basename[0..-3]
+                #end
+                #newname = (basename + '~' + o_distributions.first)
+                #if number
+                #    newname = newname + number
+                #end
+                #newname = newname + p
+                #FileUtils.mv(Dir.glob(glob_exp).first, newname)
+                #files << newname
                 files += Dir.glob(glob_exp)
             end
             files = files.flatten.uniq

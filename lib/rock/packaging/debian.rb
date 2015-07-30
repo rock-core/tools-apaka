@@ -327,7 +327,6 @@ module Autoproj
                         #if (debian_name(pkg) == "data_processing/orogen/type_to_vector")
                         if debug
                             puts "Missing: #{dep} for #{pkg.name}"
-                            #binding.pry
                             #puts "the dep's deps: #{dependencies(Autoproj.manifest.package(dep).autobuild)}"
                             exit -1
                         end
@@ -469,7 +468,7 @@ module Autoproj
                     ["sid","arm64"],
                 ]
                 ret = ""
-                aritectures.each do |arch|
+                architectures.each do |arch|
                     distributions.each do |dist|
                         if blacklist.include? [arch,dist]
                             ret += "&amp;&amp; !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
@@ -1098,9 +1097,6 @@ module Autoproj
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
 
-
-			#remove version-info as debian does use older versions
-                            `sed -i s#'([^)]*)'#''#g  debian/control`
                             dpkg_commit_changes("ocl_extra_dependencies")
                         end
 
@@ -1113,9 +1109,15 @@ module Autoproj
                         Packager.debug "Disabling ruby test result evaluation"
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
                         `sed -i "s#Architecture: all#Architecture: any#" debian/control`
+
+
                         dpkg_commit_changes("any-architecture")
+                        `sed -i 's#\\(\\.[0-9]\\\+\\)[-)]#\\1~#{options[:distributions].first}-#g' debian/changelog`
                     end
 
+
+                    debianized_name = debian_ruby_name.gsub /(.*)(-)(.*)/, '\1_\3'
+                    FileUtils.cp debianized_name + ".orig.tar.gz", debianized_name + "~#{options[:distributions].first}.orig.tar.gz"
                     # Build only a debian source package -- do not compile binary package
                     `dpkg-source -I -b #{debian_ruby_name}`
                 end
