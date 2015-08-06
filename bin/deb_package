@@ -235,7 +235,12 @@ Dir.chdir(packager.build_dir) do
     if o_package && o_all_packages
         Autobuild.do_update = true
         selection.each_with_index do |pkg_name, i|
-            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
 
             if o_skip && o_obs_dir
                 pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkg))
