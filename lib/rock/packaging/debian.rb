@@ -290,9 +290,9 @@ module Autoproj
                 "ruby-" + canonize(name)
             end
 
-            def debian_version(pkg, distribution)
+            def debian_version(pkg, distribution, revision = "1")
                 if !@debian_version.has_key?(pkg.name)
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
+                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
@@ -300,8 +300,24 @@ module Autoproj
                 @debian_version[pkg.name]
             end
 
+            # Plain version is the version string without the revision
+            def debian_plain_version(pkg, distribution)
+                if !@debian_version.has_key?(pkg.name)
+                    # initialize version string
+                    debian_version(pkg, distribution)
+                end
+
+                # remove the revision and the distribution
+                # to get the plain version
+                @debian_version[pkg.name].gsub(/[-~].*/,"")
+            end
+
             def versioned_name(pkg, distribution)
                 debian_name(pkg) + "_" + debian_version(pkg, distribution)
+            end
+
+            def plain_versioned_name(pkg, distribution)
+                debian_name(pkg) + "_" + debian_plain_version(pkg, distribution)
             end
 
             def dir_name(pkg, distribution)
@@ -820,12 +836,12 @@ module Autoproj
             def package_deb(pkg, options, distribution)
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg, distribution)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
+                    sources_name = plain_versioned_name(pkg, distribution)
                     # First, generate the source tarball
-                    tarball = "#{dir_name}.orig.tar.gz"
+                    tarball = "#{sources_name}.orig.tar.gz"
 
                     # Check first if actual source contains newer information than existing 
                     # orig.tar.gz -- only then we create a new debian package
@@ -854,7 +870,7 @@ module Autoproj
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
                         ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
-                         "#{versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{plain_versioned_name(pkg, distribution)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else 
                         # just to update the required gem property
@@ -870,8 +886,8 @@ module Autoproj
                 distribution = max_one_distribution(options[:distributions])
 
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg, distribution)
 
+                    dir_name = versioned_name(pkg, distribution)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -882,6 +898,7 @@ module Autoproj
                     cmake.close
 
                     # First, generate the source tarball
+                    sources_name = plain_versioned_name(pkg, distribution)
                     tarball = "#{dir_name}.orig.tar.gz"
 
                     # Check first if actual source contains newer information than existing
@@ -911,7 +928,7 @@ module Autoproj
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
                         ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
-                         "#{versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{plain_versioned_name(pkg, distribution)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
