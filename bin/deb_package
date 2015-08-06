@@ -254,7 +254,12 @@ Dir.chdir(packager.build_dir) do
 
     if o_job
         selection.each_with_index do |pkg_name, i|
-            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
             puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg_name}"
             options = Hash.new
             if !o_architectures.empty?
@@ -290,8 +295,16 @@ Dir.chdir(packager.build_dir) do
         puts "Creating Gem-Jobs"
 
         selection.each do |pkg_name|
-            pkg = Autoproj.manifest.package(pkg_name).autobuild
-            packager.dependencies pkg
+            pkg = Autoproj.manifest.package(pkg_name)
+            if pkg
+                pkg = pkg.autobuild
+                packager.dependencies pkg
+            else
+                Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
+                # Fails to be detected as normal package
+                # so we assume it is a ruby gem
+                o_extra_gem = pkg_name
+            end
         end
         if o_extra_gem
             packager.ruby_gems << o_extra_gem
