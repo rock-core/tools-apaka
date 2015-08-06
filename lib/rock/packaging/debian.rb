@@ -1159,12 +1159,17 @@ module Autoproj
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
-                            # Relaxing the required gem2deb version to allow for <@Christian to fill>
-                            `sed -i "s#^\\(^Build-Depends: .* \\)gem2deb (>= [0-9\.~]\+)\\(, .*\\)#\\1 gem2deb \\2#" debian/control`
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
 
                             dpkg_commit_changes("ocl_extra_dependencies")
                         end
+
+                        Packager.info "Relaxing version requirement for: debhelper and gem2deb"
+                        # Relaxing the required gem2deb version to allow for for multiplatform support
+                        `sed -i "s#^\\(^Build-Depends: .*\\)gem2deb (>= [0-9\.~]\\+)\\(, .*\\)#\\1 gem2deb\\2#g" debian/control`
+                        `sed -i "s#^\\(^Build-Depends: .*\\)debhelper (>= [0-9\.~]\\+)\\(, .*\\)#\\1 debhelper\\2#g" debian/control`
+                        dpkg_commit_changes("relax_version_requirements")
+
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
                         # via:
