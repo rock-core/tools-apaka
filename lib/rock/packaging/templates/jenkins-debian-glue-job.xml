@@ -58,10 +58,7 @@
       </hudson.matrix.TextAxis>
   </axes>
   <combinationFilter>
-      !(distribution == 'trusty' &amp;&amp; architecture == 'armel') &amp;&amp; !(distribution == 'trusty' &amp;&amp; architecture == 'armhf') &amp;&amp; 
-      !(distribution == 'wheezy' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'wheezy' &amp;&amp; architecture == 'armhf') &amp;&amp;
-      !(distribution == 'jessie' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'jessie' &amp;&amp; architecture == 'armel') &amp;&amp;
-      !(distribution == 'sid' &amp;&amp; architecture == 'arm64') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'amd64') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'i386') &amp;&amp; !(distribution == 'sid' &amp;&amp; architecture == 'armel')
+      <%= combinations.to_s %>
   </combinationFilter>
   <builders>
     <hudson.tasks.Shell>

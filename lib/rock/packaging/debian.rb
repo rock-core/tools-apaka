@@ -446,7 +446,9 @@ module Autoproj
                 combinations = combination_filter(options[:architectures], options[:distributions])
 
 
-                Packager.info "Creating jenkins-debian-glue job with options: #{options}"
+                Packager.info "Creating jenkins-debian-glue job with"
+                Packager.info "         options: #{options}"
+                Packager.info "         combination filter: #{combinations}"
 
                 safe_level = nil
                 trim_mode = "%<>"
@@ -474,7 +476,12 @@ module Autoproj
             end
 
             def combination_filter(architectures, distributions)
+                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions}"
                 blacklist = [
+                    ["vivid", "armhf"],
+                    ["vivid", "armel"],
+                    ["vivid", "arm64"],
+
                     ["trusty","armhf"],
                     ["trusty","armel"],
 
@@ -486,19 +493,23 @@ module Autoproj
                     ["jessie","armel"],
                     ["jessie","arm64"],
 
+                    ["sid","amd64"],
+                    ["sid","i386"],
                     ["sid","armel"],
                     ["sid","arm64"],
                 ]
                 ret = ""
+                and_placeholder = " &amp;&amp; "
                 architectures.each do |arch|
                     distributions.each do |dist|
-                        if blacklist.include? [arch,dist]
-                            ret += "&amp;&amp; !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
+                        if blacklist.include? [dist, arch]
+                            ret += "#{and_placeholder} !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
                         end
                     end
                 end
 
-                ret = ret[11..-1]
+                # Cut the first and_placeholder away
+                ret = ret[and_placeholder.size..-1]
             end
 
             def self.list_all_jobs
