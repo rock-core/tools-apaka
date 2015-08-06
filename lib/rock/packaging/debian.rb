@@ -231,6 +231,9 @@ module Autoproj
             # List of osdeps, which are needed by the set of packages
             attr_accessor :osdeps
 
+            # install directory if not given set to /opt/rock
+            attr_accessor :rock_install_directory
+
             def initialize(existing_debian_directories)
                 super()
                 @existing_debian_directories = existing_debian_directories
@@ -239,6 +242,7 @@ module Autoproj
                 @osdeps = Array.new
                 @package_aliases = Hash.new
                 @debian_version = Hash.new
+                @rock_install_directory = "/opt/rock"
 
                 if not File.exists?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir

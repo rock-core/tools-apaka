@@ -1,7 +1,7 @@
 #!/usr/bin/make -f
 
 # BEGIN ENVIRONMENT SETUP
-rock_install_dir = /opt/rock
+rock_install_dir = <%= rock_install_directory %>
 rock_bindir = /tmp/rock/bin
 
 ruby_ver = 1.9.1
@@ -38,7 +38,7 @@ pre-build::
 	echo "Current directory:"
 	find .
 	
-	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set /opt/rock/bin/ruby
+	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set $(rock_bindir)/bin/ruby
 	#if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
 	#if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
@@ -68,8 +68,8 @@ DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
 # Debian packaging discourages the use of rpath, and 
 # cdbs actively disables it setting CMAKE_SKIP_RPATH=ON
-# however since we install into /opt/rock we turn skipping off again
-# CXXFLAGS+=-Wl,-rpath-link,/opt/rock/lib
+# however since we install into <%= rock_install_directory %> we turn skipping off again
+# CXXFLAGS+=-Wl,-rpath-link,<%= rock_install_directory %>/lib
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
@@ -84,7 +84,7 @@ include /usr/share/cdbs/1/class/cmake.mk
 # BEGIN AUTOTOOLS
 #
 <% elsif package.class == Autobuild::Autotools %>
-DEB_CONFIGURE_PREFIX= /opt/rock
+DEB_CONFIGURE_PREFIX= <%= rock_install_directory %>
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
     <% if package.using[:libtool] %>
 DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre

@@ -24,6 +24,7 @@ o_package = false
 o_overwrite = false
 o_list = false
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
+o_rock_install_dir=nil
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -133,6 +134,13 @@ options = OptionParser.new do |opt|
     opt.on("--update-list FILE", String, "Update the given osdep-file") do |file|
         o_list = file
     end
+    opt.on("--rock-install-dir DIR", String, "Rock installation directory (prefix) for deployment of debian packages") do |dir|
+        require 'pathname'
+        if !Pathname.new(dir).absolute?
+            raise ArgumentError, "Given path for --rock-install-dir has to be absolute, but was relative: '#{dir}'"
+        end
+        o_rock_install_dir = dir
+    end
 end
 
 # The remaining arguments are the packages that have been selected on console
@@ -205,6 +213,10 @@ packager.prepare
 
 if o_build_dir
     packager.build_dir = o_build_dir
+end
+
+if o_rock_install_dir
+    packager.rock_install_directory = o_rock_install_dir
 end
 
 

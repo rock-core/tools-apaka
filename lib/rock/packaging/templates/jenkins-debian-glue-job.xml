@@ -77,7 +77,7 @@ cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 #    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
 #    then
 #        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
-        deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir --rebuild --<%= options[:type] %>  <%= package_name %> --package
+         deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir  --rock-install-dir /opt/rock/${release} --rebuild --<%= options[:type] %>  <%= package_name %> --package
 #        break
 #    else
 #        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"
