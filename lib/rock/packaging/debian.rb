@@ -26,7 +26,26 @@ module Autoproj
                 @local_tmp_dir = LOCAL_TMP
             end
 
+            def max_one_distribution(distributions)
+                distribution = nil
+                if !distributions.kind_of?(Array)
+                    raise ArgumentError, "max_one_distribution: expecting Array as argument, but got: #{distributions}"
+                end
+
+                if distributions.size > 1
+                    raise ArgumentError, "Unsupported requests. You provided more than one distribution where maximum one 1 allowed"
+                elsif distributions.empty?
+                    Packager.warn "You provided no distribution for debian package generation."
+                else
+                    distribution = distributions.first
+                end
+                distribution
+            end
+
             def prepare_source_dir(pkg, options = Hash.new)
+
+                distribution = max_one_distribution(options[:distributions])
+
                 Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir]
                     Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
@@ -35,7 +54,7 @@ module Autoproj
                         FileUtils.mkdir_p pkg_dir
                     end
 
-                    target_dir = File.join(pkg_dir, dir_name(pkg, options[:distributions]))
+                    target_dir = File.join(pkg_dir, dir_name(pkg, distribution))
                     FileUtils.cp_r existing_source_dir, target_dir
 
                     pkg.srcdir = target_dir
@@ -56,7 +75,7 @@ module Autoproj
                         pkg.importer.repository = pkg.srcdir
                     end
 
-                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg, options[:distributions]))
+                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg, distribution))
                     begin
                         Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
@@ -271,19 +290,22 @@ module Autoproj
                 "ruby-" + canonize(name)
             end
 
-            def debian_version(pkg, distributions)
+            def debian_version(pkg, distribution)
                 if !@debian_version.has_key?(pkg.name)
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + '~' + distributions.first
+                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M")
+                    if distribution
+                        @debian_version[pkg.name] += '~' + distribution
+                    end
                 end
                 @debian_version[pkg.name]
             end
 
-            def versioned_name(pkg, distributions)
-                debian_name(pkg) + "_" + debian_version(pkg, distributions)
+            def versioned_name(pkg, distribution)
+                debian_name(pkg) + "_" + debian_version(pkg, distribution)
             end
 
-            def dir_name(pkg, distributions)
-                versioned_name(pkg, distributions)
+            def dir_name(pkg, distribution)
+                versioned_name(pkg, distribution)
             end
 
             def packaging_dir(pkg)
@@ -616,7 +638,7 @@ module Autoproj
                 [deps_rock_packages, deps_osdeps_packages]
             end
 
-            def generate_debian_dir(pkg, dir, distributions)
+            def generate_debian_dir(pkg, dir, distribution)
                 existing_dir = File.join(existing_debian_directories, pkg.name)
                 template_dir = 
                     if File.directory?(existing_dir)
@@ -629,8 +651,8 @@ module Autoproj
                 FileUtils.mkdir_p dir
                 package = pkg
                 debian_name = debian_name(pkg)
-                debian_version = debian_version(pkg, distributions)
-                versioned_name = versioned_name(pkg, distributions)
+                debian_version = debian_version(pkg, distribution)
+                versioned_name = versioned_name(pkg, distribution)
 
                 deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
                 # Filter ruby versions out -- we assume chroot has installed all 
@@ -691,7 +713,7 @@ module Autoproj
                 prepare_source_dir(pkg, options)
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
-                    package_deb(pkg, options)
+                    package_deb(pkg, options, options[:distributions].first)
                 elsif pkg.kind_of?(Autobuild::Ruby)
                     package_ruby(pkg, options)
                 elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) || pkg.kind_of?(Autobuild::ImporterPackage)
@@ -784,10 +806,10 @@ module Autoproj
                 end
             end
 
-            def package_deb(pkg, options) 
+            def package_deb(pkg, options, distribution)
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg, options[:distributions])
+                    dir_name = versioned_name(pkg, distribution)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -808,7 +830,7 @@ module Autoproj
                         end
 
                         # Generate the debian directory
-                        generate_debian_dir(pkg, pkg.srcdir)
+                        generate_debian_dir(pkg, pkg.srcdir, distribution)
 
                         # Commit local changes, e.g. check for
                         # control/urdfdom as an example
@@ -820,9 +842,9 @@ module Autoproj
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source -- #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
-                        ["#{versioned_name(pkg, options[:distributions])}.debian.tar.gz",
-                         "#{versioned_name(pkg, options[:distributions])}.orig.tar.gz",
-                         "#{versioned_name(pkg, options[:distributions])}.dsc"]
+                        ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
+                         "#{versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{versioned_name(pkg, distribution)}.dsc"]
                     else 
                         # just to update the required gem property
                         dependencies(pkg)
@@ -834,9 +856,10 @@ module Autoproj
 
             def package_importer(pkg, options)
                 Packager.info "Using package_importer for #{pkg.name}"
+                distribution = max_one_distribution(options[:distributions])
 
                 Dir.chdir(packaging_dir(pkg)) do
-                    dir_name = versioned_name(pkg, options[:distributions])
+                    dir_name = versioned_name(pkg, distribution)
 
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
@@ -864,7 +887,7 @@ module Autoproj
                         end
 
                         # Generate the debian directory
-                        generate_debian_dir(pkg, pkg.srcdir, options[:distributions])
+                        generate_debian_dir(pkg, pkg.srcdir, distribution)
 
                         # Commit local changes, e.g. check for
                         # control/urdfdom as an example
@@ -876,9 +899,9 @@ module Autoproj
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source: entries #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
-                        ["#{versioned_name(pkg, options[:distributions])}.debian.tar.gz",
-                         "#{versioned_name(pkg, options[:distributions])}.orig.tar.gz",
-                         "#{versioned_name(pkg, options[:distributions])}.dsc"]
+                        ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
+                         "#{versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
                         dependencies(pkg)
@@ -970,6 +993,8 @@ module Autoproj
                     :patch_dir => nil,
                     :distributions => []
 
+                distribution = max_one_distribution(options[:distributions])
+
                 if unknown_options.size > 0
                     Packager.warn "Autoproj::Packaging Unknown options provided to convert gems: #{unknown_options}"
                 end
@@ -1020,6 +1045,8 @@ module Autoproj
                     :deps => [[],[]],
                     :distributions => []
 
+                distribution = max_one_distribution(options[:distributions])
+
                 Dir.chdir(File.dirname(gem_path)) do 
                     gem_file_name = File.basename(gem_path)
                     gem_versioned_name = gem_file_name.sub("\.gem","")
@@ -1048,7 +1075,7 @@ module Autoproj
                     # By default generate for all ruby versions
                     `dh-make-ruby #{gem_versioned_name}.tar.gz`
 
-                    debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + options[:distributions]
+                    debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
 
 
                     # Check if patching is needed
@@ -1095,6 +1122,8 @@ module Autoproj
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
+                            # Relaxing the required gem2deb version to allow for <@Christian to fill>
+                            `sed -i "s#^\\(^Build-Depends: .* \\)gem2deb (>= [0-9\.~]\+)\\(, .*\\)#\\1 gem2deb \\2#" debian/control`
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
 
                             dpkg_commit_changes("ocl_extra_dependencies")
@@ -1112,12 +1141,21 @@ module Autoproj
 
 
                         dpkg_commit_changes("any-architecture")
-                        `sed -i 's#\\(\\.[0-9]\\\+\\)[-)]#\\1~#{options[:distributions].first}-#g' debian/changelog`
+                        if distribution
+                            `sed -i 's#\\(\\.[0-9]\\\+\\)[-)]#\\1~#{distribution}-#g' debian/changelog`
+                            Packager.info "Injecting distribution info: '~#{distribution}' into debian/changelog"
+                        end
                     end
 
 
                     debianized_name = debian_ruby_name.gsub /(.*)(-)(.*)/, '\1_\3'
-                    FileUtils.cp debianized_name + ".orig.tar.gz", debianized_name + "~#{options[:distributions].first}.orig.tar.gz"
+                    # Rename file if distribution is given
+                    if distribution
+                        target_filename = debianized_name + "~#{distribution}.orig.tar.gz"
+                        FileUtils.cp debianized_name + ".orig.tar.gz", target_filename
+                        Packager.info "Renaming: #{debianized_name}.orig.tar.gz --> #{target_filename}"
+                    end
+
                     # Build only a debian source package -- do not compile binary package
                     `dpkg-source -I -b #{debian_ruby_name}`
                 end
