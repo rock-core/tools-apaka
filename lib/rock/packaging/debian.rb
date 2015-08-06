@@ -493,32 +493,37 @@ module Autoproj
 
             def combination_filter(architectures, distributions)
                 Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions}"
-                blacklist = [
-                    ["vivid", "armhf"],
-                    ["vivid", "armel"],
-                    ["vivid", "arm64"],
+                whitelist = [
+                    ["vivid", "amd64"],
+                    ["vivid", "i386"],
 
-                    ["trusty","armhf"],
-                    ["trusty","armel"],
+                    ["trusty","amd64"],
+                    ["trusty","i386"],
 
-                    ["precise","armel"],
-                    ["precise","armhf"],
+                    ["precise","amd64"],
+                    ["precise","i386"],
 
-                    ["wheezy","arm64"],
+                    ["wheezy","armel"],
+                    ["wheezy","armhf"],
 
+                    # arm64 available from jessie onwards:
+                    #     https://wiki.debian.org/Arm64Port
+
+                    ["jessie","amd64"],
+                    ["jessie","i386"],
+                    ["jessie","armhf"],
                     ["jessie","armel"],
-                    ["jessie","arm64"],
 
                     ["sid","amd64"],
                     ["sid","i386"],
-                    ["sid","armel"],
-                    ["sid","arm64"],
+                    ["sid","armhf"],
+                    ["sid","armel"]
                 ]
                 ret = ""
                 and_placeholder = " &amp;&amp; "
                 architectures.each do |arch|
                     distributions.each do |dist|
-                        if blacklist.include? [dist, arch]
+                        if !whitelist.include? [dist, arch]
                             ret += "#{and_placeholder} !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
                         end
                     end
