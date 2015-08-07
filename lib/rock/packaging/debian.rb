@@ -1026,6 +1026,7 @@ module Autoproj
             # Convert all gems that are required
             # by package build with the debian packager
             def convert_gems(options = Hash.new)
+                Packager.info "Convert gems: with options #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
                     :force_update => false,
@@ -1046,6 +1047,13 @@ module Autoproj
                 @ruby_gems.each do |gem_name, version|
                     gem_dir_name = debian_ruby_name(gem_name)
 
+                    if options[:force_update]
+                        dirname = File.join(build_dir, gem_dir_name)
+                        if File.directory?(dirname)
+                            Packager.info "Debian Gem: rebuild requested -- removing #{dirname}"
+                            FileUtils.rm_rf(dirname)
+                        end
+                    end
                     # Assuming if the .gem file has been download we do not need to update
                     if options[:force_update] or not Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").size > 0
                         Packager.debug "Converting gem: '#{gem_name}' to debian source package"
