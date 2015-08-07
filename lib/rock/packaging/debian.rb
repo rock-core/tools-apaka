@@ -1195,7 +1195,9 @@ module Autoproj
                             # Changelog entry initially, e.g.,
                             # ruby-activesupport (4.2.3-1) UNRELEASED; urgency=medium
                             #
-                            if `sed -i 's#\\([0-9][0-9\.-]\\+\\)#\\1~#{distribution}#' debian/changelog`
+                            # after
+                            # ruby-activesupport (4.2.3-1~trusty) UNRELEASED; urgency=medium
+                            if `sed -i 's#\(\\([0-9][0-9\.-]\\+\\)\)#\(\\1~#{distribution}\)#' debian/changelog`
                                 Packager.info "Injecting distribution info: '~#{distribution}' into debian/changelog"
                             else
                                 raise RuntimeError, "Failed to inject distribution infor into debian/changelog"
@@ -1207,7 +1209,7 @@ module Autoproj
                     # Build only a debian source package -- do not compile binary package
                     Packager.info "Building debian source package: #{debian_ruby_name}"
                     result = `dpkg-source -I -b #{debian_ruby_name}`
-                    Packager.info "Resulting debian files: #{Dir.glob("**")}"
+                    Packager.info "Resulting debian files: #{Dir.glob("**")} in #{Dir.pwd}"
                 end
             end #end def
 
