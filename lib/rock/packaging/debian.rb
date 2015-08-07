@@ -726,6 +726,20 @@ module Autoproj
                 end
             end
 
+            # A tar gzip version that reproduces 
+            # same checksums on the same day when file content does not change
+            def tar_gzip(archive, tarfile)
+                Packager.info "Tar archive: #{archive} into #{tarfile}"
+                # Make sure that the tar files checksum remains the same, even when modification timestamp changes, 
+                # i.e. use gzip --no-name and set the initial date to the current day
+                #
+                # TODO: What if building over midnight of a specific month -- single point of failure
+                year_month=`date +%Y-%m`
+                cmd_tar = "tar --mtime='#{year_month}-01' --format=gnu -c --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{archive} | gzip --no-name > #{tarfile}"
+
+                return system(cmd_tar)
+            end
+
             # Package the given package
             # if an existing source directory is given this will be used
             # for packaging, otherwise the package will be bootstrapped
@@ -859,8 +873,8 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}"
-                        if !system(cmd_tar)
+
+                        if !tar_gzip(File.basename(pkg.srcdir), tarball)
                             Packager.warn "Package: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
                         else
@@ -1054,6 +1068,7 @@ module Autoproj
                             FileUtils.rm_rf(dirname)
                         end
                     end
+
                     # Assuming if the .gem file has been download we do not need to update
                     if options[:force_update] or not Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").size > 0
                         Packager.debug "Converting gem: '#{gem_name}' to debian source package"
@@ -1112,6 +1127,20 @@ module Autoproj
                     # Convert .gem to .tar.gz
                     if not system("gem2tgz #{gem_file_name}")
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
+                    else
+                        Packager.info "Converted: #{Dir.glob("**")}"
+                        gem_base_name = gem_file_name.gsub(/.gem/,"")
+                        `tar xzf #{gem_base_name}.tar.gz`
+
+                        FileUtils.rm "#{gem_base_name}.tar.gz"
+                        Packager.info "Converted: #{Dir.glob("**")}"
+
+                        source_dir = gem_base_name
+                        if !tar_gzip(source_dir, "#{gem_base_name}.tar.gz")
+                            raise RuntimeError, "Failed to reformat original #{gem_base_name}.tar.gz for gem"
+                        end
+                        FileUtils.rm_rf source_dir
+                        Packager.info "Converted: #{Dir.glob("**")}"
                     end
 
                     # Create ruby-<name>-<version> folder including debian/ folder
