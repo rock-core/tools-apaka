@@ -390,9 +390,9 @@ Dir.chdir(packager.build_dir) do
         # Update all gems
         packager.ruby_gems.each do |gem_name, version|
             if version
-                puts "OBS -- update gem: #{gem_name} with version #{version}"
+                puts "deb_package -- update gem: #{gem_name} with version #{version}"
             else
-                puts "OBS -- update gem: #{gem_name}"
+                puts "deb_package -- update gem: #{gem_name}"
             end
             pkg_obs_name = packager.debian_ruby_name(gem_name)
             files = []
@@ -412,7 +412,7 @@ Dir.chdir(packager.build_dir) do
 
         # Update rock gems
         packager.ruby_rock_gems.each do |gem_name, version|
-            puts "OBS -- update rock gem (converted ruby package): #{gem_name}"
+            puts "deb_package -- update rock gem (converted ruby package): #{gem_name}"
             pkg_obs_name = gem_name
             files = []
             packager.file_suffix_patterns.map do |p|
