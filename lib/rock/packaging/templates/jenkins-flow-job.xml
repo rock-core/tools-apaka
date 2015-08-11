@@ -22,11 +22,11 @@
   <buildWrappers/>
   <icon/>
   <dsl>
-//out.println 'Initial unlock'
-build(&quot;unlock&quot;)
-//out.println 'Ruby-Gem-Packages'
+//build(&quot;unlock&quot;)
+//Ruby-Gem-Packages
 //rm <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps
 ignore(FAILURE){
+<% if parallel # parallel builds%>
 parallel (
     <% gems.each_with_index do |gem,i| %>
     {
@@ -44,6 +44,19 @@ ignore(FAILURE){
     )
 }
 <% end %>
+
+<% else # non-parallel builds%>
+    <% gems.each_with_index do |gem,i| %>
+    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;),
+    <% end %>
+
+    <% flow = flow.flatten %>
+    <% flow.each_with_index do |job,i| %>
+    build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)<%= flow.size == (i+1) ? "" : "," %>
+    <% end %>
+    }
+
+<% end # parellel builds%>
 </dsl>
   <buildNeedsWorkspace>false</buildNeedsWorkspace>
 </com.cloudbees.plugins.flow.BuildFlow>

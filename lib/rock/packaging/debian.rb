@@ -296,7 +296,8 @@ module Autoproj
 
             def debian_version(pkg, distribution, revision = "1")
                 if !@debian_version.has_key?(pkg.name)
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
+                    #@debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
+                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
@@ -332,7 +333,7 @@ module Autoproj
                 File.join(@build_dir, debian_name(pkg))
             end
 
-            def create_flow_job(name, selection, flavor, force = false)
+            def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
                 Packager.info ("#{selection.size} packages selected")
                 flow = Array.new
                 flow[0] = Array.new
@@ -359,7 +360,7 @@ module Autoproj
                     x += 1
                 end
 
-                create_flow_job_xml(name, flow, flavor, force)
+                create_flow_job_xml(name, flow, flavor, parallel_builds, force)
             end
 
             def deps_fulfilled(deps, pkg, flow, debug = false)
@@ -383,13 +384,15 @@ module Autoproj
                 true
             end
 
-            def create_flow_job_xml(name, flow, flavor, force = false)
+            def create_flow_job_xml(name, flow, flavor, parallel = false, force = false)
                 gems = flow[0].uniq
                 flow.delete_at(0)
 
-                # Create-unlock-job
                 safe_level = nil
                 trim_mode = "%<>"
+
+                # Create-unlock-job
+=begin   Not used anymore
                 template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-unlock-job.xml")), safe_level, trim_mode)
                 rendered = template.result(binding)
                 File.open("unlock.xml", 'w') do |f|
@@ -398,7 +401,7 @@ module Autoproj
                 if not system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job 'unlock' --username test --password test < unlock.xml")
                     system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job 'unlock' --username test --password test < unlock.xml")
                 end
-
+=end
                 template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
                 rendered = template.result(binding)
                 File.open("#{name}.xml", 'w') do |f|
@@ -728,16 +731,36 @@ module Autoproj
 
             # A tar gzip version that reproduces 
             # same checksums on the same day when file content does not change
-            def tar_gzip(archive, tarfile)
-                Packager.info "Tar archive: #{archive} into #{tarfile}"
+            # 
+            # Required to package orig.tar.gz
+            def tar_gzip(archive, tarfile, distribution = nil)
+
+                # Make sure no distribution information leaks into the package
+                if distribution and archive =~ /~#{distribution}/
+                    archive_plain_name = archive.gsub(/~#{distribution}/,"")
+                    FileUtils.cp_r archive, archive_plain_name
+                else
+                    archive_plain_name = archive
+                end
+
+
+                Packager.info "Tar archive: #{archive_plain_name} into #{tarfile}"
                 # Make sure that the tar files checksum remains the same, even when modification timestamp changes, 
                 # i.e. use gzip --no-name and set the initial date to the current day
                 #
-                # TODO: What if building over midnight of a specific month -- single point of failure
-                year_month=`date +%Y-%m`
-                cmd_tar = "tar --mtime='#{year_month}-01' --format=gnu -c --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{archive} | gzip --no-name > #{tarfile}"
+                # TODO: What if building over midnight -- single point of failure
+                mtime=`date +%Y-%m-%d`
+                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
-                return system(cmd_tar)
+                if system(cmd_tar)
+                    Packager.info "Package: successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} -- #{Dir.glob("**")}"
+                    checksum = `sha256sum #{tarfile}`
+                    Packager.info "Package: sha256sum: #{checksum}"
+                    return true
+                else
+                    Packager.info "Package: failed to create archive using command '#{cmd_tar}' -- pwd #{Dir.pwd}"
+                    return false
+                end
             end
 
             # Package the given package
@@ -778,9 +801,9 @@ module Autoproj
                 end
             end
 
-            # Create an osc package of an existing ruby package
+            # Create an deb package of an existing ruby package
             def package_ruby(pkg, options)
-                Packager.info "Package Ruby: '#{pkg}' with options: #{options}"
+                Packager.info "Package Ruby: '#{pkg.name}' with options: #{options}"
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
@@ -858,7 +881,7 @@ module Autoproj
             end
 
             def package_deb(pkg, options, distribution)
-                Packager.info "Package Deb: '#{pkg}' with options: #{options} and distribution: #{distribution}"
+                Packager.info "Package Deb: '#{pkg.name}' with options: #{options} and distribution: #{distribution}"
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
@@ -874,11 +897,8 @@ module Autoproj
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
 
-                        if !tar_gzip(File.basename(pkg.srcdir), tarball)
-                            Packager.warn "Package: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
-                            raise RuntimeError, "Debian: #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
-                        else
-                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                        if !tar_gzip(File.basename(pkg.srcdir), tarball, distribution)
+                            raise RuntimeError, "Debian: #{pkg.name} failed to create archive"
                         end
 
                         # Generate the debian directory
@@ -1128,16 +1148,33 @@ module Autoproj
                     if not system("gem2tgz #{gem_file_name}")
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
                     else
+                        # Unpack and repack the orig.tar.gz to remove timestamps
+                        # inbetween take into account of gem2deb residues that should not be there, e.g.
+                        # checksums.yaml.gz
+                        #
+                        Packager.info "Successfully called: 'gem2tgz #{gem_file_name}' --> #{Dir.glob("**")}"
+                        `tar xzf #{gem_versioned_name}.tar.gz`
+                        FileUtils.rm "#{gem_versioned_name}.tar.gz"
                         Packager.info "Converted: #{Dir.glob("**")}"
-                        gem_base_name = gem_file_name.gsub(/.gem/,"")
-                        `tar xzf #{gem_base_name}.tar.gz`
 
-                        FileUtils.rm "#{gem_base_name}.tar.gz"
-                        Packager.info "Converted: #{Dir.glob("**")}"
+                        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
+                        checksums_file="checksums.yaml.gz"
+                        files = Dir.glob("*/#{checksums_file}")
+                        if not files.empty? 
+                            checksums_file = files.first
+                        end
 
-                        source_dir = gem_base_name
-                        if !tar_gzip(source_dir, "#{gem_base_name}.tar.gz")
-                            raise RuntimeError, "Failed to reformat original #{gem_base_name}.tar.gz for gem"
+                        if File.exists? checksums_file
+                            Packager.info "Pre-packaging cleanup: removing #{checksums_file}"
+                            FileUtils.rm checksums_file
+                        else
+                            Packager.info "Pre-packaging cleannup: no #{checksums_file} found"
+                        end
+
+                        # Repackage
+                        source_dir = gem_versioned_name
+                        if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz")
+                            raise RuntimeError, "Failed to reformat original #{gem_versioned_name}.tar.gz for gem"
                         end
                         FileUtils.rm_rf source_dir
                         Packager.info "Converted: #{Dir.glob("**")}"
@@ -1220,7 +1257,6 @@ module Autoproj
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
                         `sed -i "s#Architecture: all#Architecture: any#" debian/control`
 
-
                         dpkg_commit_changes("any-architecture")
                         # Any change of the version in the changelog file will directly affect the
                         # naming of the *.debian.tar.gz and the *.dsc file
@@ -1237,8 +1273,21 @@ module Autoproj
                             if `sed -i 's#\(\\([0-9][0-9\.-]\\+\\)\)#\(\\1~#{distribution}\)#' debian/changelog`
                                 Packager.info "Injecting distribution info: '~#{distribution}' into debian/changelog"
                             else
-                                raise RuntimeError, "Failed to inject distribution infor into debian/changelog"
+                                raise RuntimeError, "Failed to inject distribution information into debian/changelog"
                             end
+
+                            # Make timestamp constant
+                            # https://www.debian.org/doc/debian-policy/ch-source.html
+                            #
+                            date=`date --rfc-2822 --date="00:00:01"`
+                            date=date.strip
+                            if `sed -i 's#\\(.*<.*>  \\)\\(.*\\)#\\1#{date}#' debian/changelog`
+                                Packager.info "Injecting timestamp info: '#{date}' into debian/changelog"
+                            else
+                                raise RuntimeError, "Failed to inject timestamp inofrmation into debian/changelog"
+                            end
+
+                            #FileUtils.cp "debian/changelog","/tmp/test-changelog"
                         end
                     end
 

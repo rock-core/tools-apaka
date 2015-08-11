@@ -25,6 +25,7 @@ o_overwrite = false
 o_list = false
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
 o_rock_install_dir=nil
+o_parallel_builds = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -125,6 +126,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--overwrite", "Overwrite existing Jenkins Jobs (History-loss!)") do
         o_overwrite = true
+    end
+    opt.on("--parallel", "Build jenkins-jobs in parallel, might be more unstable but much faster. Only useful with --create-flow-job") do
+        o_parallel_builds = true
     end
     opt.on("--flavor name", "Use a specific flavor (defaults to directory-name)") do |name|
         if not (o_flavor.nil? or o_flavor == "")
@@ -291,7 +295,7 @@ Dir.chdir(packager.build_dir) do
 
     if o_flow
         puts "Creating FLOW-Job"
-        packager.create_flow_job(o_flow, selection, o_flavor, o_overwrite)
+        packager.create_flow_job(o_flow, selection, o_flavor,o_parallel_builds, o_overwrite)
     end
 
     if o_list
@@ -390,9 +394,9 @@ Dir.chdir(packager.build_dir) do
         # Update all gems
         packager.ruby_gems.each do |gem_name, version|
             if version
-                puts "deb_package -- update gem: #{gem_name} with version #{version}"
+                puts "deb_package -- updating gem: #{gem_name} with version #{version}"
             else
-                puts "deb_package -- update gem: #{gem_name}"
+                puts "deb_package -- updating gem: #{gem_name}"
             end
             pkg_obs_name = packager.debian_ruby_name(gem_name)
             files = []
