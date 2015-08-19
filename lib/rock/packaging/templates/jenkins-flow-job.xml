@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <com.cloudbees.plugins.flow.BuildFlow plugin="build-flow-plugin@0.17">
   <actions/>
-  <description></description>
+  <description>Flow description for the Rock release: <%= flavor %></description>
   <logRotator class="hudson.tasks.LogRotator">
     <daysToKeep>7</daysToKeep>
     <numToKeep>5</numToKeep>
@@ -22,11 +22,10 @@
   <buildWrappers/>
   <icon/>
   <dsl>
-//build(&quot;unlock&quot;)
-//Ruby-Gem-Packages
-//rm <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps
-ignore(FAILURE){
+    build(&quot;0_cleanup-ruby-package-repository&quot;, release: &quot;<%= flavor %>&quot;)
+    build(&quot;0_cleanup-rock-package-repository&quot;, release: &quot;<%= flavor %>&quot;)
 <% if parallel # parallel builds%>
+ignore(FAILURE){
 parallel (
     <% gems.each_with_index do |gem,i| %>
     {
@@ -47,16 +46,14 @@ ignore(FAILURE){
 
 <% else # non-parallel builds%>
     <% gems.each_with_index do |gem,i| %>
-    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;),
+    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)
     <% end %>
 
     <% flow = flow.flatten %>
     <% flow.each_with_index do |job,i| %>
-    build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)<%= flow.size == (i+1) ? "" : "," %>
+    build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)
     <% end %>
-    }
-
-<% end # parellel builds%>
+<% end # parallel builds%>
 </dsl>
   <buildNeedsWorkspace>false</buildNeedsWorkspace>
 </com.cloudbees.plugins.flow.BuildFlow>
