@@ -391,17 +391,6 @@ module Autoproj
                 safe_level = nil
                 trim_mode = "%<>"
 
-                # Create-unlock-job
-=begin   Not used anymore
-                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-unlock-job.xml")), safe_level, trim_mode)
-                rendered = template.result(binding)
-                File.open("unlock.xml", 'w') do |f|
-                      f.write rendered
-                end
-                if not system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job 'unlock' --username test --password test < unlock.xml")
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job 'unlock' --username test --password test < unlock.xml")
-                end
-=end
                 template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
                 rendered = template.result(binding)
                 File.open("#{name}.xml", 'w') do |f|
@@ -409,9 +398,9 @@ module Autoproj
                 end
 
                 if force
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' --username test --password test < #{name}.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{name}.xml")
                 else
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' --username test --password test < #{name}.xml")
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{name}.xml")
                 end
             end
 
@@ -482,17 +471,14 @@ module Autoproj
                       f.write rendered
                 end
 
-                username = "test"
-                password = "test"
-
                 update_or_create = "create-job"
                 if force
                     update_or_create = "update-job"
                 end
-                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
+                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' < #{rendered_filename}")
                     Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
                 elsif force
-                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name].gsub '_', '-'}' --username #{username} --password #{password} < #{rendered_filename}")
+                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name].gsub '_', '-'}' < #{rendered_filename}")
                         Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
                     end
                 end
@@ -541,12 +527,9 @@ module Autoproj
             end
 
             def self.list_all_jobs
-                username = "test"
-                password = "test"
-
                 jobs_file = "/tmp/jenkins-jobs"
                 # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ list-jobs --username #{username} --password #{password} > #{jobs_file}"
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ list-jobs > #{jobs_file}"
                 if !system(cmd)
                     raise RuntimeError, "Failed to list all jobs using: #{cmd}"
                 end
@@ -580,16 +563,21 @@ module Autoproj
                 end
             end
 
+            def self.who_am_i
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ who-am-i"
+                if !system(cmd)
+                    raise RuntimeError, "Failed to identify user: please register your public key in jenkins"
+                end
+            end
+
             # Cleanup job of a given name
             def self.cleanup_job(job_name)
-                username = "test"
-                password = "test"
                 # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-builds
                 # java -jar jenkins-cli.jar delete-builds JOB RANGE
                 # Delete build records of a specified job, possibly in a bulk.
                 #   JOB   : Name of the job to build
                 #   RANGE : Range of the build records to delete. 'N-M', 'N,M', or 'N'
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-builds '#{job_name}' '1-10000' --username #{username} --password #{password}"
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-builds '#{job_name}' '1-10000'"
                 Packager.info "job '#{job_name}': cleanup with #{cmd}"
                 if !system(cmd)
                     Packager.warn "job '#{job_name}': cleanup failed"
@@ -598,13 +586,11 @@ module Autoproj
 
             # Remove job of a given name
             def self.remove_job(job_name)
-                username = "test"
-                password = "test"
                 #java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-job
                 #java -jar jenkins-cli.jar delete-job VAL ...
                 #    Deletes job(s).
                 #     VAL : Name of the job(s) to delete
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{job_name}' --username #{username} --password #{password}"
+                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{job_name}'"
                 Packager.info "job '#{job_name}': remove with #{cmd}"
                 if !system(cmd)
                     Packager.warn "job '#{job_name}': remove failed"
