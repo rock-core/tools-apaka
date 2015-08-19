@@ -10,7 +10,7 @@ module Autoproj
         # Directory for temporary data to
         # validate obs_packages
         BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
-        LOG_DIR=File.join(Autoproj.root_dir, BUILD_DIR, "logs")
+        LOG_DIR=File.join(BUILD_DIR, "logs")
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
 
         class Packager
