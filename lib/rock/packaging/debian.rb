@@ -1083,10 +1083,25 @@ module Autoproj
                         end
 
                         Dir.chdir(gem_dir_name) do
-                            if version
-                                `gem fetch #{gem_name} --version '#{version}'`
-                            else
-                                `gem fetch #{gem_name}`
+                            gem_from_cache = false
+                            if patch_dir = options[:patch_dir]
+                                gem_dir = File.join(patch_dir, "gems", gem_name)
+                                if File.directory?(gem_dir)
+                                    gem = Dir.glob("#{gem_dir}/*.gem")
+                                    if !gem.empty?
+                                        gem_from_cache = true
+                                        Packager.info "Using gem from cache: copying #{gem.first} to #{Dir.pwd}"
+                                        FileUtils.cp gem.first,"."
+                                    end
+                                end
+                            end
+
+                            if !gem_from_cache
+                                if version
+                                    `gem fetch #{gem_name} --version '#{version}'`
+                                else
+                                    `gem fetch #{gem_name}`
+                                end
                             end
                         end
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
