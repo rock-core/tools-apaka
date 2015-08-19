@@ -1121,10 +1121,12 @@ module Autoproj
 
                     # Dealing with _ in original file name, since gem2deb
                     # will debianize it
-                    if gem_versioned_name =~ /(.*)([-_][0-9\.-]*)/
-                        base_name = $1
-                        version_suffix = $2
-                        gem_versioned_name = base_name.gsub("_","-") + version_suffix
+                    if gem_versioned_name =~ /(.*)(-[0-9]\.[0-9\.-]*(-[0-9])*)/
+                        gem_base_name = $1
+                        version_suffix = $2.gsub(/-$/,"")
+                        Packager.info "gem basename: #{gem_base_name}"
+                        Packager.info "gem version: #{version_suffix}"
+                        gem_versioned_name = gem_base_name.gsub("_","-") + version_suffix
                     else
                         raise ArgumentError, "Converting gem: unknown formatting"
                     end
@@ -1134,13 +1136,23 @@ module Autoproj
                     if not system("gem2tgz #{gem_file_name}")
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
                     else
-                        # Unpack and repack the orig.tar.gz to remove timestamps
-                        # inbetween take into account of gem2deb residues that should not be there, e.g.
-                        # checksums.yaml.gz
+                        # Unpack and repack the orig.tar.gz to
+                        # (1) remove timestamps to create consistent checksums
+                        # (2) remove gem2deb residues that should not be there, e.g. checksums.yaml.gz
+                        # (3) guarantee consisted gem naming, e.g. ruby-concurrent turn in ruby-concurrent-0.7.2-x64-86-linux,
+                        #     but we require ruby-concurrent-0.7.2
                         #
                         Packager.info "Successfully called: 'gem2tgz #{gem_file_name}' --> #{Dir.glob("**")}"
-                        `tar xzf #{gem_versioned_name}.tar.gz`
-                        FileUtils.rm "#{gem_versioned_name}.tar.gz"
+                        # Get the actual result of the conversion and unwrap
+                        gem_tar_gz = Dir.glob("*.tar.gz").first
+                        `tar xzf #{gem_tar_gz}`
+                        FileUtils.rm gem_tar_gz
+
+                        # Check if we need to convert the name
+                        if gem_tar_gz != "#{gem_versioned_name}.tar.gz"
+                            tmp_source_dir = gem_tar_gz.gsub(/.tar.gz/,"")
+                            FileUtils.mv tmp_source_dir, gem_versioned_name
+                        end
                         Packager.info "Converted: #{Dir.glob("**")}"
 
                         # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
@@ -1171,10 +1183,15 @@ module Autoproj
                     #`dh-make-ruby --ruby-versions "ruby1.9.1" #{gem_versioned_name}.tar.gz`
                     #
                     # By default generate for all ruby versions
-                    `dh-make-ruby #{gem_versioned_name}.tar.gz`
+                    Packager.info "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name}"
+                    cmd = "dh-make-ruby #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
+                    if !system(cmd)
+                         Packager.warn "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name} failed"
+                         raise RuntimeError, "Failed to call dh-make-ruby for #{gem_versioned_name}"
+                    end
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
-                    Packager.info "Debian ruby name: #{debian_ruby_name}"
+                    Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
 
 
                     # Check if patching is needed
