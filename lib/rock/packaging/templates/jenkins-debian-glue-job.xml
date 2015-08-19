@@ -25,7 +25,7 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers>
+  <!--<triggers>
     <jenkins.triggers.ReverseBuildTrigger>
       <spec></spec>
       <upstreamProjects><%= options[:dependencies] %></upstreamProjects>
@@ -36,7 +36,7 @@
         <completeBuild>true</completeBuild>
       </threshold>
     </jenkins.triggers.ReverseBuildTrigger>
-  </triggers>
+  </triggers>-->
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <axes>
@@ -71,19 +71,7 @@ mkdir -p $build_dir
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-#while [ 1 ]
-#do
-#    mkdir -p <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock
-#    if [ ! -e <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %> ]
-#    then
-#        touch <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock/<%= options[:debian_name] %>
-         deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir  --rock-install-dir /opt/rock/${release} --rebuild --<%= options[:type] %>  <%= package_name %> --package
-#        break
-#    else
-#        echo "<%= options[:debian_name] %> ($architecture) waiting for lock"
-#        sleep 2
-#    fi
-#done
+deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir  --rock-install-dir /opt/rock/${release} --rebuild --<%= options[:type] %>  <%= package_name %> --package
 cd -
 # Making sure that the artifact land in the workspace directory
 # This is different for the gem, since it creates a directory ruby-my_gem
@@ -100,16 +88,12 @@ mv $build_dir/<%= options[:dir_name] %>/* .
 export REMOVE_FROM_RELEASE=true
 /usr/bin/build-and-provide-package
 
-cd /stuff/rock/${release}
-. /stuff/rock/${release}/env.sh
-deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps.osdeps <%= package_name %>
-deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/rock-osdeps-${architecture}.osdeps <%= package_name %>
+cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
+. <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps.osdeps <%= package_name %>
+deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= package_name %>
       </command>
     </hudson.tasks.Shell>
-    <!--    <hudson.tasks.Shell>
-      <command>rm -rf <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/autoproj.lock</command>
-    </hudson.tasks.Shell>
-    -->
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
