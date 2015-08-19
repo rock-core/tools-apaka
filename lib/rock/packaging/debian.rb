@@ -408,6 +408,7 @@ module Autoproj
                 if File.exist? file
                     list = YAML.load_file(file)
                 else
+                    FileUtils.mkdir_p(File.dirname(file)) unless File.exists?(File.dirname(file))
                     list = Array.new
                 end
                 if pkg.is_a? String
