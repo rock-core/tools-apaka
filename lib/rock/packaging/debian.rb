@@ -451,8 +451,8 @@ module Autoproj
 
             # Create a jenkins job
             def create_job(package_name, options = Hash.new, force = false)
-                options[:architectures] ||= [ 'amd64','i386','armhf' ]
-                options[:distributions] ||= [ 'trusty','jessie' ]
+                options[:architectures] ||= [ 'amd64','i386','armel','armhf' ]
+                options[:distributions] ||= [ 'trusty','vivid','jessie' ]
                 options[:job_name] ||= package_name
 
                 combinations = combination_filter(options[:architectures], options[:distributions])
