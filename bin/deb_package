@@ -213,6 +213,12 @@ if o_distributions.size == 1
 end
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+
+packager.add_package_alias "tools/rtt", "rtt"
+packager.add_package_alias "tools/rtt-typelib", "rtt-typelib"
+packager.add_package_alias "tools/typelib", "typelib"
+packager.add_package_alias "tools/utilrb", "utilrb"
+
 packager.prepare
 
 if o_build_dir
