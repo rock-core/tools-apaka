@@ -1259,6 +1259,15 @@ module Autoproj
                             dpkg_commit_changes("ocl_extra_dependencies")
                         end
 
+                        # Injecting environment setup in debian/rules
+                        # packages like orocos.rb will require locally installed packages
+                        Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake CMAKE_PREFIX_PATH=$(rock_install_dir)' debian/rules`
+                        `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
+                        `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
+                        `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
+
+
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
                         # Relaxing the required gem2deb version to allow for for multiplatform support
                         `sed -i "s#^\\(^Build-Depends: .*\\)gem2deb (>= [0-9\.~]\\+)\\(, .*\\)#\\1 gem2deb\\2#g" debian/control`
