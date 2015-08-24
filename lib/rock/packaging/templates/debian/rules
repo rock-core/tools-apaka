@@ -4,12 +4,14 @@
 rock_install_dir = <%= rock_install_directory %>
 rock_bindir = /tmp/rock/bin
 
-ruby_ver = 1.9.1
-arch_name = $(subst linux-gnu,linux-,$(patsubst %linux-gnu,%linux,$(DEB_BUILD_GNU_TYPE)))
-ruby_binary = /usr/bin/ruby$(ruby_ver)
-ruby_libdir = /usr/lib/ruby
-rockruby_libdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)
-rockruby_archdir = $(rock_install_dir)/lib/ruby/$(ruby_ver)/$(arch_name)
+# Extract the default ruby version to build for on that platform
+# this assumes a proper setup of /usr/bin/ruby
+ruby_ver=$(shell ruby --version)
+ruby_arch_dir=$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['archdir']")
+rockruby_archdir=$(subst /usr,$(rock_install_dir),$(ruby_arch_dir))
+
+ruby_libdir =$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['rubylibdir']")
+rockruby_libdir=$(subst /usr,$(rock_install_dir),$(ruby_libdir))
 
 # Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
 # vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
@@ -28,19 +30,11 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(rock_install_dir)/lib
 
 pre-build::
-	# Debug information:
-	echo "System ruby libraries: "
-	if [ -d $(ruby_libdir) ]; then find $(ruby_libdir); fi
+	echo "Detected:"
+	echo "   ruby version: $(ruby_ver)"
+	echo "   ruby libdir: $(rockruby_libdir)"
+	echo "   ruby archdir: $(rockruby_archdir)"
 
-	echo "Installed into $(rock_install_dir):"
-	if [ -d $(rock_install_dir) ]; then find $(rock_install_dir); fi
-
-	echo "Current directory:"
-	find .
-	
-	# Set the ruby version -- workaround, until we use base/types to trigger to update-alternatives and set $(rock_bindir)/bin/ruby
-	#if [ ! -d $(rock_bindir) ]; then mkdir -p $(rock_bindir); fi
-	#if [ ! -e $(rock_bindir)/ruby ]; then ln -s $(ruby_binary) $(rock_bindir)/ruby; fi
 
 # END ENVIRONMENT SETUP
 ######################################
@@ -50,8 +44,6 @@ pre-build::
 	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
 	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= pkg.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
-	echo "Current directory including oroGen generated files"
-	find . 
 <% end %>
 
 # END OROGEN
