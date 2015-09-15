@@ -112,7 +112,7 @@ options = OptionParser.new do |opt|
     opt.on("--cleanup-all-jobs", "Cleanup all jenkins jobs") do
         o_job_cleanup_all = true
     end
-    opt.on("--remove-all-jobs", "Remove all jenkins jobs except flow- and control-jobs (a_/b_)") do
+    opt.on("--remove-all-jobs", "Remove all jenkins jobs except flow- and control-jobs (a_/0_)") do
         o_job_remove_all = true
     end
     opt.on("--architectures ARCHS", String, "Comma separated list of architectures to build for") do |architectures|
@@ -176,6 +176,19 @@ end
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
+=begin
+# basiert auf /opt/rock/master/.gems/gems/autoproj-1.13.2/lib/autoproj/manifest.rb Zeile 834
+# Umgeht das Problem, dass Autoproj über CmdLine nur die ausgewählten Pakete gibt (also alle Pakete des Paketsets + speziell ausgewählte) nicht aber deren Abhängigkeiten
+
+# selection muss ein set sein??
+result = Set.new
+selection.each do |pkg_name|
+    Autobuild::Package[pkg_name].all_dependencies(result)
+end
+
+selection = result | selection # -> union
+=end
 
 options = Hash.new
 
@@ -321,20 +334,24 @@ Dir.chdir(packager.build_dir) do
     if o_ruby_job
         puts "Creating Gem-Jobs"
 
-        selection.each do |pkg_name|
-            pkg = Autoproj.manifest.package(pkg_name)
-            if pkg
-                pkg = pkg.autobuild
-                packager.dependencies pkg
-            else
-                Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
-                # Fails to be detected as normal package
-                # so we assume it is a ruby gem
-                o_extra_gem = pkg_name
-            end
-        end
+        # allow --create-ruby-jobs --gem mygem
+        # to create this specific gem
         if o_extra_gem
+	    Autoproj::Packaging::Packager.info "Adding extra gem: #{o_extra_gem}"
             packager.ruby_gems << o_extra_gem
+        else
+            selection.each do |pkg_name|
+                pkg = Autoproj.manifest.package(pkg_name)
+                if pkg
+                    pkg = pkg.autobuild
+                    packager.dependencies pkg
+                else
+                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
+                    # Fails to be detected as normal package
+                    # so we assume it is a ruby gem
+                    o_extra_gem = pkg_name
+                end
+            end
         end
 
         options = Hash.new
@@ -348,6 +365,7 @@ Dir.chdir(packager.build_dir) do
         i = 1
         packager.ruby_gems.each do |gem_name,version|
             puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
+            options[:job_name] = "gem_" + gem_name
             packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end

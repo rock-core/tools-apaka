@@ -75,7 +75,7 @@ module Autoproj
                         pkg.importer.repository = pkg.srcdir
                     end
 
-                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), dir_name(pkg, distribution))
+                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), plain_dir_name(pkg, distribution))
                     begin
                         Packager.debug "Importing repository to #{pkg.srcdir}"
                         pkg.importer.import(pkg)
@@ -277,10 +277,10 @@ module Autoproj
             def debian_name(pkg)
                 name = pkg.name
                 if pkg.kind_of?(Autobuild::Ruby)
-                    debian_ruby_name(pkg.name)
                     if @package_aliases.has_key?(name)
                         name = @package_aliases[name]
                     end
+                    debian_ruby_name(pkg.name)
                 end
 
                 if pkg.kind_of?(Autobuild::Ruby)
@@ -329,12 +329,18 @@ module Autoproj
                 versioned_name(pkg, distribution)
             end
 
+            def plain_dir_name(pkg, distribution)
+                plain_versioned_name(pkg, distribution)
+            end
+
             def packaging_dir(pkg)
                 File.join(@build_dir, debian_name(pkg))
             end
 
             def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
                 Packager.info ("#{selection.size} packages selected")
+                #puts "Selection: #{selection}}"
+                orig_selection = selection.clone
                 flow = Array.new
                 flow[0] = Array.new
                 x = 1
@@ -350,7 +356,7 @@ module Autoproj
                     flow_old = flow.flatten
                     selection.each do |pkg_name|
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
-                        if deps_fulfilled(flow_old.flatten, pkg, flow, debug)
+                        if deps_fulfilled(flow_old.flatten, pkg, flow, debug, orig_selection)
                             flow[x] << debian_name(pkg)
                             selection.delete(pkg_name)
                             #puts debian_name(pkg)
@@ -363,15 +369,35 @@ module Autoproj
                 create_flow_job_xml(name, flow, flavor, parallel_builds, force)
             end
 
-            def deps_fulfilled(deps, pkg, flow, debug = false)
+            def deps_fulfilled(deps, pkg, flow, debug = false, orig_selection = [], debug_level = 0)
                 pkg_deps = dependencies(pkg)
+                Packager.debug "pkg_deps: #{pkg_deps}"
+                Packager.debug "deps: #{deps}"
                 pkg_deps[0].each do |dep|
                     if !deps.include? dep
-                        #if (debian_name(pkg) == "data_processing/orogen/type_to_vector")
-                        if debug
-                            puts "Missing: #{dep} for #{pkg.name}"
-                            #puts "the dep's deps: #{dependencies(Autoproj.manifest.package(dep).autobuild)}"
-                            exit -1
+                        if debug# || debian_name(pkg) == "ruby-tools-rest-api"
+                            deb_selection = orig_selection.map{|s| debian_name(Autoproj.manifest.package(s).autobuild)}
+                            if debug_level == 0
+                                puts
+                                puts "======= Debugging Dependencies ======="
+                                puts
+                                puts "Rock-Selection: \n\t#{orig_selection}" 
+                                puts
+                                puts "Debianized Selection: \n\t#{deb_selection}" 
+                                puts
+                                puts "Previously build packages: \n\t#{deps}"
+                            end
+                            puts
+                            puts "======= Debug Level #{debug_level} ======="
+                            puts
+                            puts "Dependencies of #{pkg.name}: \n\t#{pkg_deps}"
+                            Autoproj.warn "Missing: #{dep} for #{pkg.name}"
+                            sel = deb_selection.index(dep)
+                            if !sel.nil?
+                                sel = Autoproj.manifest.package(orig_selection.at(sel)).autobuild
+                                deps_fulfilled(deps,sel,flow,true, orig_selection, debug_level + 1)
+                            end
+                            exit
                         end
                         return false
                     end
@@ -405,18 +431,19 @@ module Autoproj
             end
 
             def update_list(pkg, file)
+                Autoproj.info("Update Packagelist #{file} with #{pkg}")
                 if File.exist? file
                     list = YAML.load_file(file)
                 else
                     FileUtils.mkdir_p(File.dirname(file)) unless File.exists?(File.dirname(file))
-                    list = Array.new
+                    list = Hash.new
                 end
                 if pkg.is_a? String
-                    list << {pkg => {"debian,ubuntu" => debian_ruby_name(pkg)}}
-                    list.uniq!
+                    list[pkg] = {"debian,ubuntu" => debian_ruby_name(pkg)}
+                #    list.uniq!
                 else
-                    list << {pkg.name => {"debian,ubuntu" => debian_name(pkg)}}
-                    list.uniq!
+                    list[pkg.name] = {"debian,ubuntu" => debian_name(pkg)}
+                #    list.uniq!
                 end
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
@@ -554,7 +581,7 @@ module Autoproj
             end
 
             def self.remove_all_jobs
-                all_jobs = list_all_jobs.delete_if{|job| job.start_with? 'a_' or job.start_with? 'b_'}
+                all_jobs = list_all_jobs.delete_if{|job| job.start_with? 'a_' or job.start_with? '0_'}
                 max_count = all_jobs.size
                 i = 1
                 all_jobs.each do |job|
@@ -883,7 +910,6 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-
                         if !tar_gzip(File.basename(pkg.srcdir), tarball, distribution)
                             raise RuntimeError, "Debian: #{pkg.name} failed to create archive"
                         end
@@ -919,7 +945,8 @@ module Autoproj
 
                 Dir.chdir(packaging_dir(pkg)) do
 
-                    dir_name = versioned_name(pkg, distribution)
+                    dir_name = plain_versioned_name(pkg, distribution)
+		    plain_dir_name = plain_versioned_name(pkg, distribution)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -931,20 +958,30 @@ module Autoproj
 
                     # First, generate the source tarball
                     sources_name = plain_versioned_name(pkg, distribution)
-                    tarball = "#{dir_name}.orig.tar.gz"
+                    tarball = "#{plain_dir_name}.orig.tar.gz"
 
                     # Check first if actual source contains newer information than existing
                     # orig.tar.gz -- only then we create a new debian package
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{File.basename(pkg.srcdir)}"
+
+#NEW!!!
+                	# Make sure that the tar files checksum remains the same, even when modification timestamp changes, 
+                	# i.e. use gzip --no-name and set the initial date to the current day
+                	#
+                	# TODO: What if building over midnight -- single point of failure
+                	mtime=`date +%Y-%m-%d`
+			mtime = mtime.strip
+                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --mtime=#{mtime} --exclude build #{File.basename(pkg.srcdir)}"
                         if !system(cmd_tar)
-                            Packager.warn "Package: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
-                            raise RuntimeError, "Debian: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                            Packager.warn "Package: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
+                            raise RuntimeError, "Debian: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
                         else
-                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{ENV['PWD']}"
+                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
                         end
+
+FileUtils.cp tarball, "/tmp/"
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir, distribution)
@@ -955,6 +992,7 @@ module Autoproj
 
                         # Run dpkg-source
                         # Use the new tar ball as source
+			puts `dpkg-source -I -b #{pkg.srcdir}`
                         if !system("dpkg-source", "-I", "-b", pkg.srcdir)
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source: entries #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
@@ -1262,7 +1300,7 @@ module Autoproj
                         # Injecting environment setup in debian/rules
                         # packages like orocos.rb will require locally installed packages
                         Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake CMAKE_PREFIX_PATH=$(rock_install_dir)' debian/rules`
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_PREFIX_PATH=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""),"/usr")}' debian/rules`
                         `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
                         `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
