@@ -3,6 +3,8 @@ require 'autoproj'
 require 'autobuild'
 require 'tmpdir'
 require 'utilrb'
+require 'timeout'
+
 
 module Autoproj
     module Packaging
@@ -335,6 +337,23 @@ module Autoproj
 
             def packaging_dir(pkg)
                 File.join(@build_dir, debian_name(pkg))
+            end
+
+            def create_control_jobs(force)
+                templates = Dir.glob "#{TEMPLATES}/../0_*.xml"
+                templates.each do |template|
+                    template = File.basename template, ".xml"
+                    create_control_job template, force
+                end
+            end
+
+            def create_control_job(name, force)
+                if force
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{TEMPLATES}/../#{name}.xml")
+                else
+                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{TEMPLATES}/../#{name}.xml")
+                end
+
             end
 
             def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
@@ -1136,10 +1155,32 @@ FileUtils.cp tarball, "/tmp/"
                             end
 
                             if !gem_from_cache
-                                if version
-                                    `gem fetch #{gem_name} --version '#{version}'`
-                                else
-                                    `gem fetch #{gem_name}`
+                                error = true
+				max_retry = 10
+				retry_count = 1
+                                loop do
+                                    Packager.warn "[#{retry_count}/#{max_retry}] Retrying gem fetch #{gem_name}" if retry_count > 1
+                                    if version
+                                        pid = Process.spawn("gem fetch #{gem_name} --version '#{version}'")
+                                        #output = `gem fetch #{gem_name} --version '#{version}'`
+                                    else
+                                        pid = Process.spawn("gem fetch #{gem_name}")
+                                        #output = `gem fetch #{gem_name}`
+                                    end
+                                    begin
+                                        Timeout.timeout(60) do
+                                            puts 'waiting for gem fetch to end'
+                                            Process.wait(pid)
+                                            puts 'gem fetch seems successful'
+                                            error = false
+                                        end
+                                    rescue Timeout::Error
+                                        puts 'gem fetch not finished in time, killing it'
+                                        Process.kill('TERM', pid)
+                                        error = true
+                                    end
+                                    retry_count += 1
+                                    break if not error or retry_count > max_retry
                                 end
                             end
                         end

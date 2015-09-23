@@ -1,0 +1,120 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<matrix-project plugin="matrix-project@1.6">
+  <actions/>
+  <description>Prepare a rock debian package</description>
+  <logRotator class="hudson.tasks.LogRotator">
+    <daysToKeep>7</daysToKeep>
+    <numToKeep>5</numToKeep>
+    <artifactDaysToKeep>7</artifactDaysToKeep>
+    <artifactNumToKeep>-1</artifactNumToKeep>
+  </logRotator>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>release</name>
+          <description>Name of the release</description>
+          <defaultValue>master</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>rock_package_name</name>
+          <description>Name of the package in the rock autoproj infrastructure, e.g., base/scripts</description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>debianized_package_name</name>
+          <description>Name of the debianized package name, e.g. rock-base-scripts</description>
+          <defaultValue></defaultValue>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <axes>
+    <hudson.matrix.TextAxis>
+      <name>architecture</name>
+      <values>
+        <string>amd64</string>
+        <string>i386</string>
+        <string>armhf</string>
+        <string>armel</string>
+      </values>
+    </hudson.matrix.TextAxis>
+    <hudson.matrix.TextAxis>
+      <name>distribution</name>
+      <values>
+        <string>trusty</string>
+        <string>vivid</string>
+        <string>wheezy</string>
+        <string>jessie</string>
+      </values>
+    </hudson.matrix.TextAxis>
+  </axes>
+  <combinationFilter>       !(distribution == &apos;wheezy&apos; &amp;&amp; architecture == &apos;amd64&apos;) &amp;&amp;  !(distribution == &apos;wheezy&apos; &amp;&amp; architecture == &apos;i386&apos;) &amp;&amp;  !(distribution == &apos;trusty&apos; &amp;&amp; architecture == &apos;armhf&apos;) &amp;&amp;  !(distribution == &apos;vivid&apos; &amp;&amp; architecture == &apos;armhf&apos;) &amp;&amp;  !(distribution == &apos;trusty&apos; &amp;&amp; architecture == &apos;armel&apos;) &amp;&amp;  !(distribution == &apos;vivid&apos; &amp;&amp; architecture == &apos;armel&apos;)  </combinationFilter>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>dest_dir=`pwd`
+build_dir=`echo /stuff/rock/${release}/build/deb-packaging/$distribution-$architecture`
+
+echo &quot;Destination dir for base/scripts ($architecture): $dest_dir&quot;
+echo &quot;Creating build dir for base/scripts ($architecture): $build_dir&quot;
+mkdir -p $build_dir
+
+cd /stuff/rock/${release}
+. /stuff/rock/${release}/env.sh
+
+         deb_package --distributions $distribution --patch-dir /stuff/rock/${release}/obs_patches --dest-dir $dest_dir --build-dir $build_dir  --rock-install-dir /opt/rock/${release} --rebuild --package ${rock_package_name} --package
+
+cd -
+# Making sure that the artifact land in the workspace directory
+# This is different for the gem, since it creates a directory ruby-my_gem
+# in the workspace -- all files need to be in the workspace dir when
+# calling build-and-provide-package -- so copy them there
+mv $build_dir/${debianized_package_name}/* .
+ </command>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>export REMOVE_FROM_RELEASE=true
+/usr/bin/build-and-provide-package
+
+cd /stuff/rock/${release}
+. /stuff/rock/${release}/env.sh
+deb_package --update-list /stuff/rock/${release}/rock-osdeps.osdeps ${rock_package_name}
+deb_package --update-list /stuff/rock/${release}/rock-osdeps-${distribution}-${architecture}.osdeps ${rock_package_name}
+      </command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>*.gz,*.bz2,*.xz,*.deb,*.dsc,*.changes</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.26">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+  <executionStrategy class="hudson.matrix.DefaultMatrixExecutionStrategyImpl">
+    <runSequentially>false</runSequentially>
+    <touchStoneCombinationFilter></touchStoneCombinationFilter>
+    <touchStoneResultCondition>
+      <name>SUCCESS</name>
+      <ordinal>0</ordinal>
+      <color>BLUE</color>
+      <completeBuild>true</completeBuild>
+    </touchStoneResultCondition>
+  </executionStrategy>
+</matrix-project>

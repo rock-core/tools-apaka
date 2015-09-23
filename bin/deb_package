@@ -26,6 +26,8 @@ o_list = false
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
 o_rock_install_dir=nil
 o_parallel_builds = false
+o_control_job = false
+o_all_control_jobs = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -114,6 +116,12 @@ options = OptionParser.new do |opt|
     end
     opt.on("--remove-all-jobs", "Remove all jenkins jobs except flow- and control-jobs (a_/0_)") do
         o_job_remove_all = true
+    end
+    opt.on("--create-control-job name", "Create control-job named 0_<name>") do |name|
+        o_control_job = name
+    end
+    opt.on("--create-control-jobs", "Create all control-jobs in the templates-folder") do
+        o_all_control_jobs = true
     end
     opt.on("--architectures ARCHS", String, "Comma separated list of architectures to build for") do |architectures|
         o_architectures = architectures.delete(" ").split(/[,;]/)
@@ -242,7 +250,6 @@ if o_rock_install_dir
     packager.rock_install_directory = o_rock_install_dir
 end
 
-
 # Make sure that when we request a package build we only get this one,
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
@@ -317,10 +324,19 @@ Dir.chdir(packager.build_dir) do
         packager.create_flow_job(o_flow, selection, o_flavor,o_parallel_builds, o_overwrite)
     end
 
+    if o_control_job
+        puts "Creating Control-Job (0_)"
+        packager.create_control_job("0_" + o_control_job, o_overwrite)
+    end
+
+    if o_all_control_jobs
+        puts "Creating all Control-Jobs (0_)"
+        packager.create_control_jobs o_overwrite
+    end
+
     if o_list
         puts "Updating osdep-list"
         selection.each do |pkg_name|
-            puts pkg_name
             pkg = Autoproj.manifest.package(pkg_name)
             if !pkg.nil?
                 pkg = pkg.autobuild
@@ -382,12 +398,37 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_dest_dir && o_package
+
+        if o_all_packages
+            # Test selection for unknown packages and try to use them as gems
+            selection.each_with_index do |pkg_name, i|
+                pkg = Autoproj.manifest.package(pkg_name)
+                if pkg
+                    pkg = pkg.autobuild
+                else
+                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
+                    # Fails to be detected as normal package
+                    # so we assume it is a ruby gem
+                    packager.ruby_gems << o_extra_gem
+                end
+            end
+        end
+
         # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
         packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
-                pkg = Autoproj.manifest.package(pkg_name).autobuild
+                pkg = Autoproj.manifest.package(pkg_name)
+                if pkg
+                    pkg = pkg.autobuild
+                else
+                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
+                    # Fails to be detected as normal package
+                    # so we assume it is a ruby gem
+                    packager.ruby_gems << o_extra_gem
+                end
+
                 # Excluding ruby packages here since they need a special treatment
                 if pkg.kind_of?(Autobuild::Ruby)
                     next
