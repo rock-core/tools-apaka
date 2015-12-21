@@ -1279,7 +1279,7 @@ FileUtils.cp tarball, "/tmp/"
                     #
                     # By default generate for all ruby versions
                     Packager.info "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name}"
-                    cmd = "dh-make-ruby #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
+                    cmd = "dh-make-ruby --ruby-versions \"ruby2.0\" #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
                     if !system(cmd)
                          Packager.warn "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name} failed"
                          raise RuntimeError, "Failed to call dh-make-ruby for #{gem_versioned_name}"
@@ -1341,7 +1341,7 @@ FileUtils.cp tarball, "/tmp/"
                         # Injecting environment setup in debian/rules
                         # packages like orocos.rb will require locally installed packages
                         Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_PREFIX_PATH=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""),"/usr")}' debian/rules`
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""),"/usr")}' debian/rules`
                         `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
                         `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
