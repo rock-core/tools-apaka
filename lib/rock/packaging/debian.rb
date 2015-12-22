@@ -1094,7 +1094,7 @@ FileUtils.cp tarball, "/tmp/"
             end
 
             def file_suffix_patterns
-                [".dsc", ".orig.tar.gz", ".debian.tar.gz"]
+                [".dsc", ".orig.tar.gz", ".debian.tar.gz", ".debian.tar.xz"]
             end
 
             def system(*args)
