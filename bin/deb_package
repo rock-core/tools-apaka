@@ -352,10 +352,7 @@ Dir.chdir(packager.build_dir) do
 
         # allow --create-ruby-jobs --gem mygem
         # to create this specific gem
-        if o_extra_gem
-	    Autoproj::Packaging::Packager.info "Adding extra gem: #{o_extra_gem}"
-            packager.ruby_gems << o_extra_gem
-        else
+        if !o_extra_gem
             selection.each do |pkg_name|
                 pkg = Autoproj.manifest.package(pkg_name)
                 if pkg
@@ -368,6 +365,11 @@ Dir.chdir(packager.build_dir) do
                     o_extra_gem = pkg_name
                 end
             end
+        end
+
+        if o_extra_gem
+	    Autoproj::Packaging::Packager.info "Adding extra gem: #{o_extra_gem}"
+            packager.ruby_gems << o_extra_gem
         end
 
         options = Hash.new
