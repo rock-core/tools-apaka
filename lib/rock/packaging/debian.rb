@@ -236,6 +236,9 @@ module Autoproj
             # install directory if not given set to /opt/rock
             attr_accessor :rock_install_directory
 
+            attr_accessor :gem_clean_alternatives
+            attr_accessor :gem_creation_alternatives
+
             def initialize(existing_debian_directories)
                 super()
                 @existing_debian_directories = existing_debian_directories
@@ -245,6 +248,11 @@ module Autoproj
                 @package_aliases = Hash.new
                 @debian_version = Hash.new
                 @rock_install_directory = "/opt/rock"
+
+                # Rake targets that will be used to clean and create
+                # gems
+                @gem_clean_alternatives = ['clean','dist:clean','clobber']
+                @gem_creation_alternatives = ['gem','dist:gem','build']
 
                 if not File.exists?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir
@@ -847,9 +855,8 @@ module Autoproj
                             Packager.info "Debian: preparing gem generation in #{Dir.pwd}"
 
                             # Rake targets that should be tried for cleaning
-                            gem_clean_alternatives = ['clean','dist:clean','clobber']
                             gem_clean_success = false
-                            gem_clean_alternatives.each do |target|
+                            @gem_clean_alternatives.each do |target|
                                 if !system("rake #{target} > #{File.join(log_dir, logname)} 2> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to clean package '#{pkg.name}' using target '#{target}'"
                                 else
@@ -868,9 +875,9 @@ module Autoproj
                             end
                             Packager.info "Debian: creating gem from package #{pkg.name} [#{File.join(log_dir, logname)}]"
 
-                            gem_creation_alternatives = ['gem','dist:gem','build']
+                            # Allowed gem creation alternatives
                             gem_creation_success = false
-                            gem_creation_alternatives.each do |target|
+                            @gem_creation_alternatives.each do |target|
                                 if !system("rake #{target} >> #{File.join(log_dir, logname)} 2>> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to create gem using target '#{target}'"
                                 else
