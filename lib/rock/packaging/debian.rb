@@ -1286,7 +1286,7 @@ FileUtils.cp tarball, "/tmp/"
                     #
                     # By default generate for all ruby versions
                     Packager.info "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name}"
-                    cmd = "dh-make-ruby --ruby-versions \"ruby2.0\" #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
+                    cmd = "dh-make-ruby --ruby-versions \"all\" #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
                     if !system(cmd)
                          Packager.warn "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name} failed"
                          raise RuntimeError, "Failed to call dh-make-ruby for #{gem_versioned_name}"
