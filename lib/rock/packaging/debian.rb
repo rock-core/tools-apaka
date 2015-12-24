@@ -1225,7 +1225,7 @@ FileUtils.cp tarball, "/tmp/"
                     # will debianize it
                     if gem_versioned_name =~ /(.*)(-[0-9]\.[0-9\.-]*(-[0-9])*)/
                         gem_base_name = $1
-                        version_suffix = $2.gsub(/-$/,"")
+                        version_suffix = gem_versioned_name.gsub(gem_base_name,"").gsub(/\.gem/,"")
                         Packager.info "gem basename: #{gem_base_name}"
                         Packager.info "gem version: #{version_suffix}"
                         gem_versioned_name = gem_base_name.gsub("_","-") + version_suffix
@@ -1378,13 +1378,15 @@ FileUtils.cp tarball, "/tmp/"
                         # Subsequently also the debian package will be (re)named according to this
                         # version string.
                         #
+                        # When getting an error such as '"ruby-utilrb_3.0.0.rc1-1.dsc" is already registered with different checksums'
+                        # then you like miss the distribution information or it is not correctly injected
                         if distribution
                             # Changelog entry initially, e.g.,
                             # ruby-activesupport (4.2.3-1) UNRELEASED; urgency=medium
                             #
                             # after
                             # ruby-activesupport (4.2.3-1~trusty) UNRELEASED; urgency=medium
-                            if `sed -i 's#\(\\([0-9][0-9\.-]\\+\\)\)#\(\\1~#{distribution}\)#' debian/changelog`
+                            if `sed -i 's#\(\\(.*\\)\)#\(\\1~#{distribution}\)#' debian/changelog`
                                 Packager.info "Injecting distribution info: '~#{distribution}' into debian/changelog"
                             else
                                 raise RuntimeError, "Failed to inject distribution information into debian/changelog"
