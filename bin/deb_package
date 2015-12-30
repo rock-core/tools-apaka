@@ -239,6 +239,7 @@ packager.add_package_alias "tools/rtt", "rtt"
 packager.add_package_alias "tools/rtt-typelib", "rtt-typelib"
 packager.add_package_alias "tools/typelib", "typelib"
 packager.add_package_alias "tools/utilrb", "utilrb"
+packager.add_package_alias "tools/utilrb-ext", "utilrb-ext"
 
 packager.prepare
 
