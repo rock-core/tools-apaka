@@ -446,6 +446,7 @@ module Autoproj
 
                 template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
                 rendered = template.result(binding)
+                puts `pwd`
                 File.open("#{name}.xml", 'w') do |f|
                       f.write rendered
                 end

@@ -1,6 +1,15 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
 
+# Prevent deb_package from parallel execution since autoproj configuration loading 
+# does not account for parallelism
+lock_file = File.open("/tmp/deb_package.lock",File::CREAT)
+Autoproj.debug "deb_package: waiting for execution lock"
+lock_time = Time.now
+lock_file.flock(File::LOCK_EX)
+lock_wait_time_in_s = Time.now - lock_time
+Autoproj.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
+
 o_architectures = []
 o_distributions = []
 o_skip = false
