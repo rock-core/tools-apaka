@@ -27,14 +27,14 @@
 <% if parallel # parallel builds%>
 ignore(FAILURE){
 parallel (
-    <% gems.each_with_index do |gem,i| %>
+    <% flow[:gems].each_with_index do |gem,i| %>
     {
     build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)}<%= gems.size == (i+1) ? "" : "," %>
     <% end %>
     )
 }
 //out.println 'Rock-Packages'
-<% flow.each do |jobs| %>
+<% flow[:packages].each do |jobs| %>
 ignore(FAILURE){
     parallel (
     <% jobs.each_with_index do |job,i| %>
@@ -45,13 +45,18 @@ ignore(FAILURE){
 <% end %>
 
 <% else # non-parallel builds%>
-    <% gems.each_with_index do |gem,i| %>
+    <% flow[:gems].each_with_index do |gem,i| %>
+retry(3) {
+    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= gem%>&quot;)
     build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)
+}
     <% end %>
 
-    <% flow = flow.flatten %>
-    <% flow.each_with_index do |job,i| %>
+    <% flow[:packages].each_with_index do |job,i| %>
+retry(3) {
+    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= job%>&quot;)
     build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)
+}
     <% end %>
 <% end # parallel builds%>
 </dsl>

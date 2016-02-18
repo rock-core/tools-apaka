@@ -285,12 +285,16 @@ module Autoproj
             # or for ruby packages
             # ruby-<canonized-package-name>
             def debian_name(pkg)
+                if pkg.kind_of?(String)
+                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class}"
+                end
                 name = pkg.name
+
                 if pkg.kind_of?(Autobuild::Ruby)
                     if @package_aliases.has_key?(name)
                         name = @package_aliases[name]
                     end
-                    debian_ruby_name(pkg.name)
+                    debian_ruby_name(name)
                 end
 
                 if pkg.kind_of?(Autobuild::Ruby)
@@ -366,94 +370,101 @@ module Autoproj
 
             def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
                 Packager.info ("#{selection.size} packages selected")
-                #puts "Selection: #{selection}}"
+                Packager.debug "Selection: #{selection}}"
                 orig_selection = selection.clone
-                flow = Array.new
-                flow[0] = Array.new
-                x = 1
-                debug = false
-                size = 0
-                while !selection.empty? do
-                    if size == selection.size
-                        puts "entering debug mode"
-                        debug = true
-                    end
-                    size = selection.size
-                    flow[x] = Array.new
-                    flow_old = flow.flatten
-                    selection.each do |pkg_name|
+
+                flow = Hash.new
+                flow[:gems] = Array.new
+                flow[:packages] = Array.new
+                reverse_dependencies = Hash.new
+
+                all_packages = Set.new
+                all_packages.merge(selection)
+                while true
+                    all_packages_refresh = all_packages.dup
+                    all_packages.each do |pkg_name|
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
-                        if deps_fulfilled(flow_old.flatten, pkg, flow, debug, orig_selection)
-                            flow[x] << debian_name(pkg)
-                            selection.delete(pkg_name)
-                            #puts debian_name(pkg)
+                        reverse_dependencies[pkg.name] = pkg.dependencies
+                        all_packages_refresh.merge(pkg.dependencies)
+                    end
+
+                    if all_packages.size == all_packages_refresh.size
+                        # nothing changed, so converged
+                        break
+                    else
+                        all_packages = all_packages_refresh
+                    end
+                end
+                Packager.info "All packages: #{all_packages.to_a}"
+                Packager.info "Reverse deps: #{reverse_dependencies}"
+
+                while true
+                    if reverse_dependencies.empty?
+                        break
+                    end
+
+                    handled_packages = Array.new
+                    reverse_dependencies.each do |pkg_name,dependencies|
+                        if dependencies.empty?
+                            handled_packages << pkg_name
+                            pkg = Autoproj.manifest.package(pkg_name).autobuild
+                            flow[:packages] << debian_name(pkg)
                         end
                     end
 
-                    x += 1
+                    handled_packages.each do |pkg|
+                        deps = reverse_dependencies.delete(pkg)
+                    end
+
+                    reverse_dependencies_refreshed = Hash.new
+                    reverse_dependencies.each do |pkg,dependencies|
+                        dependencies.reject! { |x| handled_packages.include? x }
+                        reverse_dependencies_refreshed[pkg] = dependencies
+                    end
+                    reverse_dependencies = reverse_dependencies_refreshed
+
+                    Packager.debug "Handled: #{handled_packages}"
+                    Packager.debug "Remaining: #{reverse_dependencies}"
+                    if handled_packages.empty? && !reverse_dependencies.empty?
+                        Packager.warn "Unhandled dependencies: #{reverse_dependencies}"
+                    end
                 end
+                Packager.info "Creating flow of packages: #{flow[:packages]}"
 
-                create_flow_job_xml(name, flow, flavor, parallel_builds, force)
-            end
-
-            def deps_fulfilled(deps, pkg, flow, debug = false, orig_selection = [], debug_level = 0)
-                pkg_deps = dependencies(pkg)
-                Packager.debug "pkg_deps: #{pkg_deps}"
-                Packager.debug "deps: #{deps}"
-                pkg_deps[0].each do |dep|
-                    if !deps.include? dep
-                        if debug# || debian_name(pkg) == "ruby-tools-rest-api"
-                            deb_selection = orig_selection.map{|s| debian_name(Autoproj.manifest.package(s).autobuild)}
-                            if debug_level == 0
-                                puts
-                                puts "======= Debugging Dependencies ======="
-                                puts
-                                puts "Rock-Selection: \n\t#{orig_selection}" 
-                                puts
-                                puts "Debianized Selection: \n\t#{deb_selection}" 
-                                puts
-                                puts "Previously build packages: \n\t#{deps}"
+                all_packages.each do |job|
+                    pkg = Autoproj.manifest.package(job).autobuild
+                    _,deps = dependencies(pkg)
+                    if !deps.empty?
+                        deps.each do |dep|
+                            prefix = "ruby-"
+                            base_name = dep[prefix.size..dep.size]
+                            if dep.start_with?(prefix) && !flow[:gems].include?(base_name)
+                                flow[:gems] << base_name
                             end
-                            puts
-                            puts "======= Debug Level #{debug_level} ======="
-                            puts
-                            puts "Dependencies of #{pkg.name}: \n\t#{pkg_deps}"
-                            Autoproj.warn "Missing: #{dep} for #{pkg.name}"
-                            sel = deb_selection.index(dep)
-                            if !sel.nil?
-                                sel = Autoproj.manifest.package(orig_selection.at(sel)).autobuild
-                                deps_fulfilled(deps,sel,flow,true, orig_selection, debug_level + 1)
-                            end
-                            exit
                         end
-                        return false
                     end
                 end
-                pkg_deps[1].each do |dep|
-                    if (dep.start_with? "ruby-") && (!flow[0].include? dep[5..dep.size])
-                        flow[0] << dep[5..dep.size]
-                    end
-                end
-                true
+                flow[:gems].uniq!
+
+                create_flow_job_xml(name, flow, flavor, false, force)
             end
 
             def create_flow_job_xml(name, flow, flavor, parallel = false, force = false)
-                gems = flow[0].uniq
-                flow.delete_at(0)
-
                 safe_level = nil
                 trim_mode = "%<>"
 
                 template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
                 rendered = template.result(binding)
-                puts `pwd`
+                Packager.info "Rendering file: #{File.join(Dir.pwd, name)}.xml"
                 File.open("#{name}.xml", 'w') do |f|
                       f.write rendered
                 end
 
                 if force
+                    Packager.info "Update job: #{name}"
                     system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{name}.xml")
                 else
+                    Packager.info "Create job: #{name}"
                     system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{name}.xml")
                 end
             end
