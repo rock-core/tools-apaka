@@ -384,6 +384,7 @@ module Autoproj
                     all_packages_refresh = all_packages.dup
                     all_packages.each do |pkg_name|
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
+                        pkg.resolve_optional_dependencies
                         reverse_dependencies[pkg.name] = pkg.dependencies
                         all_packages_refresh.merge(pkg.dependencies)
                     end
