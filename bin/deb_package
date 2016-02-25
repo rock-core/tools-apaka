@@ -310,21 +310,17 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_job
-        selection.each_with_index do |pkg_name, i|
-            if pkg = Autoproj.manifest.package(pkg_name)
-                pkg = pkg.autobuild
-            else
-                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
-                next
-            end
-            puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg_name}"
-            options = Hash.new
-            if !o_architectures.empty?
-                options[:architectures] = o_architectures
-            end
-            if !o_distributions.empty?
-                options[:distributions] = o_distributions
-            end
+        options = Hash.new
+        if !o_architectures.empty?
+            options[:architectures] = o_architectures
+        end
+        if !o_distributions.empty?
+            options[:distributions] = o_distributions
+        end
+
+        packages = packager.all_required_packages(selection)
+        packages.each_with_index do |pkg, i|
+            puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
             packager.create_package_job(pkg, options, o_overwrite)
         end
     end
@@ -391,14 +387,10 @@ Dir.chdir(packager.build_dir) do
         end
 
         i = 1
-        packager.ruby_gems.each do |gem_name,version|
-            puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
-            options[:job_name] = "gem_" + gem_name
-            packager.create_ruby_job(gem_name, options, o_overwrite)
-            i = i+1
-        end
-        packager.ruby_rock_gems.each do |gem_name,version|
-            puts "#{i}/#{packager.ruby_gems.size + packager.ruby_rock_gems.size}) Creating Jenkins-job: #{gem_name}"
+        all_gems = packager.all_required_ruby_gems
+        all_gems.each do |gem_name|
+            puts "#{i}/#{all_gems.size} Creating Jenkins-job: #{gem_name}"
+            options[:job_name] = gem_name
             packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end

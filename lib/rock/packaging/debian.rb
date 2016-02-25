@@ -4,7 +4,7 @@ require 'autobuild'
 require 'tmpdir'
 require 'utilrb'
 require 'timeout'
-
+require 'set'
 
 module Autoproj
     module Packaging
@@ -14,6 +14,119 @@ module Autoproj
         BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
         LOG_DIR=File.join(BUILD_DIR, "logs")
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
+
+        class GemDependencies
+            # Resolve the dependency of a gem using
+            # `gem dependency #{gem_name}`
+            # Thus this will only work if the local installation is update to date
+            # regarding the gems
+            def self.resolve_by_name(gem_name, runtime_deps_only = true)
+                dependencies = Hash.new
+                gem_dependency = `gem dependency #{gem_name}`
+                regexp = /(.*)\s\((.*)\)/
+                found_gem = false
+                # Output of gem dependency is not providing more information
+                # than for the specific gem found
+                #
+                # We assume here that the first GEM entry found related to the
+                # one we want, discarding the others
+                gem_dependency.split("\n").each do |line|
+                    if /Gem/.match(line)
+                        if found_gem
+                            break
+                        end
+                        found_gem = true
+                        next
+                    end
+                    if /No gems found matching/.match(line)
+                        raise ArgumentError, "Failed to resolve #{gem_name} -- pls install locally"
+                    end
+                    mg = regexp.match(line)
+                    if mg
+                        gem_name = mg[1].strip
+                        gem_version = mg[2].strip
+                        if runtime_deps_only && /development/.match(gem_version)
+                            next
+                        end
+                        dependencies[gem_name] = gem_version
+                    end
+                end
+                dependencies
+            end
+
+            # Resolve all dependencies of a list of names of gems
+            # Returns[Hash] with keys as required gems and the direct dependencies
+            # as values
+            def self.resolve_all(gems)
+                dependencies = Hash.new
+                handled_gems = Set.new
+
+                remaining_gems = gems
+                if gems.kind_of?(Array)
+                    remaining_gems = gems.to_set
+                end
+
+                Autoproj.info "Resolve all: #{gems}"
+
+                while !remaining_gems.empty?
+                    Autoproj.info "Resolve all: #{remaining_gems.to_a}"
+                    remaining = Set.new
+                    remaining_gems.each do |gem_name|
+                        deps = resolve_by_name(gem_name)
+                        handled_gems << gem_name
+
+                        dependencies[gem_name] = Set.new
+                        deps.each do |gem_dep_name, gem_dep_version|
+                            dependencies[gem_name].add(gem_dep_name)
+
+                            if !handled_gems.include?(gem_dep_name)
+                                remaining << gem_dep_name
+                            end
+                        end
+                    end
+                    remaining_gems.select! { |g| !handled_gems.include?(g) }
+                    remaining_gems = remaining_gems.merge(remaining)
+                end
+                dependencies
+            end
+
+            def self.sort_by_dependency(dependencies = Hash.new)
+                ordered_gem_list = Array.new
+                while true
+                    if dependencies.empty?
+                        break
+                    end
+
+                    handled_packages = Array.new
+                    dependencies.each do |gem_name, gem_dependencies|
+                        if gem_dependencies.empty?
+                            handled_packages << gem_name
+                            ordered_gem_list << gem_name
+                        end
+                    end
+                    handled_packages.each do |gem_name|
+                        dependencies.delete(gem_name)
+                    end
+
+                    dependencies_refreshed = Hash.new
+                    dependencies.each do |gem_name, gem_dependencies|
+                        gem_dependencies.reject! { |x| handled_packages.include? x }
+                        dependencies_refreshed[gem_name] = gem_dependencies
+                    end
+                    dependencies = dependencies_refreshed
+
+                    if handled_packages.empty? && !dependencies.empty?
+                        raise ArgumentError, "Unhandled dependencies of gem: #{dependencies}"
+                    end
+                end
+                ordered_gem_list
+            end
+
+            def self.sorted_gem_list(gems)
+                dependencies = resolve_all(gems)
+                sort_by_dependency(dependencies)
+            end
+        end
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
@@ -286,7 +399,7 @@ module Autoproj
             # ruby-<canonized-package-name>
             def debian_name(pkg)
                 if pkg.kind_of?(String)
-                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class}"
+                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
                 end
                 name = pkg.name
 
@@ -368,14 +481,15 @@ module Autoproj
 
             end
 
-            def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
+            # Compute all required packages from a given selection
+            # including the dependencies
+            #
+            # The order of the resulting package list is sorted
+            # accounting for interdependencies among pacakges
+            def all_required_rock_packages(selection)
                 Packager.info ("#{selection.size} packages selected")
                 Packager.debug "Selection: #{selection}}"
                 orig_selection = selection.clone
-
-                flow = Hash.new
-                flow[:gems] = Array.new
-                flow[:packages] = Array.new
                 reverse_dependencies = Hash.new
 
                 all_packages = Set.new
@@ -386,6 +500,7 @@ module Autoproj
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
                         pkg.resolve_optional_dependencies
                         reverse_dependencies[pkg.name] = pkg.dependencies
+                        Packager.info "deps: #{pkg.name} --> #{pkg.dependencies}"
                         all_packages_refresh.merge(pkg.dependencies)
                     end
 
@@ -396,9 +511,10 @@ module Autoproj
                         all_packages = all_packages_refresh
                     end
                 end
-                Packager.info "All packages: #{all_packages.to_a}"
-                Packager.info "Reverse deps: #{reverse_dependencies}"
+                Packager.info "all packages: #{all_packages.to_a}"
+                Packager.info "reverse deps: #{reverse_dependencies}"
 
+                all_required_packages = Array.new
                 while true
                     if reverse_dependencies.empty?
                         break
@@ -409,12 +525,12 @@ module Autoproj
                         if dependencies.empty?
                             handled_packages << pkg_name
                             pkg = Autoproj.manifest.package(pkg_name).autobuild
-                            flow[:packages] << debian_name(pkg)
+                            all_required_packages << pkg
                         end
                     end
 
                     handled_packages.each do |pkg|
-                        deps = reverse_dependencies.delete(pkg)
+                        reverse_dependencies.delete(pkg)
                     end
 
                     reverse_dependencies_refreshed = Hash.new
@@ -430,22 +546,27 @@ module Autoproj
                         Packager.warn "Unhandled dependencies: #{reverse_dependencies}"
                     end
                 end
-                Packager.info "Creating flow of packages: #{flow[:packages]}"
+                all_required_packages
+            end
 
-                all_packages.each do |job|
-                    pkg = Autoproj.manifest.package(job).autobuild
-                    _,deps = dependencies(pkg)
-                    if !deps.empty?
-                        deps.each do |dep|
-                            prefix = "ruby-"
-                            base_name = dep[prefix.size..dep.size]
-                            if dep.start_with?(prefix) && !flow[:gems].include?(base_name)
-                                flow[:gems] << base_name
-                            end
-                        end
+            def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
+                flow = Hash.new
+                all_packages = all_required_rock_packages(selection)
+                flow[:packages] = all_packages.map{ |pkg| debian_name(pkg) }
+                Packager.info "Creating flow of rock packages: #{flow[:packages]}"
+
+                flow[:gems] = Array.new
+                all_packages.each do |pkg|
+                    pkg = Autoproj.manifest.package(pkg.name).autobuild
+                    deps = dependencies(pkg)
+                    deps[:nonnative].each do |dep|
+                        flow[:gems] << dep
                     end
                 end
                 flow[:gems].uniq!
+                gem_deps = GemDependencies.sorted_gem_list(flow[:gems])
+                flow[:gems] = gem_deps
+                Packager.info "Creating flow of gems: #{flow[:gems]}"
 
                 create_flow_job_xml(name, flow, flavor, false, force)
             end
@@ -495,11 +616,11 @@ module Autoproj
                     options[:dir_name] = debian_name(pkg)
                     options[:job_name] = debian_name(pkg)
 
-                    deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
-                    Packager.info "Dependencies of #{pkg.name}: rock: #{deps_rock_packages}, osdeps: #{deps_osdeps_packages}"
+                    all_deps = dependencies(pkg)
+                    Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative]}"
 
                     # Prepare upstream dependencies
-                    deps = deps_rock_packages.join(", ")
+                    deps = all_deps[:rock].join(", ")
                     if !deps.empty?
                         deps += ", "
                     end
@@ -543,10 +664,10 @@ module Autoproj
                 if force
                     update_or_create = "update-job"
                 end
-                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name].gsub '_', '-'}' < #{rendered_filename}")
+                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name]}' < #{rendered_filename}")
                     Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
                 elsif force
-                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name].gsub '_', '-'}' < #{rendered_filename}")
+                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name]}' < #{rendered_filename}")
                         Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
                     end
                 end
@@ -677,14 +798,24 @@ module Autoproj
                 end
             end
 
+            # Get all required rubygem including the dependencies of ruby gems
+            #
+            # This requires the current installation to be complete since
+            # `gem dependency <gem-name>` has been selected to provide the information
+            def all_required_ruby_gems
+                gems = @ruby_gems.map {|gem_name,version| gem_name }
+                dependencies = GemDependencies.resolve_all(gems)
+                dependencies.keys
+            end
+
             # Compute dependencies of this package
             # Returns [rock_packages, osdeps_packages]
             def dependencies(pkg)
                 pkg.resolve_optional_dependencies
-                deps_rock_packages = pkg.dependencies.map do |pkg_name|
-                    debian_name(Autoproj.manifest.package(pkg_name).autobuild)
+                deps_rock_packages = pkg.dependencies.map do |dep_name|
+                    debian_name(Autoproj.manifest.package(dep_name).autobuild)
                 end.sort
-                Packager.debug "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -700,7 +831,7 @@ module Autoproj
                 _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packager.debug "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
+                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 # Update global list
                 @osdeps += deps_osdeps_packages
@@ -711,24 +842,26 @@ module Autoproj
                     end
                 end.compact
 
+                non_native_dependencies = Set.new
                 non_native_handlers.each do |pkg_handler, pkg_list|
                     # Convert native ruby gems package names to rock-xxx
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
                         pkg_list.each do |name,version|
                             @ruby_gems << [name,version]
-                            deps_osdeps_packages << debian_ruby_name(name)
+                            non_native_dependencies << name
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
                     end
                 end
+                Packager.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
 
                 # Remove duplicates
                 @osdeps.uniq!
                 @ruby_gems.uniq!
 
-                # Return rock packages and osdeps
-                [deps_rock_packages, deps_osdeps_packages]
+                # Return rock packages, osdeps and non native deps (here gems)
+                {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
             end
 
             def generate_debian_dir(pkg, dir, distribution)
@@ -747,7 +880,7 @@ module Autoproj
                 debian_version = debian_version(pkg, distribution)
                 versioned_name = versioned_name(pkg, distribution)
 
-                deps_rock_packages, deps_osdeps_packages = dependencies(pkg)
+                deps = dependencies(pkg)
                 # Filter ruby versions out -- we assume chroot has installed all
                 # ruby versions
                 #
@@ -757,7 +890,7 @@ module Autoproj
                 #
                 # Right approach: bootstrap within chroot and generate source packages
                 # in the chroot
-                deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                deps_osdeps_packages = deps[:osdeps].select do |name|
                     name !~ /^ruby[0-9][0-9.]*/
                 end
                 # Filter out clang
@@ -1230,6 +1363,7 @@ FileUtils.cp tarball, "/tmp/"
 
                 distribution = max_one_distribution(options[:distributions])
 
+                gem_base_name = ""
                 Dir.chdir(File.dirname(gem_path)) do
                     gem_file_name = File.basename(gem_path)
                     gem_versioned_name = gem_file_name.sub("\.gem","")
@@ -1347,16 +1481,25 @@ FileUtils.cp tarball, "/tmp/"
                         # Filter ruby versions out -- we assume chroot has installed all
                         # ruby versions
                         deps = deps.select do |name|
-                            name !~ /^ruby[0-9][0-9.]*/
+                            name !~ /^ruby[0-9][0-9.]*/ && !options[:deps]
                         end
-                        deps << "dh-autoreconf"
+
+                        # Add actual gem dependencies
+                        gem_deps = GemDependencies::resolve_by_name(gem_base_name)
+                        gem_deps = gem_deps.keys.each do |k|
+                            deps << debian_ruby_name(k)
+                        end
+                        deps = deps.uniq
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
-                            `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
-                            `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(",")}#" debian/control`
-
-                            dpkg_commit_changes("ocl_extra_dependencies")
+                            `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
                         end
+
+                        # Add dh-autoreconf to build dependency
+                        deps << "dh-autoreconf"
+                        `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
+
+                        dpkg_commit_changes("ocl_extra_dependencies")
 
                         # Injecting environment setup in debian/rules
                         # packages like orocos.rb will require locally installed packages
