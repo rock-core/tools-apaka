@@ -417,9 +417,9 @@ Dir.chdir(packager.build_dir) do
                 end
             end
         end
-
         # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
         packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
+
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|

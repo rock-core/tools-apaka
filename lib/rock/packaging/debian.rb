@@ -21,6 +21,9 @@ module Autoproj
             # Thus this will only work if the local installation is update to date
             # regarding the gems
             def self.resolve_by_name(gem_name, runtime_deps_only = true)
+                if not gem_name.kind_of?(String)
+                    raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
+                end
                 dependencies = Hash.new
                 gem_dependency = `gem dependency #{gem_name}`
                 regexp = /(.*)\s\((.*)\)/
@@ -881,6 +884,7 @@ module Autoproj
                 versioned_name = versioned_name(pkg, distribution)
 
                 deps = dependencies(pkg)
+                deps_rock_packages = deps[:rock]
                 # Filter ruby versions out -- we assume chroot has installed all
                 # ruby versions
                 #
@@ -1056,6 +1060,7 @@ module Autoproj
 
                         # Prepare injection of dependencies
                         options[:deps] = deps
+                        options[:local_pkg] = true
                         convert_gem(gem_final_path, options)
                         # register gem with the correct naming schema
                         # to make sure dependency naming and gem naming are consistent
@@ -1353,13 +1358,21 @@ FileUtils.cp tarball, "/tmp/"
             # e.g. hoe, nokogiri, utilrb
             # the corresponding files will be copy into the built package during
             # the gem building process
+            #
+            # default options 
+            #        :patch_dir => nil,
+            #        :deps => {:rock => [], :osdeps => [], :nonnative => []},
+            #        :distributions => [],
+            #        :local_package => false
+            #
             def convert_gem(gem_path, options = Hash.new)
                 Packager.debug "Convert gem: '#{gem_path}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil,
-                    :deps => [[],[]],
-                    :distributions => []
+                    :deps => {:rock => [], :osdeps => [], :nonnative => []},
+                    :distributions => [],
+                    :local_package => false
 
                 distribution = max_one_distribution(options[:distributions])
 
@@ -1370,14 +1383,14 @@ FileUtils.cp tarball, "/tmp/"
 
                     # Dealing with _ in original file name, since gem2deb
                     # will debianize it
-                    if gem_versioned_name =~ /(.*)(-[0-9]\.[0-9\.-]*(-[0-9])*)/
+                    if gem_versioned_name =~ /(.*)(-[0-9]+\.[0-9\.-]*(-[0-9]+)*)/
                         gem_base_name = $1
                         version_suffix = gem_versioned_name.gsub(gem_base_name,"").gsub(/\.gem/,"")
                         Packager.info "gem basename: #{gem_base_name}"
                         Packager.info "gem version: #{version_suffix}"
                         gem_versioned_name = gem_base_name.gsub("_","-") + version_suffix
                     else
-                        raise ArgumentError, "Converting gem: unknown formatting"
+                        raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
                     end
 
                     Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
@@ -1477,19 +1490,30 @@ FileUtils.cp tarball, "/tmp/"
                         #
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
-                        deps = options[:deps].flatten.uniq
+                        
                         # Filter ruby versions out -- we assume chroot has installed all
                         # ruby versions
-                        deps = deps.select do |name|
-                            name !~ /^ruby[0-9][0-9.]*/ && !options[:deps]
+                        all_deps = options[:deps][:osdeps].select do |name|
+                            name !~ /^ruby[0-9][0-9.]*/
+                        end
+                        options[:deps][:rock].each do |pkg|
+                            all_deps << pkg
                         end
 
                         # Add actual gem dependencies
-                        gem_deps = GemDependencies::resolve_by_name(gem_base_name)
-                        gem_deps = gem_deps.keys.each do |k|
-                            deps << debian_ruby_name(k)
+                        gem_deps = nil
+                        if options[:deps][:nonnative]
+                            gem_deps = GemDependencies::resolve_all(options[:deps][:nonnative])
+                        elsif !options[:local_pkg]
+                            gem_deps = GemDependencies::resolve_by_name(gem_base_name)
                         end
-                        deps = deps.uniq
+
+                        gem_deps = gem_deps.keys.each do |k|
+			    continue if gem_deps.keys == "rake"
+                            all_deps << debian_ruby_name(k)
+                        end
+                        deps = all_deps.uniq
+
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
