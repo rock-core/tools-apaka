@@ -24,37 +24,50 @@ module Autoproj
                 if not gem_name.kind_of?(String)
                     raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
                 end
-                dependencies = Hash.new
                 gem_dependency = `gem dependency #{gem_name}`
+                if $?.exitstatus != 0
+                    raise ArgumentError, "Failed to resolve #{gem_name} -- pls install locally"
+                end
                 regexp = /(.*)\s\((.*)\)/
                 found_gem = false
+
                 # Output of gem dependency is not providing more information
                 # than for the specific gem found
                 #
                 # We assume here that the first GEM entry found related to the
                 # one we want, discarding the others
+                current_version = nil
+                versioned_gems = Array.new
+                dependencies = Hash.new
                 gem_dependency.split("\n").each do |line|
-                    if /Gem/.match(line)
-                        if found_gem
-                            break
+                    if match = /Gem #{gem_name}-([0-9].*)/.match(line)
+                        # add after completion
+                        if current_version
+                            versioned_gems << {:version => current_version, :deps => dependencies}
                         end
-                        found_gem = true
+                        current_version = match[1].strip
                         next
+                    elsif match = /Gem/.match(line) # other package names
+                        break
                     end
-                    if /No gems found matching/.match(line)
-                        raise ArgumentError, "Failed to resolve #{gem_name} -- pls install locally"
-                    end
+
                     mg = regexp.match(line)
                     if mg
-                        gem_name = mg[1].strip
-                        gem_version = mg[2].strip
-                        if runtime_deps_only && /development/.match(gem_version)
+                        dep_gem_name = mg[1].strip
+                        dep_gem_version = mg[2].strip
+                        if runtime_deps_only && /development/.match(dep_gem_version)
                             next
                         end
-                        dependencies[gem_name] = gem_version
+                        dependencies[dep_gem_name] = dep_gem_version
                     end
                 end
-                dependencies
+                # Finalize
+                if current_version
+                    versioned_gems << { :version => current_version, :deps => dependencies }
+                end
+
+                # pick last, i.e. highest version
+                versioned_gems.last[:deps]
             end
 
             # Resolve all dependencies of a list of names of gems
