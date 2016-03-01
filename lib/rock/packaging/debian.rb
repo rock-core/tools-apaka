@@ -991,7 +991,9 @@ module Autoproj
                         debian_ruby_name(name)
                     end
                 end
+
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
+                Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
 
                 Find.find(template_dir) do |path|
                     next if File.directory?(path)
@@ -1006,9 +1008,9 @@ module Autoproj
                 end
             end
 
-            # A tar gzip version that reproduces 
+            # A tar gzip version that reproduces
             # same checksums on the same day when file content does not change
-            # 
+            #
             # Required to package orig.tar.gz
             def tar_gzip(archive, tarfile, distribution = nil)
 
@@ -1022,7 +1024,7 @@ module Autoproj
 
 
                 Packager.info "Tar archive: #{archive_plain_name} into #{tarfile}"
-                # Make sure that the tar files checksum remains the same, even when modification timestamp changes, 
+                # Make sure that the tar files checksum remains the same, even when modification timestamp changes,
                 # i.e. use gzip --no-name and set the initial date to the current day
                 #
                 # TODO: What if building over midnight -- single point of failure
@@ -1230,7 +1232,7 @@ module Autoproj
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
 
 #NEW!!!
-                	# Make sure that the tar files checksum remains the same, even when modification timestamp changes, 
+                	# Make sure that the tar files checksum remains the same, even when modification timestamp changes,
                 	# i.e. use gzip --no-name and set the initial date to the current day
                 	#
                 	# TODO: What if building over midnight -- single point of failure
@@ -1445,7 +1447,7 @@ FileUtils.cp tarball, "/tmp/"
             # the corresponding files will be copy into the built package during
             # the gem building process
             #
-            # default options 
+            # default options
             #        :patch_dir => nil,
             #        :deps => {:rock => [], :osdeps => [], :nonnative => []},
             #        :distributions => [],
@@ -1506,7 +1508,7 @@ FileUtils.cp tarball, "/tmp/"
                         # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
                         checksums_file="checksums.yaml.gz"
                         files = Dir.glob("*/#{checksums_file}")
-                        if not files.empty? 
+                        if not files.empty?
                             checksums_file = files.first
                         end
 
@@ -1576,7 +1578,7 @@ FileUtils.cp tarball, "/tmp/"
                         #
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
-                        
+
                         # Filter ruby versions out -- we assume chroot has installed all
                         # ruby versions
                         all_deps = options[:deps][:osdeps].select do |name|
@@ -1588,7 +1590,7 @@ FileUtils.cp tarball, "/tmp/"
 
                         # Add actual gem dependencies
                         gem_deps = nil
-                        if options[:deps][:nonnative]
+                        if !options[:deps][:nonnative].empty?
                             gem_deps = GemDependencies::resolve_all(options[:deps][:nonnative])
                         elsif !options[:local_pkg]
                             gem_deps = GemDependencies::resolve_by_name(gem_base_name)

@@ -413,7 +413,7 @@ Dir.chdir(packager.build_dir) do
                     Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
                     # Fails to be detected as normal package
                     # so we assume it is a ruby gem
-                    packager.ruby_gems << o_extra_gem
+                    packager.ruby_gems << pkg_name
                 end
             end
         end
@@ -423,35 +423,34 @@ Dir.chdir(packager.build_dir) do
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
+                debian_pkg_name = nil
                 pkg = Autoproj.manifest.package(pkg_name)
                 if pkg
-                    pkg = pkg.autobuild
+                    # Excluding ruby packages here since they need a special treatment
+                    if pkg.kind_of?(Autobuild::Ruby)
+                        next
+                    end
                 else
                     Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
                     # Fails to be detected as normal package
                     # so we assume it is a ruby gem
-                    packager.ruby_gems << o_extra_gem
-                end
-
-                # Excluding ruby packages here since they need a special treatment
-                if pkg.kind_of?(Autobuild::Ruby)
+                    packager.ruby_gems << pkg_name
+                    # Further treatment is part of gem handling
                     next
                 end
-                pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkg)
-            #Autoproj::Packaging::OBS.update_dir(o_obs_dir, packager.build_dir, pkg_obs_name, packager.file_suffix_patterns, o_commit)
 
-                # sync the directory in build/obs and the target directory based on an existing
+                # sync the directory in build/debian and the target directory based on an existing
                 # files pattern
                 files = []
                 packager.file_suffix_patterns.map do |p|
                     # Finding files that exist in the source directory
                     # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
                     # and ruby-hoe/_service
-                    glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
+                    glob_exp = File.join(packager.build_dir,debian_pkg_name,"*#{p}")
                     files += Dir.glob(glob_exp)
                 end
                 files = files.flatten.uniq
-                dest_dir = File.join(o_dest_dir, pkg_obs_name)
+                dest_dir = File.join(o_dest_dir, debian_pkg_name)
 
                 FileUtils.mkdir_p dest_dir
                 FileUtils.cp files, dest_dir
@@ -461,6 +460,7 @@ Dir.chdir(packager.build_dir) do
 
     if o_dest_dir
         # Update all gems
+        packager.ruby_gems.uniq!
         packager.ruby_gems.each do |gem_name, version|
             if version
                 puts "deb_package -- updating gem: #{gem_name} with version #{version}"
