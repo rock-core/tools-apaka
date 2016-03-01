@@ -14,6 +14,67 @@ module Autoproj
         BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
         LOG_DIR=File.join(BUILD_DIR, "logs")
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
+        UBUNTU_RELEASES = ["precise","trusty","vivid","wily","xenial"]
+        DEBIAN_RELEASES = ["squeeze","wheezy", "jessie","stretch","sid"]
+
+        class Distribution
+            def self.isUbuntu(release_name)
+                release_name = release_name.downcase
+                if UBUNTU_RELEASES.include?(release_name)
+                    return true
+                end
+                false
+            end
+
+            def self.isDebian(release_name)
+                release_name = release_name.downcase
+                if DEBIAN_RELEASES.include?(release_name)
+                    return true
+                end
+                false
+            end
+
+            def self.containsPackage(release_name, package)
+                url =
+                ubuntu="https://launchpad.net/ubuntu/"
+                debian="https://packages.debian.org/source/"
+                release_name.downcase!
+                if isUbuntu(release_name)
+                    url = File.join(ubuntu,release_name,"+source",package)
+
+                elsif isDebian(release_name)
+                    url = File.join(debian,release_name,package)
+                else
+                    raise ArgumentError, "Unknown distribution #{release_name}"
+                end
+
+                outfile="/tmp/deb_package-availability-#{package}-in-#{release_name}"
+                errorfile="#{outfile}.error"
+
+                system("wget -O #{outfile} -o #{errorfile} #{url}")
+
+                if isUbuntu(release_name)
+                    if system("grep -ir \"warning message\" #{outfile} > /dev/null 2>&1")
+                        return false
+                    elsif system("grep -ir \"404 Not Found\" #{errorfile} > /dev/null 2>&1")
+                        return false
+                    end
+                elsif isDebian(release_name)
+                    if system("grep -ir \"Error\" #{outfile} > /dev/null 2>&1")
+                        return false
+                    end
+                end
+
+                if File.exists?(outfile)
+                    FileUtils.rm(outfile)
+                end
+                if File.exists?(errorfile)
+                    FileUtils.rm(errorfile)
+                end
+
+                return true
+            end
+        end
 
         class GemDependencies
             # Resolve the dependency of a gem using
