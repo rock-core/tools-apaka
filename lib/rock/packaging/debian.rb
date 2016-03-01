@@ -721,7 +721,7 @@ module Autoproj
                 options[:distributions] ||= [ 'trusty','vivid','jessie' ]
                 options[:job_name] ||= package_name
 
-                combinations = combination_filter(options[:architectures], options[:distributions])
+                combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
 
 
                 Packager.info "Creating jenkins-debian-glue job with"
@@ -750,34 +750,39 @@ module Autoproj
                 end
             end
 
-            def combination_filter(architectures, distributions)
-                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions}"
-                whitelist = [
-                    ["vivid", "amd64"],
-                    ["vivid", "i386"],
+            # Combination filter generates a filter for each job
+            # The filter allows to prevent building of the package, when this
+            # package is already part of the release of a distribution release, e.g.,
+            # there is no need to repackage the ruby package 'bundler' if it already
+            # exists in a specific release of Ubuntu or Debian
+            def combination_filter(architectures, distributions, package_name, isGem)
+                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
+                package: '#{package_name}', isGem: #{isGem}"
+                whitelist = []
+                UBUNTU_RELEASES.each do |release|
+                    if !Distribution::containsPackage(release, package_name) &&
+                        !(isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
+                        ["amd64","i386"].each do |arch|
+                            whitelist << [release, arch]
+                        end
+                    else
+                        Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
+                    end
+                end
 
-                    ["trusty","amd64"],
-                    ["trusty","i386"],
+                DEBIAN_RELEASES.each do |release|
+                    if !Distribution::containsPackage(release, package_name) &&
+                        !( isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
+                        # arm64 available from jessie onwards:
+                        #     https://wiki.debian.org/Arm64Port
+                        ["amd64","i386","armhf","armel"].each do |arch|
+                            whitelist << [release, arch]
+                        end
+                    else
+                        Packager.info "package: '#{package_name}' is part of the debian release: '#{release}'"
+                    end
+                end
 
-                    ["precise","amd64"],
-                    ["precise","i386"],
-
-                    ["wheezy","armel"],
-                    ["wheezy","armhf"],
-
-                    # arm64 available from jessie onwards:
-                    #     https://wiki.debian.org/Arm64Port
-
-                    ["jessie","amd64"],
-                    ["jessie","i386"],
-                    ["jessie","armhf"],
-                    ["jessie","armel"],
-
-                    ["sid","amd64"],
-                    ["sid","i386"],
-                    ["sid","armhf"],
-                    ["sid","armel"]
-                ]
                 ret = ""
                 and_placeholder = " &amp;&amp; "
                 architectures.each do |arch|
@@ -979,6 +984,13 @@ module Autoproj
                     name !~ /llvm/
                 end
 
+                deps_nonnative_packages = deps[:nonnative].map do |name|
+                    if Distribution::containsPackage(distribution, name)
+                        name
+                    else
+                        debian_ruby_name(name)
+                    end
+                end
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
 
                 Find.find(template_dir) do |path|
@@ -1582,9 +1594,16 @@ FileUtils.cp tarball, "/tmp/"
                             gem_deps = GemDependencies::resolve_by_name(gem_base_name)
                         end
 
+                        # Check if the plain package name exists in the given distribution
+                        # if that is the case use that one -- if not, then use the ruby name
+                        # since then is it is either part of the flow job
+                        # or an os dependency
                         gem_deps = gem_deps.keys.each do |k|
-			    continue if gem_deps.keys == "rake"
-                            all_deps << debian_ruby_name(k)
+                            if Distribution::containsPackage(distribution, k)
+                                all_deps << k
+                            else
+                                all_deps << debian_ruby_name(k)
+                            end
                         end
                         deps = all_deps.uniq
 
