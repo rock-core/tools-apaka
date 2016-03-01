@@ -37,6 +37,7 @@ o_rock_install_dir=nil
 o_parallel_builds = false
 o_control_job = false
 o_all_control_jobs = false
+o_exists = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -162,6 +163,9 @@ options = OptionParser.new do |opt|
         end
         o_rock_install_dir = dir
     end
+    opt.on("--exists TUPLE", String, "Test availablility of a package in a given distribution <distribution>,<package_name>") do |distro_pkg|
+        o_exists = distro_pkg.delete(" ").split(/[,;]/)
+    end
 end
 
 # The remaining arguments are the packages that have been selected on console
@@ -188,6 +192,21 @@ end
 if o_job_remove_all
     Autoproj::Packaging::Debian.remove_all_jobs
     exit 0
+end
+
+if o_exists
+    begin
+        if Autoproj::Packaging::Distribution::containsPackage(o_exists[0], o_exists[1])
+            puts "Package #{o_exists[1]} exists in distribution #{o_exists[0]}"
+            exit 0
+        else
+            puts "Package #{o_exists[1]} does not exist in distribution #{o_exists[0]}"
+            exit 1
+        end
+    rescue ArgumentError => e
+        puts "Please provide a valid distribution name -- #{e}"
+        exit -1
+    end
 end
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
