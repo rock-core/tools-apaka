@@ -1711,6 +1711,40 @@ module Autoproj
                 end
             end
 
+            def build_local(pkg, options)
+		distribution = max_one_distribution(options[:distributions])
+            # cd package_name
+            # tar -xf package_name_0.0.debian.tar.gz
+            # tar -xf package_name_0.0.orig.tar.gz
+            # mv debian/ package_name_0.0/
+            # cd package_name_0.0/
+            # debuild -us -uc
+            # #to install
+            # cd ..
+            # sudo dpkg -i package_name_0.0.deb
+                filepath = BUILD_DIR
+                Packager.info "Building #{pkg.name} locally"
+		begin
+		    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
+		        FileUtils.rm_rf "debian"
+		        FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
+		        `tar -xf *.debian.tar.gz`
+		        `tar -xf *.orig.tar.gz`
+			FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
+                        FileUtils.chdir plain_versioned_name(pkg, distribution) do
+			    `debuild -us -uc`
+		        end
+                        filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, distribution)}_ARCHITECTURE.deb" 
+                    end
+                rescue Errno::ENOENT
+                    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package"
+		    return
+                end
+                filepath
+                
+            end
+
+
             # For importer-packages we need to add every file in the deb-package, for that we "install" every file with CMake
             # This method adds an install-line of every file (including subdirectories) of a file into the given cmake-file
             def add_folder_to_cmake(base_dir, cmake, destination, folder = ".")

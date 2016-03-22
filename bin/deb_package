@@ -39,6 +39,7 @@ o_all_control_jobs = false
 o_exists = false
 o_rock_release_name = nil
 o_package_version = nil
+o_build_local = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -174,6 +175,9 @@ options = OptionParser.new do |opt|
             require 'cgi'
             o_package_version = CGI.unescapeHTML(version)
         end
+    end
+    opt.on("--build-local", String, "Build a debian-package locally and without Buildserver (Jenkins)") do
+        o_build_local = true
     end
 end
 
@@ -448,6 +452,8 @@ Dir.chdir(packager.build_dir) do
         sync_packages.each do |debian_pkg_name|
             # sync the directory in build/debian and the target directory based on an existing
             # files pattern
+
+
             files = []
             packager.file_suffix_patterns.map do |p|
                 # Finding files that exist in the source directory
@@ -462,6 +468,26 @@ Dir.chdir(packager.build_dir) do
             FileUtils.mkdir_p dest_dir
             FileUtils.cp files, dest_dir
         end
+    end
+
+    if o_build_local
+        selection.each_with_index do |pkg_name, i|
+	    if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
+
+            #Autoproj::Packaging::Packager.build_local pkg_name
+            filepath = packager.build_local pkg, :distributions => o_distributions
+	    if o_dest_dir
+            	FileUtils.mkdir_p dest_dir
+            	FileUtils.cp filepath, dest_dir
+            else
+                puts "Debian package here: " + filepath
+            end
+        end        
     end
 
     packager.cleanup
