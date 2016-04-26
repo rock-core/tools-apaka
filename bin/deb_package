@@ -16,7 +16,6 @@ o_skip = false
 o_build_dir = nil
 o_dest_dir = nil
 o_patch_dir = nil
-o_extra_gem = nil
 o_all_packages = true
 o_rebuild = false
 o_src_dir = nil
@@ -33,11 +32,13 @@ o_package = false
 o_overwrite = false
 o_list = false
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
-o_rock_install_dir=nil
+o_rock_base_install_dir=nil
 o_parallel_builds = false
 o_control_job = false
 o_all_control_jobs = false
 o_exists = false
+o_rock_release_name = nil
+o_package_version = nil
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -68,11 +69,6 @@ options = OptionParser.new do |opt|
 
     opt.on("--[no-]verbose", "display output of commands on stdout") do |v| Autobuild.verbose = v end
     opt.on("--[no-]debug", "debug information (for debugging purposes)") do |v| Autobuild.debug = v end
-
-    opt.on("--gem NAME", "provide the name of a gem to convert") do |gem|
-        o_all_packages = false
-        o_extra_gem = gem
-    end
 
     opt.on("--rebuild", "rebuild package") do
         o_rebuild = true
@@ -156,15 +152,23 @@ options = OptionParser.new do |opt|
     opt.on("--update-list FILE", String, "Update the given osdep-file") do |file|
         o_list = file
     end
-    opt.on("--rock-install-dir DIR", String, "Rock installation directory (prefix) for deployment of debian packages") do |dir|
+    opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of debian packages") do |dir|
         require 'pathname'
         if !Pathname.new(dir).absolute?
-            raise ArgumentError, "Given path for --rock-install-dir has to be absolute, but was relative: '#{dir}'"
+            raise ArgumentError, "Given path for --rock-base-install-dir has to be absolute, but was relative: '#{dir}'"
         end
-        o_rock_install_dir = dir
+        o_rock_base_install_dir = dir
+    end
+    opt.on("--release-name NAME", String, "Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir") do |name|
+        o_rock_release_name = name
     end
     opt.on("--exists TUPLE", String, "Test availablility of a package in a given distribution <distribution>,<package_name>") do |distro_pkg|
         o_exists = distro_pkg.delete(" ").split(/[,;]/)
+    end
+    opt.on("--package-version VERSION", String, "The version requirement for the package to install use 'noversion' if no specific version is required, but option needs to be present") do |version|
+        if version != "noversion"
+            o_package_version = version
+        end
     end
 end
 
@@ -172,6 +176,9 @@ end
 # only these ones should be considered
 o_selected_packages = options.parse(ARGV)
 
+if o_package_version && o_selected_packages.size != 1
+    raise ArgumentError, "Cannot use package-version with multiple packages as argument"
+end
 ################################################################################
 
 if o_job_cleanup && o_job_name
@@ -208,10 +215,6 @@ if o_exists
         exit -1
     end
 end
-
-root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
-selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 =begin
 # basiert auf /opt/rock/master/.gems/gems/autoproj-1.13.2/lib/autoproj/manifest.rb Zeile 834
@@ -263,6 +266,22 @@ end
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 
+selected_gems = []
+selected_rock_packages = o_selected_packages.select do |name|
+    if Autoproj::Packaging::GemDependencies::isGem(name)
+        packager.ruby_gems << [name, o_package_version]
+        false
+    else
+        true
+    end
+end
+
+Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
+selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
 packager.add_package_alias "tools/rtt", "rtt"
 packager.add_package_alias "tools/rtt-typelib", "rtt-typelib"
 packager.add_package_alias "tools/typelib", "typelib"
@@ -275,14 +294,18 @@ if o_build_dir
     packager.build_dir = o_build_dir
 end
 
-if o_rock_install_dir
-    packager.rock_install_directory = o_rock_install_dir
+if o_rock_base_install_dir
+    packager.rock_base_install_directory = o_rock_base_install_dir
+end
+if o_rock_release_name
+    packager.rock_release_name = o_rock_release_name
 end
 
 # Make sure that when we request a package build we only get this one,
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
     if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
+        Autoproj.info "Package: #{pkg_name} is in selection"
         true
     else
         false
@@ -296,6 +319,7 @@ Dir.chdir(packager.build_dir) do
         selection.each_with_index do |pkg_name, i|
             if pkg = Autoproj.manifest.package(pkg_name)
                 pkg = pkg.autobuild
+                Autoproj.warn "Package: #{pkg_name} is a known rock package"
             else
                 Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
@@ -336,8 +360,12 @@ Dir.chdir(packager.build_dir) do
         if !o_distributions.empty?
             options[:distributions] = o_distributions
         end
+        if not o_rock_release_name
+            # set general parameter for job
+            packager.rock_release_name = "$release"
+        end
 
-        packages = packager.all_required_packages(selection)
+        packages = packager.all_required_rock_packages(selection)
         packages.each_with_index do |pkg, i|
             puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
             packager.create_package_job(pkg, options, o_overwrite)
@@ -375,26 +403,9 @@ Dir.chdir(packager.build_dir) do
     if o_ruby_job
         puts "Creating Gem-Jobs"
 
-        # allow --create-ruby-jobs --gem mygem
-        # to create this specific gem
-        if !o_extra_gem
-            selection.each do |pkg_name|
-                pkg = Autoproj.manifest.package(pkg_name)
-                if pkg
-                    pkg = pkg.autobuild
-                    packager.dependencies pkg
-                else
-                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
-                    # Fails to be detected as normal package
-                    # so we assume it is a ruby gem
-                    o_extra_gem = pkg_name
-                end
-            end
-        end
-
-        if o_extra_gem
-	    Autoproj::Packaging::Packager.info "Adding extra gem: #{o_extra_gem}"
-            packager.ruby_gems << o_extra_gem
+        if not o_rock_release_name
+            # set general parameter for job
+            packager.rock_release_name = "$release"
         end
 
         options = Hash.new
@@ -407,134 +418,62 @@ Dir.chdir(packager.build_dir) do
 
         i = 1
         all_gems = packager.all_required_ruby_gems
-        all_gems.each do |gem_name|
+        all_gems.each do |gem_name, version|
             puts "#{i}/#{all_gems.size} Creating Jenkins-job: #{gem_name}"
             options[:job_name] = gem_name
+            options[:version] = version
             packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end
     end
 
-    if o_extra_gem
-        Autoproj.info "Adding extra gems: #{o_extra_gem}"
-        packager.ruby_gems << o_extra_gem
-    end
-
     if o_dest_dir && o_package
-
-        if o_all_packages
-            # Test selection for unknown packages and try to use them as gems
-            selection.each_with_index do |pkg_name, i|
-                pkg = Autoproj.manifest.package(pkg_name)
-                if pkg
-                    pkg = pkg.autobuild
-                else
-                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
-                    # Fails to be detected as normal package
-                    # so we assume it is a ruby gem
-                    packager.ruby_gems << pkg_name
-                end
-            end
-        end
         # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
-        packager.convert_gems({:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
+        sync_package = []
 
         if o_all_packages
             # Update all packages
             selection.each_with_index do |pkg_name, i|
+                Autoproj.warn "Selection with #{pkg_name}"
                 debian_pkg_name = nil
                 pkg = Autoproj.manifest.package(pkg_name)
                 if pkg
-                    # Excluding ruby packages here since they need a special treatment
-                    if pkg.kind_of?(Autobuild::Ruby)
-                        next
-                    end
+                    Autoproj.warn "Found debian package: #{debian_pkg_name}"
+                    debian_pkg_name = packager.debian_name(pkg.autobuild)
+                    sync_package << debian_pkg_name
                 else
-                    Autoproj.warn "Assuming that '#{pkg_name}' is a ruby gem"
-                    # Fails to be detected as normal package
-                    # so we assume it is a ruby gem
-                    packager.ruby_gems << pkg_name
-                    # Further treatment is part of gem handling
-                    next
+                    Autoproj.warn "Found package that is not resolvable through manifest: #{pkg_name}"
                 end
-
-                # sync the directory in build/debian and the target directory based on an existing
-                # files pattern
-                files = []
-                packager.file_suffix_patterns.map do |p|
-                    # Finding files that exist in the source directory
-                    # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
-                    # and ruby-hoe/_service
-                    glob_exp = File.join(packager.build_dir,debian_pkg_name,"*#{p}")
-                    files += Dir.glob(glob_exp)
-                end
-                files = files.flatten.uniq
-                dest_dir = File.join(o_dest_dir, debian_pkg_name)
-
-                FileUtils.mkdir_p dest_dir
-                FileUtils.cp files, dest_dir
             end
+        end
+
+        packager.ruby_gems.each do |pkg_name, version|
+            Autoproj.info "Converting ruby gem: '#{pkg_name}'"
+            # Fails to be detected as normal package
+            # so we assume it is a ruby gem
+            debian_pkg_name = packager.debian_ruby_name(pkg_name)
+            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
+            sync_package << debian_pkg_name
+        end
+
+        sync_package.each do |debian_pkg_name|
+            # sync the directory in build/debian and the target directory based on an existing
+            # files pattern
+            files = []
+            packager.file_suffix_patterns.map do |p|
+                # Finding files that exist in the source directory
+                # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
+                # and ruby-hoe/_service
+                glob_exp = File.join(packager.build_dir,debian_pkg_name,"*#{p}")
+                files += Dir.glob(glob_exp)
+            end
+            files = files.flatten.uniq
+            dest_dir = File.join(o_dest_dir, debian_pkg_name)
+
+            FileUtils.mkdir_p dest_dir
+            FileUtils.cp files, dest_dir
         end
     end
 
-    if o_dest_dir
-        # Update all gems
-        packager.ruby_gems.uniq!
-        packager.ruby_gems.each do |gem_name, version|
-            if version
-                puts "deb_package -- updating gem: #{gem_name} with version #{version}"
-            else
-                puts "deb_package -- updating gem: #{gem_name}"
-            end
-            pkg_obs_name = packager.debian_ruby_name(gem_name)
-            files = []
-            packager.file_suffix_patterns.map do |p|
-                # Finding files that exist in the source directory
-                # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
-                # and ruby-hoe/_service
-                glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
-                files += Dir.glob(glob_exp)
-            end
-            files = files.flatten.uniq
-            dest_dir = File.join(o_dest_dir, pkg_obs_name)
-
-            FileUtils.mkdir_p dest_dir
-            FileUtils.cp files, dest_dir
-        end
-
-        # Update rock gems
-        packager.ruby_rock_gems.each do |gem_name, version|
-            puts "deb_package -- update rock gem (converted ruby package): #{gem_name}"
-            pkg_obs_name = gem_name
-            files = []
-            packager.file_suffix_patterns.map do |p|
-                # Finding files that exist in the source directory
-                # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
-                # and ruby-hoe/_service
-                glob_exp = File.join(packager.build_dir,pkg_obs_name,"*#{p}")
-                #basename = Dir.glob(glob_exp).first[0..(Dir.glob(glob_exp).first.size-(p.size+1))]
-                #if basename[-2] == '-' 
-                #    number = basename[-2..-1]
-                #    basename = basename[0..-3]
-                #end
-                #newname = (basename + '~' + o_distributions.first)
-                #if number
-                #    newname = newname + number
-                #end
-                #newname = newname + p
-                #FileUtils.mv(Dir.glob(glob_exp).first, newname)
-                #files << newname
-                files += Dir.glob(glob_exp)
-            end
-            files = files.flatten.uniq
-            dest_dir = File.join(o_dest_dir, pkg_obs_name)
-
-            FileUtils.mkdir_p dest_dir
-            FileUtils.cp files, dest_dir
-        end
-    end # if o_dest_dir
-
-
     packager.cleanup
-
 end # Dir.chdir

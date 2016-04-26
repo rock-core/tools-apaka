@@ -24,42 +24,21 @@
   <dsl>
     build(&quot;0_cleanup-ruby-package-repository&quot;, release: &quot;<%= flavor %>&quot;)
     build(&quot;0_cleanup-rock-package-repository&quot;, release: &quot;<%= flavor %>&quot;)
-<% if parallel # parallel builds%>
-ignore(FAILURE){
-parallel (
-    <% flow[:gems].each_with_index do |gem,i| %>
-    {
-    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)}<%= gems.size == (i+1) ? "" : "," %>
-    <% end %>
-    )
-}
-//out.println 'Rock-Packages'
-<% flow[:packages].each do |jobs| %>
-ignore(FAILURE){
-    parallel (
-    <% jobs.each_with_index do |job,i| %>
-    { build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)}<%= jobs.size == (i+1) ? "" : "," %>
-    <% end %>
-    )
-}
-<% end %>
 
-<% else # non-parallel builds%>
     <% flow[:gems].each_with_index do |gem,i| %>
 retry(3) {
-    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= debian_ruby_name(gem)%>&quot;)
     build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= gem%>&quot;)
-    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;)
+    <% version = flow[:gem_versions][gem] || "noversion" %>
+    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;, package_version: &quot;<%= version.encode(:xml => :text) %>&quot;)
 }
     <% end %>
 
     <% flow[:packages].each_with_index do |job,i| %>
 retry(3) {
-    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= job%>&quot;)
+    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= job.sub("rock-","")%>&quot;)
     build(&quot;<%= job %>&quot;, release: &quot;<%=  flavor %>&quot;)
 }
     <% end %>
-<% end # parallel builds%>
 </dsl>
   <buildNeedsWorkspace>false</buildNeedsWorkspace>
 </com.cloudbees.plugins.flow.BuildFlow>

@@ -17,6 +17,16 @@
           <description></description>
           <defaultValue>master</defaultValue>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>rock_base_install_dir</name>
+          <description></description>
+          <defaultValue>/opt/rock</defaultValue>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>package_version</name>
+          <description></description>
+          <defaultValue>noversion</defaultValue>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -71,7 +81,7 @@ mkdir -p $build_dir
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir  --rock-install-dir /opt/rock/${release} --rebuild --<%= options[:type] %>  <%= package_name %> --package
+deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= package_name %>
 cd -
 # Making sure that the artifact land in the workspace directory
 # This is different for the gem, since it creates a directory ruby-my_gem

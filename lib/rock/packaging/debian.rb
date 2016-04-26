@@ -441,7 +441,8 @@ module Autoproj
             attr_accessor :osdeps
 
             # install directory if not given set to /opt/rock
-            attr_accessor :rock_install_directory
+            attr_accessor :rock_base_install_directory
+            attr_accessor :rock_release_name
 
             attr_accessor :gem_clean_alternatives
             attr_accessor :gem_creation_alternatives
@@ -454,7 +455,8 @@ module Autoproj
                 @osdeps = Array.new
                 @package_aliases = Hash.new
                 @debian_version = Hash.new
-                @rock_install_directory = "/opt/rock"
+                @rock_base_install_directory = "/opt/rock"
+                @rock_release_name = Time.now.strftime("%Y%m%d")
 
                 # Rake targets that will be used to clean and create
                 # gems
@@ -491,28 +493,41 @@ module Autoproj
             # rock-<canonized-package-name>
             # or for ruby packages
             # ruby-<canonized-package-name>
-            def debian_name(pkg)
+            def debian_name(pkg, with_rock_release_prefix = true)
                 if pkg.kind_of?(String)
                     raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
                 end
                 name = pkg.name
 
-                if pkg.kind_of?(Autobuild::Ruby)
-                    if @package_aliases.has_key?(name)
-                        name = @package_aliases[name]
-                    end
-                    debian_ruby_name(name)
+                if @package_aliases.has_key?(name)
+                    name = @package_aliases[name]
                 end
 
                 if pkg.kind_of?(Autobuild::Ruby)
-                    debian_ruby_name(name)
+                    debian_ruby_name(name, with_rock_release_prefix)
                 else
-                    "rock-" + canonize(name)
+                    if with_rock_release_prefix
+                        rock_release_prefix + canonize(name)
+                    else
+                        "rock-" + canonize(name)
+                    end
                 end
             end
 
-            def debian_ruby_name(name)
-                "ruby-" + canonize(name)
+            def rock_release_prefix
+                "rock-#{rock_release_name}-"
+            end
+
+            def rock_ruby_release_prefix
+                rock_release_prefix + "ruby-"
+            end
+
+            def debian_ruby_name(name, with_rock_release_prefix = true)
+                if with_rock_release_prefix
+                    rock_ruby_release_prefix + canonize(name)
+                else
+                    "ruby-" + canonize(name)
+                end
             end
 
             def debian_version(pkg, distribution, revision = "1")
@@ -558,6 +573,10 @@ module Autoproj
                 File.join(@build_dir, debian_name(pkg))
             end
 
+            def rock_install_directory
+                File.join(rock_base_install_directory, rock_release_name)
+            end
+
             def create_control_jobs(force)
                 templates = Dir.glob "#{TEMPLATES}/../0_*.xml"
                 templates.each do |template|
@@ -579,7 +598,7 @@ module Autoproj
             # including the dependencies
             #
             # The order of the resulting package list is sorted
-            # accounting for interdependencies among pacakges
+            # accounting for interdependencies among packages
             def all_required_rock_packages(selection)
                 Packager.info ("#{selection.size} packages selected")
                 Packager.debug "Selection: #{selection}}"
@@ -591,6 +610,10 @@ module Autoproj
                 while true
                     all_packages_refresh = all_packages.dup
                     all_packages.each do |pkg_name|
+                        if @package_aliases.has_key?(pkg_name)
+                            pkg_name = @package_aliases[pkg_name]
+                        end
+
                         pkg = Autoproj.manifest.package(pkg_name).autobuild
                         pkg.resolve_optional_dependencies
                         reverse_dependencies[pkg.name] = pkg.dependencies
@@ -644,17 +667,24 @@ module Autoproj
             end
 
             def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
+                with_rock_release_prefix = false
                 flow = Hash.new
                 all_packages = all_required_rock_packages(selection)
-                flow[:packages] = all_packages.map{ |pkg| debian_name(pkg) }
+                flow[:packages] = all_packages.map{ |pkg| debian_name(pkg, with_rock_release_prefix) }
                 Packager.info "Creating flow of rock packages: #{flow[:packages]}"
 
                 flow[:gems] = Array.new
+                flow[:gem_versions] = Hash.new
                 all_packages.each do |pkg|
                     pkg = Autoproj.manifest.package(pkg.name).autobuild
-                    deps = dependencies(pkg)
-                    deps[:nonnative].each do |dep|
+                    deps = dependencies(pkg, with_rock_release_prefix )
+                    deps[:nonnative].each do |dep, version|
                         flow[:gems] << dep
+                        if version
+                            flow[:gem_versions][dep] = version
+                        else
+                            flow[:gem_versions][dep] = "noversion"
+                        end
                     end
                 end
                 flow[:gems].uniq!
@@ -705,30 +735,35 @@ module Autoproj
 
             # Create a jenkins job for a rock package (which is not a ruby package)
             def create_package_job(pkg, options = Hash.new, force = false)
-                    options[:type] = :package
-                    options[:debian_name] = debian_name(pkg)
-                    options[:dir_name] = debian_name(pkg)
-                    options[:job_name] = debian_name(pkg)
+                options[:type] = :package
+                # Use parameter for job
+                # for destination and build directory
+                options[:dir_name] = debian_name(pkg)
+                # avoid the rock-release prefix for jobs
+                with_rock_release_prefix = false
+                options[:job_name] = debian_name(pkg, with_rock_release_prefix)
 
-                    all_deps = dependencies(pkg)
-                    Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative]}"
+                all_deps = dependencies(pkg)
+                Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
 
-                    # Prepare upstream dependencies
-                    deps = all_deps[:rock].join(", ")
-                    if !deps.empty?
-                        deps += ", "
-                    end
-                    options[:dependencies] = deps
-                    create_job(pkg.name, options, force)
+                # Prepare upstream dependencies
+                deps = all_deps[:rock].join(", ")
+                if !deps.empty?
+                    deps += ", "
+                end
+                options[:dependencies] = deps
+                Packager.info "Create package job: #{options[:job_name]}, options #{options}"
+                create_job(options[:job_name], options, force)
             end
 
             # Create a jenkins job for a ruby package
             def create_ruby_job(gem_name, options = Hash.new, force = false)
                 options[:type] = :gem
+                # for destination and build directory
                 options[:dir_name] = debian_ruby_name(gem_name)
-                options[:debian_name] = debian_ruby_name(gem_name)
                 options[:job_name] = gem_name
-                create_job(gem_name, options, force)
+                Packager.info "Create ruby job: #{gem_name}, options #{options}"
+                create_job(options[:job_name], options, force)
             end
 
 
@@ -910,17 +945,33 @@ module Autoproj
             def all_required_ruby_gems
                 gems = @ruby_gems.map {|gem_name,version| gem_name }
                 dependencies = GemDependencies.resolve_all(gems)
-                dependencies.keys
+                required_ruby_gems = []
+                dependencies.keys.each do |gem_name|
+                    if @ruby_gems.include?(gem_name)
+                        required_ruby_gems << @ruby_gems[gem_name]
+                    else
+                        version = nil
+                        required_ruby_gems << [gem_name, version]
+                    end
+                end
+                required_ruby_gems
             end
 
             # Compute dependencies of this package
             # Returns [rock_packages, osdeps_packages]
-            def dependencies(pkg)
+            def dependencies(pkg, with_rock_release_prefix = true)
+                # Reload pkg manifest to get all dependencies -- otherwise
+                # the dependencies list might be incomplete
+                # TODO: Check if this is a bug in autoproj
+                pkg_manifest = Autoproj.manifest.load_package_manifest(pkg.name)
+                pkg = pkg_manifest.package
+
                 pkg.resolve_optional_dependencies
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
-                    debian_name(Autoproj.manifest.package(dep_name).autobuild)
+                    debian_name(Autoproj.manifest.package(dep_name).autobuild, with_rock_release_prefix)
                 end.sort
-                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}'"
+
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -953,7 +1004,7 @@ module Autoproj
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
                         pkg_list.each do |name,version|
                             @ruby_gems << [name,version]
-                            non_native_dependencies << name
+                            non_native_dependencies << [name, version]
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
@@ -1007,7 +1058,7 @@ module Autoproj
                     name !~ /llvm/
                 end
 
-                deps_nonnative_packages = deps[:nonnative].map do |name|
+                deps_nonnative_packages = deps[:nonnative].map do |name, version|
                     if Distribution::containsPackage(distribution, name)
                         name
                     else
@@ -1372,13 +1423,17 @@ FileUtils.cp tarball, "/tmp/"
 
             # Convert all gems that are required
             # by package build with the debian packager
-            def convert_gems(options = Hash.new)
-                Packager.info "Convert gems: with options #{options}"
+            def convert_gems(gems, options = Hash.new)
+                Packager.info "Convert gems: #{gems} with options #{options}"
+                if gems.empty?
+                    return
+                end
 
                 options, unknown_options = Kernel.filter_options options,
                     :force_update => false,
                     :patch_dir => nil,
-                    :distributions => []
+                    :distributions => [],
+                    :local_pkg => false
 
                 distribution = max_one_distribution(options[:distributions])
 
@@ -1391,7 +1446,7 @@ FileUtils.cp tarball, "/tmp/"
                 # individual step
                 # This allows to add an overlay (patch) to be added to the final directory -- which
                 # requires to be commited via dpkg-source --commit
-                @ruby_gems.each do |gem_name, version|
+                gems.each do |gem_name, version|
                     gem_dir_name = debian_ruby_name(gem_name)
 
                     if options[:force_update]
@@ -1477,13 +1532,13 @@ FileUtils.cp tarball, "/tmp/"
             #        :local_package => false
             #
             def convert_gem(gem_path, options = Hash.new)
-                Packager.debug "Convert gem: '#{gem_path}' with options: #{options}"
+                Packager.info "Convert gem: '#{gem_path}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil,
                     :deps => {:rock => [], :osdeps => [], :nonnative => []},
                     :distributions => [],
-                    :local_package => false
+                    :local_pkg => false
 
                 distribution = max_one_distribution(options[:distributions])
 
@@ -1504,9 +1559,13 @@ FileUtils.cp tarball, "/tmp/"
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
                     end
 
+                    ############
+                    # Step 1: calling gem2tgz
+                    ############
                     Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                     # Convert .gem to .tar.gz
-                    if not system("gem2tgz #{gem_file_name}")
+                    cmd = "gem2tgz #{gem_file_name}"
+                    if not system(cmd)
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
                     else
                         # Unpack and repack the orig.tar.gz to
@@ -1551,13 +1610,18 @@ FileUtils.cp tarball, "/tmp/"
                         Packager.info "Converted: #{Dir.glob("**")}"
                     end
 
+
+                    ############
+                    # Step 2: calling dh-make-ruby
+                    ############
                     # Create ruby-<name>-<version> folder including debian/ folder
                     # from .tar.gz
                     #`dh-make-ruby --ruby-versions "ruby1.9.1" #{gem_versioned_name}.tar.gz`
                     #
                     # By default generate for all ruby versions
-                    Packager.info "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name}"
-                    cmd = "dh-make-ruby --ruby-versions \"all\" #{gem_versioned_name}.tar.gz -p ruby-#{gem_base_name}"
+                    # rename to the rock specific format: use option -p
+                    cmd = "dh-make-ruby --ruby-versions \"all\" #{gem_versioned_name}.tar.gz -p #{rock_ruby_release_prefix}#{gem_base_name}"
+                    Packager.info "calling: #{cmd}"
                     if !system(cmd)
                          Packager.warn "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name} failed"
                          raise RuntimeError, "Failed to call dh-make-ruby for #{gem_versioned_name}"
@@ -1595,6 +1659,18 @@ FileUtils.cp tarball, "/tmp/"
                             end
                         end
 
+                        ################
+                        # debian/install
+                        ################
+                        if File.exists?("debian/install")
+                            `sed -i "s#/usr##{rock_install_directory}#g" debian/install`
+                            dpkg_commit_changes("install_to_rock_specific_directory")
+                        end
+
+                        ################
+                        # debian/control
+                        ################
+
                         # Injecting dependencies into debian/control
                         # Since we do not differentiate between build and runtime dependencies
                         # at Rock level -- we add them to both
@@ -1612,9 +1688,12 @@ FileUtils.cp tarball, "/tmp/"
                         end
 
                         # Add actual gem dependencies
-                        gem_deps = nil
+                        gem_deps = Hash.new
                         if !options[:deps][:nonnative].empty?
-                            gem_deps = GemDependencies::resolve_all(options[:deps][:nonnative])
+                            nonnative_packages = options[:deps][:nonnative].collect do |name, version|
+                                name
+                            end
+                            gem_deps = GemDependencies::resolve_all(nonnative_packages)
                         elsif !options[:local_pkg]
                             gem_deps = GemDependencies::resolve_by_name(gem_base_name)
                         end
@@ -1643,21 +1722,30 @@ FileUtils.cp tarball, "/tmp/"
 
                         dpkg_commit_changes("ocl_extra_dependencies")
 
-                        # Injecting environment setup in debian/rules
-                        # packages like orocos.rb will require locally installed packages
-                        Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""),"/usr")}' debian/rules`
-                        `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
-                        `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
-                        `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
-
-
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
                         # Relaxing the required gem2deb version to allow for for multiplatform support
                         `sed -i "s#^\\(^Build-Depends: .*\\)gem2deb (>= [0-9\.~]\\+)\\(, .*\\)#\\1 gem2deb\\2#g" debian/control`
                         `sed -i "s#^\\(^Build-Depends: .*\\)debhelper (>= [0-9\.~]\\+)\\(, .*\\)#\\1 debhelper\\2#g" debian/control`
                         dpkg_commit_changes("relax_version_requirements")
 
+                        Packager.info "Change to 'any' architecture"
+                        `sed -i "s#Architecture: all#Architecture: any#" debian/control`
+                        dpkg_commit_changes("any-architecture")
+                        ################
+                        # debian/rules
+                        ################
+
+                        # Injecting environment setup in debian/rules
+                        # packages like orocos.rb will require locally installed packages
+
+                        Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
+                        Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
+                        Packager.debug "Enable custom rock name and custom installation path"
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""))}$(rock_install_dir)' debian/rules`
+                        `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
+                        `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
+                        `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
+                        `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
                         # via:
@@ -1667,9 +1755,11 @@ FileUtils.cp tarball, "/tmp/"
                         # export DH_RUBY_IGNORE_TESTS=all
                         Packager.debug "Disabling ruby test result evaluation"
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
-                        `sed -i "s#Architecture: all#Architecture: any#" debian/control`
+                        dpkg_commit_changes("disable_tests")
 
-                        dpkg_commit_changes("any-architecture")
+                        ###################
+                        # debian/changelog
+                        #################################
                         # Any change of the version in the changelog file will directly affect the
                         # naming of the *.debian.tar.gz and the *.dsc file
                         #
@@ -1677,7 +1767,7 @@ FileUtils.cp tarball, "/tmp/"
                         # version string.
                         #
                         # When getting an error such as '"ruby-utilrb_3.0.0.rc1-1.dsc" is already registered with different checksums'
-                        # then you like miss the distribution information or it is not correctly injected
+                        # then you probably miss the distribution information or it is not correctly injected
                         if distribution
                             # Changelog entry initially, e.g.,
                             # ruby-activesupport (4.2.3-1) UNRELEASED; urgency=medium
@@ -1725,6 +1815,7 @@ FileUtils.cp tarball, "/tmp/"
                 end
                 ruby_versions
             end
+
         end #end Debian
     end
 end
