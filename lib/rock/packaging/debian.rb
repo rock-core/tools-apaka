@@ -777,6 +777,9 @@ module Autoproj
                 package: '#{package_name}', isGem: #{isGem}"
                 whitelist = []
                 UBUNTU_RELEASES.each do |release|
+                    if not distributions.include?(release)
+                        next
+                    end
                     if !Distribution::containsPackage(release, package_name) &&
                         !(isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
                         ["amd64","i386"].each do |arch|
@@ -788,6 +791,9 @@ module Autoproj
                 end
 
                 DEBIAN_RELEASES.each do |release|
+                    if not distributions.include?(release)
+                        next
+                    end
                     if !Distribution::containsPackage(release, package_name) &&
                         !( isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
                         # arm64 available from jessie onwards:
