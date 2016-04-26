@@ -1731,6 +1731,15 @@ FileUtils.cp tarball, "/tmp/"
                         Packager.info "Change to 'any' architecture"
                         `sed -i "s#Architecture: all#Architecture: any#" debian/control`
                         dpkg_commit_changes("any-architecture")
+
+                        #-- e.g. for overlays use the original name in the control file
+                        # which will be overwritten here
+                        Packager.info "Adapt original package name if it exists"
+                        original_name = debian_ruby_name(gem_base_name, false)
+                        release_name = debian_ruby_name(gem_base_name, true)
+                        `sed -i "s##{original_name}##{release_name}#g" debian/control`
+                        dpkg_commit_changes("adapt_original_package_name")
+
                         ################
                         # debian/rules
                         ################
