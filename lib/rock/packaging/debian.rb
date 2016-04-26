@@ -35,6 +35,7 @@ module Autoproj
             end
 
             def self.containsPackage(release_name, package)
+                Packager.info "Check containsPackage: #{release_name} contains #{package}"
                 url =
                 ubuntu="https://launchpad.net/ubuntu/"
                 debian="https://packages.debian.org/source/"
@@ -50,8 +51,9 @@ module Autoproj
 
                 outfile="/tmp/deb_package-availability-#{package}-in-#{release_name}"
                 errorfile="#{outfile}.error"
-
-                system("wget -O #{outfile} -o #{errorfile} #{url}")
+                cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
+                Packager.info "Check containsPackage using: #{cmd}"
+                system(cmd)
 
                 if isUbuntu(release_name)
                     if system("grep -ir \"warning message\" #{outfile} > /dev/null 2>&1")
