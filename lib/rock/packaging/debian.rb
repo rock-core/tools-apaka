@@ -205,6 +205,21 @@ module Autoproj
                 dependencies = resolve_all(gems)
                 sort_by_dependency(dependencies)
             end
+
+            def self.isGem(gem_name)
+                # Check if this is a gem or not
+                Dir.chdir("/tmp") do
+                    outfile = "/tmp/gem-fetch-#{gem_name}"
+                    if not File.exists?(outfile)
+                        system("gem fetch #{gem_name} > #{outfile}")
+                    end
+                    if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
+                        Autoproj.info "GemDependencies: #{gem_name} is a ruby gem"
+                        return true
+                    end
+                end
+                return false
+            end
         end
 
         class Packager
