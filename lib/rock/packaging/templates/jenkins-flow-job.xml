@@ -29,7 +29,7 @@
 retry(3) {
     build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= gem%>&quot;)
     <% version = flow[:gem_versions][gem] || "noversion" %>
-    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;, package_version: &quot;<%= version.encode(:xml => :text) %>&quot;)
+    build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;, package_version: &quot;<%= version.encode(:xml => :text).gsub(' ','') %>&quot;)
 }
     <% end %>
 

@@ -167,7 +167,12 @@ options = OptionParser.new do |opt|
     end
     opt.on("--package-version VERSION", String, "The version requirement for the package to install use 'noversion' if no specific version is required, but option needs to be present") do |version|
         if version != "noversion"
-            o_package_version = version
+            # Since the version might be, e.g. <=1.0.3 it has to be
+            # escaped for the job description:
+            #     --package-version &lt;=1.0.3
+            # Here we make sure it is unescaped for further processing
+            require 'cgi'
+            o_package_version = CGI.unescapeHTML(version)
         end
     end
 end
