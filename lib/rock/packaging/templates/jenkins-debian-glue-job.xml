@@ -75,13 +75,13 @@
       <command>dest_dir=`pwd`
 build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$distribution-$architecture`
 
-echo "Destination dir for <%= package_name %> ($architecture): $dest_dir"
-echo "Creating build dir for <%= package_name %> ($architecture): $build_dir"
+echo "Destination dir for <%= options[:package_name] %> ($architecture): $dest_dir"
+echo "Creating build dir for <%= options[:package_name] %> ($architecture): $build_dir"
 mkdir -p $build_dir
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= package_name %>
+deb_package --distributions $distribution --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= options[:package_name] %>
 cd -
 # Making sure that the artifact land in the workspace directory
 # This is different for the gem, since it creates a directory ruby-my_gem
@@ -100,7 +100,7 @@ export REMOVE_FROM_RELEASE=true
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= package_name %>
+deb_package --distributions ${distribution} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
       </command>
     </hudson.tasks.Shell>
   </builders>

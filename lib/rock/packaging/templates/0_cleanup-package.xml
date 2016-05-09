@@ -30,10 +30,10 @@ Note: The list of distributions is hardcoded into this job</description>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>for i in vivid trusty wheezy jessie
+      <command>for i in xenial wily vivid trusty wheezy jessie
 do
     cd /var/www/packages/release/$release
-    reprepro removematched $i &quot;&apos;$package&apos;&quot;
+    reprepro removematched $i &quot;&apos;*$package*&apos;&quot;
 done
 reprepro deleteunreferenced</command>
     </hudson.tasks.Shell>
