@@ -1,8 +1,9 @@
 #!/usr/bin/make -f
 
 # BEGIN ENVIRONMENT SETUP
+
 rock_install_dir = <%= rock_install_directory %>
-rock_bindir = /tmp/rock/bin
+rock_bindir = $(rock_install_dir)/bin
 
 # Extract the default ruby version to build for on that platform
 # this assumes a proper setup of /usr/bin/ruby
@@ -15,12 +16,12 @@ rockruby_libdir=$(subst /usr,$(rock_install_dir),$(ruby_libdir))
 
 # Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
 # vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
-rockruby_extra_libdir = /usr/lib/ruby/vendor_ruby/standard/:/usr/lib/ruby/vendor_ruby/core/
+rockruby_extra_libdir = $(rock_install_dir)/lib/ruby/vendor_ruby/standard/:$(rock_install_dir)/lib/ruby/vendor_ruby/core/:$(rock_install_dir)/lib/ruby/vendor_ruby
 
 # Setting up the env variables
 env_setup = PATH=$(rock_bindir):$(PATH)
 env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_libdir):$(RUBYLIB)
-env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake CMAKE_PREFIX_PATH=$(rock_install_dir)
+env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake
 env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)
 env_setup += LD_LIBRARY_PATH=$(rock_install_dir)/lib:$(LD_LIBRARY_PATH)
 env_setup += OROGEN_PLUGIN_PATH=$(rock_install_dir)/share/orogen/plugins
