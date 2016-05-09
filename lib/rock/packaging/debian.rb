@@ -5,37 +5,176 @@ require 'tmpdir'
 require 'utilrb'
 require 'timeout'
 require 'set'
+require 'yaml'
+require 'singleton'
 
 module Autoproj
     module Packaging
-
         # Directory for temporary data to
         # validate obs_packages
         BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
         LOG_DIR=File.join(BUILD_DIR, "logs")
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
-        UBUNTU_RELEASES = ["precise","trusty","vivid","wily","xenial"]
-        DEBIAN_RELEASES = ["squeeze","wheezy", "jessie","stretch","sid"]
+
+        class Config
+            include Singleton
+
+            attr_accessor :config_file
+
+            attr_reader :linux_distribution_releases
+            attr_reader :ubuntu_releases
+            attr_reader :debian_releases
+
+            attr_reader :architectures
+
+            attr_reader :packages_aliases
+            attr_reader :packages_optional
+            attr_reader :packages_enforce_build
+            attr_reader :timestamp_format
+
+            def reload_config(file)
+                configuration = YAML.load_file(file)
+                @config_file = File.absolute_path(file)
+                @linux_distribution_releases = Hash.new
+
+                configuration["distributions"] ||= Hash.new
+                configuration["architectures"] ||= Hash.new
+                configuration["packages"] ||= Hash.new
+
+                configuration["distributions"].each do |key, values|
+                    types  = values["type"].gsub(' ','').split(",")
+                    labels = values["labels"].gsub(' ','').split(",")
+                    @linux_distribution_releases[key] = [types,labels]
+                end
+
+                @ubuntu_releases = @linux_distribution_releases.select do |release, values|
+                    values[0].include?("ubuntu")
+                end
+                @debian_releases = @linux_distribution_releases.select do |release, values|
+                    types = values[0]
+                    types.size == 1 && types.include?("debian")
+                end
+
+                @architectures = configuration["architectures"] || Hash.new
+                @packages_aliases = configuration["packages"]["aliases"] || Hash.new
+                @packages_optional = configuration["packages"]["optional"] || ""
+                if @packages_optional
+                    @packages_optional = @packages_optional.split(",")
+                end
+                @packages_enforce_build = configuration["packages"]["enforce_build"] || ""
+                if @packages_enforce_build
+                    @packages_enforce_build = @packages_enforce_build.split(",")
+                end
+                @timestamp_format = configuration["packages"]["timestamp_format"] || '%Y-%m-%d'
+            end
+
+            def initialize
+                config_file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
+                reload_config(config_file)
+            end
+
+            def self.config_file
+                instance.config_file
+            end
+
+            def self.linux_distribution_releases
+                instance.linux_distribution_releases
+            end
+
+            def self.ubuntu_releases
+                instance.ubuntu_releases
+            end
+
+            def self.debian_releases
+                instance.debian_releases
+            end
+
+            def self.architectures
+                instance.architectures
+            end
+
+            def self.packages_aliases
+                instance.packages_aliases
+            end
+
+            def self.packages_optional
+                instance.packages_optional
+            end
+
+            def self.packages_enforce_build
+                instance.packages_enforce_build
+            end
+
+            def self.timestamp_format
+                instance.timestamp_format
+            end
+
+            def self.to_s
+                s = "packager configuration file: #{config_file}\n"
+                s += "linux distribution releases:\n"
+                linux_distribution_releases.each do |key, values|
+                    label = key + ":"
+                    s += "    #{label.ljust(10,' ')}#{values}\n"
+                end
+                s += "\narchitectures:\n"
+                architectures.each do |arch, distributions|
+                    label = arch + ":"
+                    s += "    #{label.ljust(10,' ')}#{distributions}\n"
+                end
+                s+= "packages:\n"
+                s += "    aliases:\n"
+                packages_aliases.each do |pkg_name, a|
+                    s += "        #{pkg_name} --> #{a}\n"
+                end
+                s += "    optional packages:\n"
+                packages_optional.each do |pkg_name|
+                    s += "        #{pkg_name}\n"
+                end
+                s += "    enforce build  packages:\n"
+                packages_enforce_build.each do |pkg_name|
+                    s += "        #{pkg_name}\n"
+                end
+                s += "    timestamp format: #{timestamp_format}"
+                s
+            end
+        end # end Config
 
         class Distribution
+            # Check if the given name refers to an existing
+            # Ubuntu release
+            # New releases have to be added to the default configuration
             def self.isUbuntu(release_name)
                 release_name = release_name.downcase
-                if UBUNTU_RELEASES.include?(release_name)
+                if Packaging::Config.ubuntu_releases.keys.include?(release_name)
                     return true
                 end
                 false
             end
 
+            # Check if the given name refers to an existing
+            # Debian release
+            # New releases have to be added to the default configuration
             def self.isDebian(release_name)
                 release_name = release_name.downcase
-                if DEBIAN_RELEASES.include?(release_name)
+                if Packaging::Config.debian_releases.keys.include?(release_name)
                     return true
                 end
                 false
             end
 
+            # Check if the given release contains
+            # a package of the given name
+            #
+            # This method relies on the launchpad website for Ubuntu packages
+            # and the packages.debian.org/source website for Debian packages
             def self.containsPackage(release_name, package)
                 Packager.info "Check containsPackage: #{release_name} contains #{package}"
+
+                # handle corner cases, e.g. rgl
+                if Packaging::Config.packages_enforce_build.include?(package)
+                    return false
+                end
+
                 url =
                 ubuntu="https://launchpad.net/ubuntu/"
                 debian="https://packages.debian.org/source/"
@@ -79,9 +218,8 @@ module Autoproj
         end
 
         class GemDependencies
-            # Resolve the dependency of a gem using
-            # `gem dependency #{gem_name}`
-            # Thus this will only work if the local installation is update to date
+            # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
+            # This will only work if the local installation is update to date
             # regarding the gems
             def self.resolve_by_name(gem_name, runtime_deps_only = true)
                 if not gem_name.kind_of?(String)
@@ -91,26 +229,28 @@ module Autoproj
                 if $?.exitstatus != 0
                     raise ArgumentError, "Failed to resolve #{gem_name} -- pls install locally"
                 end
-                regexp = /(.*)\s\((.*)\)/
-                found_gem = false
 
                 # Output of gem dependency is not providing more information
                 # than for the specific gem found
-                #
-                # We assume here that the first GEM entry found related to the
-                # one we want, discarding the others
+                regexp = /(.*)\s\((.*)\)/
+                found_gem = false
                 current_version = nil
                 versioned_gems = Array.new
                 dependencies = Hash.new
                 gem_dependency.split("\n").each do |line|
                     if match = /Gem #{gem_name}-([0-9].*)/.match(line)
-                        # add after completion
+                        # add after completion of the parsing
                         if current_version
                             versioned_gems << {:version => current_version, :deps => dependencies}
+                            # Reset dependencies
+                            dependencies = Hash.new
+                            current_version = nil
                         end
                         current_version = match[1].strip
                         next
                     elsif match = /Gem/.match(line) # other package names
+                        # We assume here that the first GEM entry found is related to the
+                        # one we want, discarding the others
                         break
                     end
 
@@ -118,13 +258,16 @@ module Autoproj
                     if mg
                         dep_gem_name = mg[1].strip
                         dep_gem_version = mg[2].strip
+                        # Separate runtime dependencies from development dependencies
+                        # Typically we are interested only in the runtime dependencies
+                        # for the use case here (that why runtime_deps_only is true as default)
                         if runtime_deps_only && /development/.match(dep_gem_version)
                             next
                         end
                         dependencies[dep_gem_name] = dep_gem_version
                     end
                 end
-                # Finalize
+                # Finalize by adding the last one found (if there has been one)
                 if current_version
                     versioned_gems << { :version => current_version, :deps => dependencies }
                 end
@@ -169,6 +312,9 @@ module Autoproj
                 dependencies
             end
 
+            # Sort gems based on their interdependencies
+            # Dependencies is a hash where the key is the gem and
+            # the value is the list of dependencies
             def self.sort_by_dependency(dependencies = Hash.new)
                 ordered_gem_list = Array.new
                 while true
@@ -177,16 +323,23 @@ module Autoproj
                     end
 
                     handled_packages = Array.new
+
+                    # Take all gems which are either standalone, or
+                    # whose dependencies have already been processed
                     dependencies.each do |gem_name, gem_dependencies|
                         if gem_dependencies.empty?
                             handled_packages << gem_name
                             ordered_gem_list << gem_name
                         end
                     end
+
+                    # Remove handled packages from the list of dependencies
                     handled_packages.each do |gem_name|
                         dependencies.delete(gem_name)
                     end
 
+                    # Remove the handled packages from the dependency lists
+                    # of all other packages
                     dependencies_refreshed = Hash.new
                     dependencies.each do |gem_name, gem_dependencies|
                         gem_dependencies.reject! { |x| handled_packages.include? x }
@@ -201,17 +354,26 @@ module Autoproj
                 ordered_gem_list
             end
 
+            # Sorted list of dependencies
             def self.sorted_gem_list(gems)
                 dependencies = resolve_all(gems)
                 sort_by_dependency(dependencies)
             end
 
+            # Check is the given name refers to an existing gem
+            # uses 'gem fetch' for testing
             def self.isGem(gem_name)
+                if gem_name =~ /\//
+                    Autoproj.info "GemDependencies: invalid name -- cannot be a gem"
+                    return false
+                end
                 # Check if this is a gem or not
                 Dir.chdir("/tmp") do
                     outfile = "/tmp/gem-fetch-#{gem_name}"
                     if not File.exists?(outfile)
-                        system("gem fetch #{gem_name} > #{outfile}")
+                        if !system("gem fetch #{gem_name} > #{outfile}")
+                            return false
+                        end
                     end
                     if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
                         Autoproj.info "GemDependencies: #{gem_name} is a ruby gem"
@@ -235,6 +397,8 @@ module Autoproj
                 @local_tmp_dir = LOCAL_TMP
             end
 
+            # Check that the list of distributions contains at maximum one entry
+            # raises ArgumentError if that number is exceeded
             def max_one_distribution(distributions)
                 distribution = nil
                 if !distributions.kind_of?(Array)
@@ -272,6 +436,7 @@ module Autoproj
 
                     # Test whether there is a local
                     # version of the package to use.
+                    # Only for Git-based repositories
                     # If it is not available import package
                     # from the original source
                     if pkg.importer.kind_of?(Autobuild::Git)
@@ -444,7 +609,9 @@ module Autoproj
             attr_accessor :rock_base_install_directory
             attr_accessor :rock_release_name
 
+            # List of alternative rake target names to clean a gem
             attr_accessor :gem_clean_alternatives
+            # List of alternative rake target names to create a gem
             attr_accessor :gem_creation_alternatives
 
             def initialize(existing_debian_directories)
@@ -472,6 +639,7 @@ module Autoproj
                 end
             end
 
+            # Canonize that name -- downcase and replace _ with -
             def canonize(name)
                 name.gsub(/[\/_]/, '-').downcase
             end
@@ -485,14 +653,18 @@ module Autoproj
                 name
             end
 
+            # Add a package alias, e.g. for rtt --> tools/rtt
             def add_package_alias(pkg_name, pkg_alias)
                 @package_aliases[pkg_name] = pkg_alias
             end
 
             # The debian name of a package -- either
-            # rock-<canonized-package-name>
+            # rock[-<release-name>]-<canonized-package-name>
             # or for ruby packages
-            # ruby-<canonized-package-name>
+            # ruby[-<release-name>]-<canonized-package-name>
+            # and the release-name can be avoided by setting
+            # with_rock_release_prefix to false
+            #
             def debian_name(pkg, with_rock_release_prefix = true)
                 if pkg.kind_of?(String)
                     raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
@@ -514,10 +686,12 @@ module Autoproj
                 end
             end
 
+            # Get the current rock-release-based prefix for rock packages
             def rock_release_prefix
                 "rock-#{rock_release_name}-"
             end
 
+            # Get the current rock-release-based prefix for rock-(ruby) packages
             def rock_ruby_release_prefix
                 rock_release_prefix + "ruby-"
             end
@@ -614,7 +788,10 @@ module Autoproj
                             pkg_name = @package_aliases[pkg_name]
                         end
 
-                        pkg = Autoproj.manifest.package(pkg_name).autobuild
+                        #pkg = Autoproj.manifest.package(pkg_name).autobuild
+                        pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
+                        pkg = pkg_manifest.package
+
                         pkg.resolve_optional_dependencies
                         reverse_dependencies[pkg.name] = pkg.dependencies
                         Packager.info "deps: #{pkg.name} --> #{pkg.dependencies}"
@@ -742,6 +919,7 @@ module Autoproj
                 # avoid the rock-release prefix for jobs
                 with_rock_release_prefix = false
                 options[:job_name] = debian_name(pkg, with_rock_release_prefix)
+                options[:package_name] = pkg.name
 
                 all_deps = dependencies(pkg)
                 Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
@@ -762,6 +940,7 @@ module Autoproj
                 # for destination and build directory
                 options[:dir_name] = debian_ruby_name(gem_name)
                 options[:job_name] = gem_name
+                options[:package_name] = gem_name
                 Packager.info "Create ruby job: #{gem_name}, options #{options}"
                 create_job(options[:job_name], options, force)
             end
@@ -769,8 +948,8 @@ module Autoproj
 
             # Create a jenkins job
             def create_job(package_name, options = Hash.new, force = false)
-                options[:architectures] ||= [ 'amd64','i386','armel','armhf' ]
-                options[:distributions] ||= [ 'trusty','vivid','jessie' ]
+                options[:architectures] ||= Packaging::Config.architectures.keys
+                options[:distributions] ||= Packaging::Config.distributions.keys
                 options[:job_name] ||= package_name
 
                 combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
@@ -811,33 +990,19 @@ module Autoproj
                 Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
                 package: '#{package_name}', isGem: #{isGem}"
                 whitelist = []
-                UBUNTU_RELEASES.each do |release|
-                    if not distributions.include?(release)
-                        next
-                    end
-                    if !Distribution::containsPackage(release, package_name) &&
-                        !(isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
-                        ["amd64","i386"].each do |arch|
-                            whitelist << [release, arch]
+                Packaging::Config.architectures.each do |requested_architecture, allowed_distributions|
+                    allowed_distributions.each do |release|
+                        if not distributions.include?(release)
+                            next
                         end
-                    else
-                        Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
-                    end
-                end
 
-                DEBIAN_RELEASES.each do |release|
-                    if not distributions.include?(release)
-                        next
-                    end
-                    if !Distribution::containsPackage(release, package_name) &&
-                        !( isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
-                        # arm64 available from jessie onwards:
-                        #     https://wiki.debian.org/Arm64Port
-                        ["amd64","i386","armhf","armel"].each do |arch|
-                            whitelist << [release, arch]
+                        if !Distribution::containsPackage(release, package_name) &&
+                            !(isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
+
+                                whitelist << [release, requested_architecture]
+                        else
+                            Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
                         end
-                    else
-                        Packager.info "package: '#{package_name}' is part of the debian release: '#{release}'"
                     end
                 end
 
@@ -958,8 +1123,8 @@ module Autoproj
             end
 
             # Compute dependencies of this package
-            # Returns [rock_packages, osdeps_packages]
-            def dependencies(pkg, with_rock_release_prefix = true)
+            # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
+            def dependencies(pkg, with_rock_release_prefix = true, distribution = nil)
                 # Reload pkg manifest to get all dependencies -- otherwise
                 # the dependencies list might be incomplete
                 # TODO: Check if this is a bug in autoproj
@@ -1016,6 +1181,52 @@ module Autoproj
                 @osdeps.uniq!
                 @ruby_gems.uniq!
 
+                if distribution
+                    # CASTXML vs. GCCXML
+                    if pkg.name =~ /typelib/ && !["xenial"].include?(distribution)
+                        # remove the optional dependency for all other except for xenial
+                        deps_rock_packages.delete(rock_release_prefix + "castxml")
+                    end
+                    Packager.info "'#{pkg.name}' with (available) rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
+
+                    # Filter out optional packages, e.g. llvm and clang for all platforms where not explicitly available
+                    deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                        Packaging::Config.packages_optional.each do |pkg_name|
+                            regex = Regexp.new(pkg_name)
+                            if regex.match(name)
+                                Distribution::containsPackage(distribution, name)
+                            else
+                                true
+                            end
+                        end
+                    end
+                    Packager.info "'#{pkg.name}' with (available) osdeps dependencies: '#{deps_osdeps_packages}'"
+
+                    # Filter ruby versions out -- we assume chroot has installed all
+                    # ruby versions
+                    #
+                    # This is a workaround, since the information about required packages
+                    # comes from the build server platform and might not correspond
+                    # with the target platform
+                    #
+                    # Right approach: bootstrap within chroot and generate source packages
+                    # in the chroot
+                    #deps_osdeps_packages = deps[:osdeps].select do |name|
+                    deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                        name !~ /^ruby[0-9][0-9.]*/
+                    end
+
+                    # Prefer package of the OS for gems if they are available there
+                    #deps_nonnative_packages = deps[:nonnative].map do |name, version|
+                    non_native_dependencies = non_native_dependencies.map do |name, version|
+                        if Distribution::containsPackage(distribution, name)
+                            name
+                        else
+                            debian_ruby_name(name, with_rock_release_prefix)
+                        end
+                    end
+                end
+
                 # Return rock packages, osdeps and non native deps (here gems)
                 {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
             end
@@ -1036,35 +1247,11 @@ module Autoproj
                 debian_version = debian_version(pkg, distribution)
                 versioned_name = versioned_name(pkg, distribution)
 
-                deps = dependencies(pkg)
+                with_rock_prefix = true
+                deps = dependencies(pkg, with_rock_prefix, distribution)
                 deps_rock_packages = deps[:rock]
-                # Filter ruby versions out -- we assume chroot has installed all
-                # ruby versions
-                #
-                # This is a workaround, since the information about required packages
-                # comes from the build server platform and might not correspond
-                # with the target platform
-                #
-                # Right approach: bootstrap within chroot and generate source packages
-                # in the chroot
-                deps_osdeps_packages = deps[:osdeps].select do |name|
-                    name !~ /^ruby[0-9][0-9.]*/
-                end
-                # Filter out clang
-                deps_osdeps_packages = deps_osdeps_packages.select do |name|
-                    name !~ /clang/
-                end
-                deps_osdeps_packages = deps_osdeps_packages.select do |name|
-                    name !~ /llvm/
-                end
-
-                deps_nonnative_packages = deps[:nonnative].map do |name, version|
-                    if Distribution::containsPackage(distribution, name)
-                        name
-                    else
-                        debian_ruby_name(name)
-                    end
-                end
+                deps_osdeps_packages = deps[:osdeps]
+                deps_nonnative_packages = deps[:nonnative]
 
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                 Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
@@ -1101,8 +1288,8 @@ module Autoproj
                 # Make sure that the tar files checksum remains the same, even when modification timestamp changes,
                 # i.e. use gzip --no-name and set the initial date to the current day
                 #
-                # TODO: What if building over midnight -- single point of failure
-                mtime=`date +%Y-%m-%d`
+                # NOTE: What if building over midnight -- single point of failure
+                mtime=`date +#{Packaging::Config.timestamp_format}`
                 cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
                 if system(cmd_tar)
@@ -1305,22 +1492,10 @@ module Autoproj
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
 
-#NEW!!!
-                	# Make sure that the tar files checksum remains the same, even when modification timestamp changes,
-                	# i.e. use gzip --no-name and set the initial date to the current day
-                	#
-                	# TODO: What if building over midnight -- single point of failure
-                	mtime=`date +%Y-%m-%d`
-			mtime = mtime.strip
-                        cmd_tar = "tar czf #{tarball} --exclude .git --exclude .svn --exclude CVS --exclude debian --mtime=#{mtime} --exclude build #{File.basename(pkg.srcdir)}"
-                        if !system(cmd_tar)
-                            Packager.warn "Package: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
-                            raise RuntimeError, "Debian: on import #{pkg.name} failed to create archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
-                        else
-                            Packager.info "Package: #{pkg.name} successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} from #{ENV['PWD']}"
+                        source_package_dir = File.basename(pkg.srcdir)
+                        if !tar_gzip(source_package_dir, tarball)
+                            raise RuntimeError, "Package: failed to tar directory #{source_package_dir}"
                         end
-
-FileUtils.cp tarball, "/tmp/"
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir, distribution)
@@ -1652,11 +1827,22 @@ FileUtils.cp tarball, "/tmp/"
                                 # so add a commit
                                 orig_files = Dir["#{gem_patch_dir}/**"].reject { |f| f["#{gem_patch_dir}/debian/"] }
                                 if orig_files.size > 0
-                                    dpkg_commit_changes("ocl_autopackaging_overlay")
+                                    dpkg_commit_changes("deb_autopackaging_overlay")
                                 end
                             else
                                 Packager.warn "No patch dir: #{gem_patch_dir}"
                             end
+                        end
+
+                        #####################
+                        # pkgconfig/*.pc file
+                        #####################
+                        # allow usage of ${rock_install_dir} in pkgconfig files
+                        pkgconfig_file = Dir.glob("pkgconfig/*.pc")
+                        if !pkgconfig_file.empty?
+                            pkgconfig_file = pkgconfig_file.first
+                            `sed -i '1 i rock_install_dir=#{rock_install_directory}' #{pkgconfig_file}`
+                            dpkg_commit_changes("update_pkgconfig_file")
                         end
 
                         ################
@@ -1720,7 +1906,7 @@ FileUtils.cp tarball, "/tmp/"
                         deps << "dh-autoreconf"
                         `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
 
-                        dpkg_commit_changes("ocl_extra_dependencies")
+                        dpkg_commit_changes("deb_extra_dependencies")
 
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
                         # Relaxing the required gem2deb version to allow for for multiplatform support
@@ -1737,7 +1923,11 @@ FileUtils.cp tarball, "/tmp/"
                         Packager.info "Adapt original package name if it exists"
                         original_name = debian_ruby_name(gem_base_name, false)
                         release_name = debian_ruby_name(gem_base_name, true)
-                        `sed -i "s##{original_name}##{release_name}#g" debian/control`
+                        # Avoid replacing parts of the release name, when it is already adapted
+                        # rock-master-ruby-facets with ruby-facets
+                        `sed -i "s##{release_name}##{original_name}#g" debian/*`
+                        # Inject the true name
+                        `sed -i "s##{original_name}##{release_name}#g" debian/*`
                         dpkg_commit_changes("adapt_original_package_name")
 
                         ################
@@ -1750,10 +1940,13 @@ FileUtils.cp tarball, "/tmp/"
                         Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""))}$(rock_install_dir)' debian/rules`
+                        `sed -i '1 a env_setup += PATH=$(rock_install_dir)/bin:$(PATH)' debian/rules`
+                        `sed -i '1 a env_setup += RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby' debian/rules`
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",release_name)}$(rock_install_dir)' debian/rules`
                         `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
                         `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
                         `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
+                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""))}$(rock_install_dir)' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
                         # Ignore all ruby test results when the binary package is build (on the build server)

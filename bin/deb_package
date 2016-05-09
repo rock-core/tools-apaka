@@ -1,7 +1,7 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
 
-# Prevent deb_package from parallel execution since autoproj configuration loading 
+# Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
 lock_file = File.open("/tmp/deb_package.lock",File::CREAT)
 Autoproj.debug "deb_package: waiting for execution lock"
@@ -236,33 +236,17 @@ selection = result | selection # -> union
 
 options = Hash.new
 
+puts "Using configuration:\n#{Autoproj::Packaging::Config}"
+
 if o_distributions.size == 1
+    distribution = o_distributions[0]
     operating_system = []
-    case o_distributions[0]
-    when "precise"
-        operating_system << ["ubuntu","debian"]
-        operating_system << ["12.04","12.04.4","lts","precise","pangolin","default"]
-    when "trusty"
-        operating_system << ["ubuntu","debian"]
-        operating_system << ["14.04","14.04.2","lts","trusty","tahr","default"]
-    when "vivid"
-        operating_system << ["ubuntu","debian"]
-        operating_system << ["15.04","lts","vivid","vervet","default"]
-    when "squeeze"
-        operating_system << ["debian"]
-        operating_system << ["6.0","squeeze","default"]
-    when "wheezy"
-        operating_system << ["debian"]
-        operating_system << ["7.8","wheezy","default"]
-    when "jessie"
-        operating_system << ["debian"]
-        operating_system << ["8.1","jessie","default"]
-    when "sid"
-        operating_system << ["debian"]
-        operating_system << ["9.0","sid","default"]
+    if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(distribution)
+        operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ distribution ]
     else
-        puts "WARNING: Custom setting of operating system to: #{o_distributions[0]} is not supported"
+        puts "WARNING: Custom setting of operating system to: #{distribution} is not supported"
     end
+
     if !operating_system.empty?
         Autoproj::OSDependencies.operating_system = operating_system
         puts "Custom setting of operating system to: #{operating_system}"
@@ -271,9 +255,18 @@ end
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
 
+# First load autoproj so that we can query what is a in rock defined
+# package and what is not
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(nil)
+
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
-    if Autoproj::Packaging::GemDependencies::isGem(name)
+    if pkg = Autoproj.manifest.package(name)
+        Autoproj.warn "Package: #{name} is a known rock package"
+        true
+    elsif Autoproj::Packaging::GemDependencies::isGem(name)
+        Autoproj.warn "Package: #{name} is a gem"
         packager.ruby_gems << [name, o_package_version]
         false
     else
@@ -282,16 +275,14 @@ selected_rock_packages = o_selected_packages.select do |name|
 end
 
 Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
-
-root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
-packager.add_package_alias "tools/rtt", "rtt"
-packager.add_package_alias "tools/rtt-typelib", "rtt-typelib"
-packager.add_package_alias "tools/typelib", "typelib"
-packager.add_package_alias "tools/utilrb", "utilrb"
-packager.add_package_alias "tools/utilrb-ext", "utilrb-ext"
+# Add all aliases, e.g. for tools/rtt --> rtt
+# basically for all packages that have been relocated using Autoproj's move_package command
+Autoproj::Packaging::Config.packages_aliases.each do |pkg_name, alias_name|
+    packager.add_package_alias pkg_name, alias_name
+end
 
 packager.prepare
 
@@ -317,10 +308,23 @@ selection = selection.select do |pkg_name, i|
     end
 end
 
+sync_packages = []
+
 Dir.chdir(packager.build_dir) do
 
     if o_package && o_all_packages
         Autobuild.do_update = true
+
+        packager.ruby_gems.each do |pkg_name, version|
+            Autoproj.info "Converting ruby gem: '#{pkg_name}'"
+            # Fails to be detected as normal package
+            # so we assume it is a ruby gem
+            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
+
+            debian_pkg_name = packager.debian_ruby_name(pkg_name)
+            sync_packages << debian_pkg_name
+        end
+
         selection.each_with_index do |pkg_name, i|
             if pkg = Autoproj.manifest.package(pkg_name)
                 pkg = pkg.autobuild
@@ -339,6 +343,8 @@ Dir.chdir(packager.build_dir) do
             end
 
             puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+            # Making sure all packages that require base/cmake due to using Rock CMake macros have
+            # a dependency on base/cmake
             if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
                 cmakelists_txt = File.read(File.join(pkg.srcdir, "CMakeLists.txt"))
                 if cmakelists_txt =~ /include\(Rock\)|Rock\.cmake/ || cmakelists_txt =~ /find_package\(Rock\)/
@@ -348,6 +354,9 @@ Dir.chdir(packager.build_dir) do
 
             begin
                 packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir, :distributions => o_distributions })
+
+                debian_pkg_name = packager.debian_name(pkg)
+                sync_packages << debian_pkg_name
             rescue Interrupt
                 raise
             rescue Exception => e
@@ -433,35 +442,7 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_dest_dir && o_package
-        # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
-        sync_package = []
-
-        if o_all_packages
-            # Update all packages
-            selection.each_with_index do |pkg_name, i|
-                Autoproj.warn "Selection with #{pkg_name}"
-                debian_pkg_name = nil
-                pkg = Autoproj.manifest.package(pkg_name)
-                if pkg
-                    Autoproj.warn "Found debian package: #{debian_pkg_name}"
-                    debian_pkg_name = packager.debian_name(pkg.autobuild)
-                    sync_package << debian_pkg_name
-                else
-                    Autoproj.warn "Found package that is not resolvable through manifest: #{pkg_name}"
-                end
-            end
-        end
-
-        packager.ruby_gems.each do |pkg_name, version|
-            Autoproj.info "Converting ruby gem: '#{pkg_name}'"
-            # Fails to be detected as normal package
-            # so we assume it is a ruby gem
-            debian_pkg_name = packager.debian_ruby_name(pkg_name)
-            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
-            sync_package << debian_pkg_name
-        end
-
-        sync_package.each do |debian_pkg_name|
+        sync_packages.each do |debian_pkg_name|
             # sync the directory in build/debian and the target directory based on an existing
             # files pattern
             files = []

@@ -1,0 +1,50 @@
+---
+# what distributions are available
+# type: refers to autoproj type that is searched for in the osdeps file
+# labels: refers to autoproj labels that are searched for in the
+# osdeps files
+distributions:
+    precise:
+        type: ubuntu,debian
+        labels: 12.04,12.04.4,lts,precise,pangolin,default
+    trusty:
+        type: ubuntu, debian
+        labels: 14.04,14.04.2,lts,trusty,tahr,default
+    vivid:
+        type: ubuntu,debian
+        labels: 15.04,lts,vivid,vervet,default
+    wily:
+        type: ubuntu,debian
+        labels: 15.10,wily,werewolf,default
+    xenial:
+        type: ubuntu,debian
+        labels: 16.04,lts,xenial,xerus,default
+    squeeze:
+        type: debian
+        labels: 6.0,squeeze,default
+    wheezy:
+        type: debian
+        labels: 7.8,wheezy,default
+    jessie:
+        type: debian
+        labels: 8.1,jessie,default
+    sid:
+        type: debian
+        labels: 9.0,sid,default
+# what distribution should be build with which architecture
+architectures:
+    amd64: trusty,vivid,xenial,jessie
+    i386:  trusty,vivid,xenial,jessie
+    armel: jessie
+    armhf: jessie
+packages:
+    aliases:
+        tools/rtt: rtt
+        tools/rtt-typelib: rtt-typelib
+        tools/typelib: typelib
+        tools/utilrb: utilrb
+        tools/utilrb-ext: utilrb-ext
+    optional: llvm,clang
+    enforce_build: rgl
+    timestamp_format: '%Y-%m-%d'
+
