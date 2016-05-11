@@ -55,7 +55,11 @@ module Autoproj
                     types.size == 1 && types.include?("debian")
                 end
 
-                @architectures = configuration["architectures"] || Hash.new
+                @architectures = Hash.new
+                architectures = configuration["architectures"] || Hash.new
+                architectures.each do |arch,allowed_releases|
+                    @architectures[arch] = allowed_releases.gsub(' ','').split(",")
+                end
                 @packages_aliases = configuration["packages"]["aliases"] || Hash.new
                 @packages_optional = configuration["packages"]["optional"] || ""
                 if @packages_optional
@@ -109,6 +113,24 @@ module Autoproj
                 instance.timestamp_format
             end
 
+            def self.active_distributions
+                linux_distribution_releases.collect do |name,ids|
+                    if build_for_distribution?(name)
+                        name
+                    end
+                end.compact
+            end
+
+            def self.build_for_distribution?(distribution_name)
+                architectures.each do |arch, allowed_distributions|
+                    if allowed_distributions.include?(distribution_name)
+                        return true
+                    end
+                end
+                return false
+            end
+
+
             def self.to_s
                 s = "packager configuration file: #{config_file}\n"
                 s += "linux distribution releases:\n"
@@ -121,6 +143,7 @@ module Autoproj
                     label = arch + ":"
                     s += "    #{label.ljust(10,' ')}#{distributions}\n"
                 end
+                s += "active linux distribution releases: #{active_distributions}\n"
                 s+= "packages:\n"
                 s += "    aliases:\n"
                 packages_aliases.each do |pkg_name, a|
@@ -949,7 +972,7 @@ module Autoproj
             # Create a jenkins job
             def create_job(package_name, options = Hash.new, force = false)
                 options[:architectures] ||= Packaging::Config.architectures.keys
-                options[:distributions] ||= Packaging::Config.distributions.keys
+                options[:distributions] ||= Packaging::Config.active_distributions
                 options[:job_name] ||= package_name
 
                 combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
