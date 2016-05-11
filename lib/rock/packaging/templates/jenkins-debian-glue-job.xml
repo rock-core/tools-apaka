@@ -96,6 +96,7 @@ mv $build_dir/<%= options[:dir_name] %>/* .
     <hudson.tasks.Shell>
       <command>
 export REMOVE_FROM_RELEASE=true
+export RELEASE_DISTRIBUTION=${distribution}
 /usr/bin/build-and-provide-package
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
