@@ -1328,16 +1328,26 @@ module Autoproj
                     # Prefer package of the OS for gems if they are available there
                     #deps_nonnative_packages = deps[:nonnative].map do |name, version|
                     non_native_dependencies = non_native_dependencies.map do |name, version|
-                        if Distribution::containsPackage(distribution, name)
-                            name
-                        else
-                            debian_ruby_name(name, with_rock_release_prefix)
-                        end
+                        native_dependency_name(distribution, name)
                     end
                 end
 
                 # Return rock packages, osdeps and non native deps (here gems)
                 {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
+            end
+
+            # Check if the plain package name exists in the given distribution
+            # if that is the case use that one -- if not, then use the ruby name
+            # since then is it is either part of the flow job
+            # or an os dependency
+            def native_dependency_name(distribution, name)
+                if Distribution::containsPackage(distribution, name)
+                    name
+                elsif Distribution::containsPackage(distribution, debian_ruby_name(name, false))
+                    debian_ruby_name(name, false)
+                else
+                    debian_ruby_name(name, with_rock_release_prefix)
+                end
             end
 
             def generate_debian_dir(pkg, dir, distribution)
@@ -1996,11 +2006,7 @@ module Autoproj
                         # since then is it is either part of the flow job
                         # or an os dependency
                         gem_deps = gem_deps.keys.each do |k|
-                            if Distribution::containsPackage(distribution, k)
-                                all_deps << k
-                            else
-                                all_deps << debian_ruby_name(k)
-                            end
+                            all_deps << native_dependency_name(distribution, k)
                         end
                         deps = all_deps.uniq
 
