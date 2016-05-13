@@ -7,6 +7,7 @@ require 'timeout'
 require 'set'
 require 'yaml'
 require 'singleton'
+require 'rubygems/requirement'
 
 module Autoproj
     module Packaging
@@ -257,13 +258,26 @@ module Autoproj
             # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
             # This will only work if the local installation is update to date
             # regarding the gems
-            def self.resolve_by_name(gem_name, runtime_deps_only = true)
+            # return [:deps => , :version =>  ]
+            def self.resolve_by_name(gem_name, version = nil, runtime_deps_only = true)
                 if not gem_name.kind_of?(String)
                     raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
                 end
-                gem_dependency = `gem dependency #{gem_name}`
+                version_requirements = Array.new
+                if version
+                    if version.kind_of?(Set)
+                        version_requirements = version.to_a.compact
+                    elsif version.kind_of?(String)
+                        version_requirements = version.gsub(' ','').split(',')
+                    else
+                        version_requirements = version
+                    end
+                end
+                gem_dependency_cmd = "gem dependency #{gem_name}"
+                gem_dependency = `#{gem_dependency_cmd}`
+
                 if $?.exitstatus != 0
-                    raise ArgumentError, "Failed to resolve #{gem_name} -- pls install locally"
+                    raise ArgumentError, "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- pls install locally"
                 end
 
                 # Output of gem dependency is not providing more information
@@ -300,7 +314,9 @@ module Autoproj
                         if runtime_deps_only && /development/.match(dep_gem_version)
                             next
                         end
-                        dependencies[dep_gem_name] = dep_gem_version
+                        # There can be multiple version requirement for a dependency,
+                        # so we store them as an array
+                        dependencies[dep_gem_name] = dep_gem_version.gsub(' ','').split(',')
                     end
                 end
                 # Finalize by adding the last one found (if there has been one)
@@ -309,41 +325,83 @@ module Autoproj
                 end
 
                 # pick last, i.e. highest version
-                versioned_gems.last[:deps]
+                requirements = Array.new
+                version_requirements.each do |requirement|
+                    requirements << Gem::Version::Requirement.new(requirement)
+                end
+                versioned_gems = versioned_gems.select do |description|
+                    do_select = true
+                    requirements.each do |required_version|
+                        available_version = Gem::Version.new(description[:version])
+                        if !required_version.satisfied_by?(available_version)
+                            do_select = false
+                        end
+                    end
+                    do_select
+                end
+                if versioned_gems.empty?
+                    raise RuntimeError, "GemDependencies::resolve_by_name failed to find a gems that satisfied the version requirements: #{version_requirements}"
+                else
+                    versioned_gems.last
+                end
             end
 
-            # Resolve all dependencies of a list of names of gems
-            # Returns[Hash] with keys as required gems and the direct dependencies
-            # as values
+            # Resolve all dependencies of a list of name or |name,version| tuples of gems
+            # Returns[Hash] with keys as required gems and versioned dependencies
+            # as values (a Ruby Set)
             def self.resolve_all(gems)
+                Autoproj.info "Resolve all: #{gems}"
+
                 dependencies = Hash.new
                 handled_gems = Set.new
 
-                remaining_gems = gems
-                if gems.kind_of?(Array)
-                    remaining_gems = gems.to_set
+                if gems.kind_of?(String)
+                    gems = [gems]
                 end
 
-                Autoproj.info "Resolve all: #{gems}"
+                remaining_gems = Hash.new
+                if gems.kind_of?(Array)
+                    gems.collect do |value|
+                        # only the gem name is given
+                        if value.kind_of?(String)
+                            name = value
+                            version = nil
+                        else
+                            name, version = value
+                        end
+
+                        remaining_gems[name] ||= Array.new
+                        remaining_gems[name] << version
+                    end
+                elsif gems.kind_of?(Hash)
+                    remaining_gems = gems
+                end
+
+                Autoproj.info "Resolve remaining: #{remaining_gems}"
 
                 while !remaining_gems.empty?
                     Autoproj.info "Resolve all: #{remaining_gems.to_a}"
-                    remaining = Set.new
-                    remaining_gems.each do |gem_name|
-                        deps = resolve_by_name(gem_name)
+                    remaining = Hash.new
+                    remaining_gems.each do |gem_name, gem_versions|
+                        deps = resolve_by_name(gem_name, gem_versions)[:deps]
                         handled_gems << gem_name
 
-                        dependencies[gem_name] = Set.new
+                        dependencies[gem_name] = Hash.new
                         deps.each do |gem_dep_name, gem_dep_version|
-                            dependencies[gem_name].add(gem_dep_name)
+                            dependencies[gem_name][gem_dep_name] ||= Array.new
+                            dependencies[gem_name][gem_dep_name] += gem_dep_version
 
                             if !handled_gems.include?(gem_dep_name)
-                                remaining << gem_dep_name
+                                remaining[gem_dep_name] ||= Array.new
+                                remaining[gem_dep_name] += gem_dep_version
                             end
                         end
                     end
                     remaining_gems.select! { |g| !handled_gems.include?(g) }
-                    remaining_gems = remaining_gems.merge(remaining)
+                    remaining.each do |name, versions|
+                        remaining_gems[name] ||= Array.new
+                        remaining_gems[name] = (remaining_gems[name] + versions).uniq
+                    end
                 end
                 dependencies
             end
@@ -378,7 +436,7 @@ module Autoproj
                     # of all other packages
                     dependencies_refreshed = Hash.new
                     dependencies.each do |gem_name, gem_dependencies|
-                        gem_dependencies.reject! { |x| handled_packages.include? x }
+                        gem_dependencies.reject! { |x, version| handled_packages.include? x }
                         dependencies_refreshed[gem_name] = gem_dependencies
                     end
                     dependencies = dependencies_refreshed
@@ -394,6 +452,14 @@ module Autoproj
             def self.sorted_gem_list(gems)
                 dependencies = resolve_all(gems)
                 sort_by_dependency(dependencies)
+            end
+
+            def self.gem_exact_versions(gems)
+                gem_exact_version = Hash.new
+                gems.each do |gem_name, version_requirements|
+                    gem_exact_version[gem_name] = resolve_by_name(gem_name, version_requirements)[:version]
+                end
+                gem_exact_version
             end
 
             # Check is the given name refers to an existing gem
@@ -880,29 +946,12 @@ module Autoproj
             end
 
             def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
-                with_rock_release_prefix = false
-                flow = Hash.new
-                all_packages = all_required_rock_packages(selection)
-                flow[:packages] = all_packages.map{ |pkg| debian_name(pkg, with_rock_release_prefix) }
-                Packager.info "Creating flow of rock packages: #{flow[:packages]}"
-
-                flow[:gems] = Array.new
-                flow[:gem_versions] = Hash.new
-                all_packages.each do |pkg|
-                    pkg = Autoproj.manifest.package(pkg.name).autobuild
-                    deps = dependencies(pkg, with_rock_release_prefix )
-                    deps[:nonnative].each do |dep, version|
-                        flow[:gems] << dep
-                        if version
-                            flow[:gem_versions][dep] = version
-                        else
-                            flow[:gem_versions][dep] = "noversion"
-                        end
+                flow = all_required_packages(selection)
+                flow[:gems].each do |name|
+                    if !flow[:gem_versions].has_key?(name)
+                        flow[:gem_versions][name] = "noversion"
                     end
                 end
-                flow[:gems].uniq!
-                gem_deps = GemDependencies.sorted_gem_list(flow[:gems])
-                flow[:gems] = gem_deps
                 Packager.info "Creating flow of gems: #{flow[:gems]}"
 
                 create_flow_job_xml(name, flow, flavor, false, force)
@@ -1143,19 +1192,45 @@ module Autoproj
             #
             # This requires the current installation to be complete since
             # `gem dependency <gem-name>` has been selected to provide the information
-            def all_required_ruby_gems
-                gems = @ruby_gems.map {|gem_name,version| gem_name }
-                dependencies = GemDependencies.resolve_all(gems)
-                required_ruby_gems = []
-                dependencies.keys.each do |gem_name|
-                    if @ruby_gems.include?(gem_name)
-                        required_ruby_gems << @ruby_gems[gem_name]
-                    else
-                        version = nil
-                        required_ruby_gems << [gem_name, version]
+            def all_required_packages(selection, with_rock_release_prefix = false)
+                all_packages = all_required_rock_packages(selection)
+                rock_packages = all_packages.map{ |pkg| debian_name(pkg, with_rock_release_prefix) }
+
+                gems = Array.new
+                gem_versions = Hash.new
+
+                # Make sure to account for extra packages
+                @ruby_gems.each do |name, version|
+                    gems << name
+                    gem_versions[name] ||= Array.new
+                    gem_versions[name] << version
+                end
+
+                all_packages.each do |pkg|
+                    pkg = Autoproj.manifest.package(pkg.name).autobuild
+                    deps = dependencies(pkg, with_rock_release_prefix )
+                    deps[:nonnative].each do |dep, version|
+                        gem_versions[dep] ||= Array.new
+                        if version
+                            gem_versions[dep] << version
+                        end
                     end
                 end
-                required_ruby_gems
+
+                gem_version_requirements = gem_versions.dup
+                gem_dependencies = GemDependencies.resolve_all(gem_versions)
+                gem_dependencies.each do |name, deps|
+                    if deps
+                        deps.each do |dep_name, dep_versions|
+                            gem_version_requirements[dep_name] ||= Array.new
+                            gem_version_requirements[dep_name] = (gem_version_requirements[dep_name] + dep_versions).uniq
+                        end
+                    end
+                end
+                exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
+                sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
+
+                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
             end
 
             # Compute dependencies of this package
@@ -1763,8 +1838,9 @@ module Autoproj
                     if gem_versioned_name =~ /(.*)(-[0-9]+\.[0-9\.-]*(-[0-9]+)*)/
                         gem_base_name = $1
                         version_suffix = gem_versioned_name.gsub(gem_base_name,"").gsub(/\.gem/,"")
+                        gem_version = version_suffix.sub('-','')
                         Packager.info "gem basename: #{gem_base_name}"
-                        Packager.info "gem version: #{version_suffix}"
+                        Packager.info "gem version: #{gem_version}"
                         gem_versioned_name = gem_base_name.gsub("_","-") + version_suffix
                     else
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
@@ -1912,12 +1988,9 @@ module Autoproj
                         # Add actual gem dependencies
                         gem_deps = Hash.new
                         if !options[:deps][:nonnative].empty?
-                            nonnative_packages = options[:deps][:nonnative].collect do |name, version|
-                                name
-                            end
                             gem_deps = GemDependencies::resolve_all(nonnative_packages)
                         elsif !options[:local_pkg]
-                            gem_deps = GemDependencies::resolve_by_name(gem_base_name)
+                            gem_deps = GemDependencies::resolve_by_name(gem_base_name, gem_version)[:deps]
                         end
 
                         # Check if the plain package name exists in the given distribution
