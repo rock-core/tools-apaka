@@ -190,11 +190,12 @@ module Autoproj
             #
             # This method relies on the launchpad website for Ubuntu packages
             # and the packages.debian.org/source website for Debian packages
-            def self.containsPackage(release_name, package)
-                Packager.info "Check containsPackage: #{release_name} contains #{package}"
+            def self.containsPackage(release_name, package, cache_results = true)
+                Packager.debug "Check containsPackage: #{release_name} contains #{package}"
 
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
+                    Packager.info "Distribution::containsPackage returns false -- since configuration set to forced manual build #{package}"
                     return false
                 end
 
@@ -213,30 +214,42 @@ module Autoproj
 
                 outfile="/tmp/deb_package-availability-#{package}-in-#{release_name}"
                 errorfile="#{outfile}.error"
-                cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
-                Packager.info "Check containsPackage using: #{cmd}"
-                system(cmd)
+                if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
+                    # query already done sometime before
+                else
+                    cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
+                    system(cmd)
+                end
 
+                result = true
                 if isUbuntu(release_name)
                     if system("grep -ir \"warning message\" #{outfile} > /dev/null 2>&1")
-                        return false
+                        result = false
                     elsif system("grep -ir \"404 Not Found\" #{errorfile} > /dev/null 2>&1")
-                        return false
+                        result = false
                     end
                 elsif isDebian(release_name)
                     if system("grep -ir \"Error\" #{outfile} > /dev/null 2>&1")
-                        return false
+                        result = false
                     end
                 end
 
-                if File.exists?(outfile)
-                    FileUtils.rm(outfile)
-                end
-                if File.exists?(errorfile)
-                    FileUtils.rm(errorfile)
+                # Leave files as cache
+                if !cache_results
+                    if File.exists?(outfile)
+                        FileUtils.rm(outfile)
+                    end
+                    if File.exists?(errorfile)
+                        FileUtils.rm(errorfile)
+                    end
                 end
 
-                return true
+                if result
+                    Packager.info "Distribution #{release_name} contains #{package}"
+                else
+                    Packager.info "Distribution #{release_name} does not contain #{package}"
+                end
+                result
             end
         end
 
