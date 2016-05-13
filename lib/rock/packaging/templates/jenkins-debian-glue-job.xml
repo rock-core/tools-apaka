@@ -113,27 +113,28 @@ deb_package --distributions ${distribution} --update-list <%= File.dirname ENV['
       <fingerprint>false</fingerprint>
       <defaultExcludes>true</defaultExcludes>
     </hudson.tasks.ArtifactArchiver>
+    <org.jenkinsci.plugins.postbuildscript.PostBuildScript>
+      <buildSteps>
+        <hudson.tasks.Shell>
+          <command>curl http://localhost:8080/job/${JOB_NAME}/${BUILD_NUMBER}/stop</command>
+        </hudson.tasks.Shell>
+      </buildSteps>
+      <scriptOnlyIfSuccess>false</scriptOnlyIfSuccess>
+      <scriptOnlyIfFailure>true</scriptOnlyIfFailure>
+      <markBuildUnstable>false</markBuildUnstable>
+      <executeOn>MATRIX</executeOn>
+    </org.jenkinsci.plugins.postbuildscript.PostBuildScript>
   </publishers>
   <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.24">
+    <hudson.plugins.ws__cleanup.PreBuildCleanup>
       <deleteDirs>false</deleteDirs>
       <cleanupParameter></cleanupParameter>
       <externalDelete></externalDelete>
     </hudson.plugins.ws__cleanup.PreBuildCleanup>
-    <hudson.plugins.build__timeout.BuildTimeoutWrapper plugin="build-timeout@1.14.1">
-      <strategy class="hudson.plugins.build_timeout.impl.NoActivityTimeOutStrategy">
-        <timeoutSecondsString>36000</timeoutSecondsString>
+    <hudson.plugins.build__timeout.BuildTimeoutWrapper>
+      <strategy class="hudson.plugins.build_timeout.impl.AbsoluteTimeOutStrategy">
+        <timeoutMinutes>300</timeoutMinutes>
       </strategy>
-<!--      <strategy class="hudson.plugins.build_timeout.impl.LikelyStuckTimeOutStrategy"/> 
-       Fails sometimes even after just 1 minute of waiting :(
-          -->
-<!--      <strategy class="hudson.plugins.build_timeout.impl.ElasticTimeOutStrategy">
-        <timeoutPercentage>150</timeoutPercentage>
-        <numberOfBuilds>5</numberOfBuilds>
-        <timeoutMinutesElasticDefault>60</timeoutMinutesElasticDefault>
-      </strategy>
-      Random failures
--->
       <operationList>
         <hudson.plugins.build__timeout.operations.FailOperation/>
       </operationList>
