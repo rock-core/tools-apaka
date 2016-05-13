@@ -2,14 +2,17 @@
 <com.cloudbees.plugins.flow.BuildFlow plugin="build-flow-plugin@0.17">
   <actions/>
   <description>Flow description for the Rock release: <%= flavor %></description>
-  <logRotator class="hudson.tasks.LogRotator">
-    <daysToKeep>7</daysToKeep>
-    <numToKeep>5</numToKeep>
-    <artifactDaysToKeep>-1</artifactDaysToKeep>
-    <artifactNumToKeep>-1</artifactNumToKeep>
-  </logRotator>
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>7</daysToKeep>
+        <numToKeep>5</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+  </properties>
   <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
@@ -27,7 +30,7 @@
 
     <% flow[:gems].each_with_index do |gem,i| %>
 retry(3) {
-    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= gem%>&quot;)
+    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= debian_ruby_name(gem,false)%>&quot;)
     <% version = flow[:gem_versions][gem] || "noversion" %>
     build(&quot;<%= gem%>&quot;, release: &quot;<%= flavor %>&quot;, package_version: &quot;<%= version.encode(:xml => :text).gsub(' ','') %>&quot;)
 }
