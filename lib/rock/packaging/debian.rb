@@ -1040,7 +1040,7 @@ module Autoproj
                 combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
 
 
-                Packager.info "Creating jenkins-debian-glue job with"
+                Packager.info "Creating jenkins-debian-glue job for #{package_name} with"
                 Packager.info "         options: #{options}"
                 Packager.info "         combination filter: #{combinations}"
 
@@ -1080,13 +1080,11 @@ module Autoproj
                         if not distributions.include?(release)
                             next
                         end
-
-                        if !Distribution::containsPackage(release, package_name) &&
-                            !(isGem && Distribution::containsPackage(release, debian_ruby_name(package_name)))
-
-                                whitelist << [release, requested_architecture]
-                        else
+                        if  (isGem && Distribution::containsPackage(release, debian_ruby_name(package_name,false))) ||
+                                Distribution::containsPackage(release, package_name)
                             Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
+                        else
+                            whitelist << [release, requested_architecture]
                         end
                     end
                 end
