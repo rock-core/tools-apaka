@@ -415,8 +415,6 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_ruby_job
-        puts "Creating Gem-Jobs"
-
         if not o_rock_release_name
             # set general parameter for job
             packager.rock_release_name = "$release"
@@ -431,11 +429,14 @@ Dir.chdir(packager.build_dir) do
         end
 
         i = 1
-        all_gems = packager.all_required_ruby_gems
-        all_gems.each do |gem_name, version|
+        all_packages = packager.all_required_packages(selection)
+        all_gems  = all_packages[:gems]
+        puts "Creating Gem-Jobs for #{all_gems}"
+
+        all_gems.each do |gem_name|
             puts "#{i}/#{all_gems.size} Creating Jenkins-job: #{gem_name}"
             options[:job_name] = gem_name
-            options[:version] = version
+            options[:version] = "noversion" # default use no version
             packager.create_ruby_job(gem_name, options, o_overwrite)
             i = i+1
         end
