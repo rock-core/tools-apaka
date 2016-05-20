@@ -2068,8 +2068,11 @@ module Autoproj
                         #
                         # Thus uncommented line of
                         # export DH_RUBY_IGNORE_TESTS=all
-                        Packager.debug "Disabling ruby test result evaluation"
+                        Packager.debug "Disabling tests including ruby test result evaluation"
                         `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
+                        # Add DEB_BUILD_OPTIONS=nocheck
+                        # https://www.debian.org/doc/debian-policy/ch-source.html
+                        `sed -i '1 a export DEB_BUILD_OPTIONS=nocheck' debian/rules`
                         dpkg_commit_changes("disable_tests")
 
                         ###################
