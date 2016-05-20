@@ -1,0 +1,16 @@
+#! /usr/bin/env ruby
+require 'rock/packaging/debian'
+
+if ARGV.size < 1
+    puts "usage: gem_dependencies <gem_name> [<version-string>]"
+    puts "    Lists all dependencies of the gem"
+    exit 0
+end
+
+version = nil
+if ARGV.size == 2
+    version = ARGV[1]
+end
+
+resolved = Autoproj::Packaging::GemDependencies::resolve_by_name(ARGV[0],version)
+puts resolved

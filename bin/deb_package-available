@@ -1,0 +1,23 @@
+#! /usr/bin/env ruby
+require 'rock/packaging/debian'
+
+if ARGV.size < 2
+    puts "usage: deb_package-available <package_name> <distribution> [<architecture>]"
+    puts "    Check if package is available for a given (debian or ubuntu) distribution"
+    exit 0
+end
+
+package_name = ARGV[0]
+distribution = ARGV[1]
+architecture = nil
+if ARGV.size == 3
+    architecture = ARGV[2]
+end
+tp = Autoproj::Packaging::TargetPlatform.new(distribution, architecture)
+if tp.contains(package_name)
+    puts "Distribution '#{tp}' does contain #{package_name}"
+    exit 0
+else
+    puts "Distribution '#{tp}' does not contain #{package_name}"
+    exit 1
+end
