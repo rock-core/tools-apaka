@@ -253,7 +253,9 @@ if o_distributions.size == 1
     end
 end
 
-packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+options[:distribution] = o_distributions.first
+options[:architectures] = o_architectures.first
+packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), options)
 
 # First load autoproj so that we can query what is a in rock defined
 # package and what is not
@@ -319,7 +321,7 @@ Dir.chdir(packager.build_dir) do
             Autoproj.info "Converting ruby gem: '#{pkg_name}'"
             # Fails to be detected as normal package
             # so we assume it is a ruby gem
-            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir, :distributions => o_distributions})
+            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir})
 
             debian_pkg_name = packager.debian_ruby_name(pkg_name)
             sync_packages << debian_pkg_name
@@ -353,7 +355,7 @@ Dir.chdir(packager.build_dir) do
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir, :distributions => o_distributions })
+                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir})
 
                 debian_pkg_name = packager.debian_name(pkg)
                 sync_packages << debian_pkg_name
