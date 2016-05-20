@@ -19,6 +19,9 @@ distributions:
     xenial:
         type: ubuntu,debian
         labels: 16.04,lts,xenial,xerus,default
+    yakkety:
+        type: ubuntu,debian
+        labels: 16.10,yakkety,yak,default
     squeeze:
         type: debian
         labels: 6.0,squeeze,default
