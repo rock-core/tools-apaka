@@ -7,7 +7,7 @@ export DEB_BUILD_OPTIONS=nocheck
 
 rock_install_dir = <%= rock_install_directory %>
 rock_bindir = $(rock_install_dir)/bin
-arch=$(shell gcc -dumpmachine)
+arch=$(shell gcc -print-multiarch)
 
 # Extract the default ruby version to build for on that platform
 # this assumes a proper setup of /usr/bin/ruby
