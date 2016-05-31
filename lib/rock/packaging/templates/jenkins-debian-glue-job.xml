@@ -101,7 +101,7 @@ export RELEASE_DISTRIBUTION=${distribution}
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --distributions ${distribution} --architectures ${architecture} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
+deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
       </command>
     </hudson.tasks.Shell>
   </builders>
