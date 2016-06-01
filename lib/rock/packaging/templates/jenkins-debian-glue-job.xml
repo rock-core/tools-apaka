@@ -133,7 +133,7 @@ deb_package --distributions ${distribution} --architectures ${architecture} --re
     </hudson.plugins.ws__cleanup.PreBuildCleanup>
     <hudson.plugins.build__timeout.BuildTimeoutWrapper>
       <strategy class="hudson.plugins.build_timeout.impl.AbsoluteTimeOutStrategy">
-        <timeoutMinutes>300</timeoutMinutes>
+        <timeoutMinutes>600</timeoutMinutes>
       </strategy>
       <operationList>
         <hudson.plugins.build__timeout.operations.FailOperation/>
