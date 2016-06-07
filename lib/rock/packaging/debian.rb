@@ -25,6 +25,7 @@ module Autoproj
             attr_reader :linux_distribution_releases
             attr_reader :ubuntu_releases
             attr_reader :debian_releases
+            attr_reader :rock_releases
 
             attr_reader :architectures
 
@@ -33,14 +34,20 @@ module Autoproj
             attr_reader :packages_enforce_build
             attr_reader :timestamp_format
 
+
             def reload_config(file)
+                if !file
+                    file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
+                end
                 configuration = YAML.load_file(file)
                 @config_file = File.absolute_path(file)
                 @linux_distribution_releases = Hash.new
+                @rock_releases = Hash.new
 
                 configuration["distributions"] ||= Hash.new
                 configuration["architectures"] ||= Hash.new
                 configuration["packages"] ||= Hash.new
+                configuration["rock_releases"] ||= Hash.new
 
                 configuration["distributions"].each do |key, values|
                     types  = values["type"].gsub(' ','').split(",")
@@ -71,15 +78,30 @@ module Autoproj
                     @packages_enforce_build = @packages_enforce_build.split(",")
                 end
                 @timestamp_format = configuration["packages"]["timestamp_format"] || '%Y-%m-%d'
+
+
+                configuration["rock_releases"].each do |key, values|
+                    options = Hash.new
+                    options[:url] = values["url"].strip
+                    if values["depends_on"]
+                        options[:depends_on] = values["depends_on"].gsub(' ','').split(",")
+                    else
+                        options[:depends_on] = Array.new
+                    end
+                    @rock_releases[key] = options
+                end
             end
 
             def initialize
-                config_file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
                 reload_config(config_file)
             end
 
             def self.config_file
                 instance.config_file
+            end
+
+            def self.reload_config(file)
+                instance.reload_config(file)
             end
 
             def self.linux_distribution_releases
@@ -131,6 +153,10 @@ module Autoproj
                 return false
             end
 
+            def self.rock_releases
+                instance.rock_releases
+            end
+
 
             def self.to_s
                 s = "packager configuration file: #{config_file}\n"
@@ -158,7 +184,16 @@ module Autoproj
                 packages_enforce_build.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end
-                s += "    timestamp format: #{timestamp_format}"
+                s += "    timestamp format: #{timestamp_format}\n"
+
+                s += "rock releases:\n"
+                rock_releases.each do |key, values|
+                    labels = key + ":"
+                    s += "    #{labels.ljust(10,' ')}\n"
+                    values.each do |option, value|
+                        s += "        #{option.to_s.ljust(15,' ')}#{value}\n"
+                    end
+                end
                 s
             end
         end # end Config
@@ -202,6 +237,45 @@ module Autoproj
                 false
             end
 
+            def self.isRock(release_name)
+                release_name = release_name.downcase
+                if Packaging::Config.rock_releases.keys.include?(release_name)
+                    return true
+                end
+                false
+            end
+
+            def self.allParents(release_name)
+                if TargetPlatform::isRock(release_name)
+                    parents = Array.new
+                    Packaging::Config.rock_releases[release_name][:depends_on].each do |parent_release|
+                        parents << parent_release
+                    end
+                    all_parents = parents
+                    parents.each do |p|
+                        all_parents = parents + allParents(p)
+                    end
+                    all_parents.uniq
+                else
+                    []
+                end
+            end
+
+            # For Rock release this allow to check whether a parent given by the 
+            # depends_on option for a release already contains the package
+            def parentContains(package, cache_results = true)
+                release_name = distribution_release_name
+                TargetPlatform.allParents(release_name).each do |parent_release_name|
+                    platform = TargetPlatform.new(parent_release_name, architecture)
+                    if platform.contains(package)
+                        return true
+                    else
+                        Packager.info "#{self} parent #{p} does not contain #{package}"
+                    end
+                end
+                false
+            end
+
             # Check if the given release contains
             # a package of the given name
             #
@@ -222,6 +296,8 @@ module Autoproj
                     # Retrieve the latest status and check on "superseeded or deleted" vs. "published"
                 elsif TargetPlatform::isDebian(release_name)
                     urls << File.join(debian,release_name,architecture,package,"download")
+                elsif TargetPlatform::isRock(release_name)
+                    urls << File.join(Packaging::Config.rock_releases[release_name][:url],"pool","main","r",package)
                 else
                     raise ArgumentError, "Unknown distribution #{release_name}"
                 end
@@ -252,6 +328,10 @@ module Autoproj
                         end
                     elsif TargetPlatform::isDebian(release_name)
                         if !system("grep -ir \"No such package\" #{outfile} > /dev/null 2>&1")
+                            result = true
+                        end
+                    elsif TargetPlatform::isRock(release_name)
+                        if !system("grep -ir \" 404\" #{errorfile} > /dev/null 2>&1")
                             result = true
                         end
                     end
