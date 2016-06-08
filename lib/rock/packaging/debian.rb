@@ -687,21 +687,32 @@ module Autoproj
                         end
                         pkg.importer.repository = pkg.srcdir
                     end
+                    pkg_target_importdir = File.join(@build_dir, debian_name(pkg), plain_dir_name(pkg, target_platform.distribution_release_name))
 
-                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), plain_dir_name(pkg, target_platform.distribution_release_name))
-                    begin
-                        Packager.debug "Importing repository to #{pkg.srcdir}"
-                        pkg.importer.import(pkg)
-                    rescue Exception => e
-                        if not e.message =~ /failed in patch phase/
-                            raise
-                        else
-                            Packager.warn "Patching #{pkg.name} failed"
+                    # Some packages, e.g. mars use a single git repository a split it artificially
+                    # if this is the case, try to copy the content instead of doing a proper checkout
+                    if pkg.srcdir != pkg.importdir
+                        Packager.debug "Importing repository from #{pkg.srcdir} to #{pkg_target_importdir}"
+                        FileUtils.mkdir_p pkg_target_importdir
+                        FileUtils.cp_r File.join(pkg.srcdir,"/."), pkg_target_importdir
+                        # Update resulting source directory
+                        pkg.srcdir = pkg_target_importdir
+                    else
+                        pkg.srcdir = pkg_target_importdir
+                        begin
+                            Packager.debug "Importing repository to #{pkg.srcdir}"
+                            pkg.importer.import(pkg)
+                        rescue Exception => e
+                            if not e.message =~ /failed in patch phase/
+                                raise
+                            else
+                                Packager.warn "Patching #{pkg.name} failed"
+                            end
                         end
-                    end
 
-                    Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
-                        FileUtils.rm_f file
+                        Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
+                            FileUtils.rm_f file
+                        end
                     end
                 end
             end
@@ -1915,7 +1926,7 @@ module Autoproj
                 # ignoring the current version-timestamp
                 orig_file_name = Dir.glob("#{debian_name(pkg)}*.orig.tar.gz")
                 if orig_file_name.empty?
-                    Packager.info "No filename found for #{debian_name(pkg)} -- package requires update #{Dir.entries('.')}"
+                    Packager.info "No filename found for #{debian_name(pkg)} (existing files: #{Dir.entries('.')} -- package requires update (regeneration of orig.tar.gz)"
                     return true
                 elsif orig_file_name.size > 1
                     Packager.warn "Multiple version of package #{debian_name(pkg)} in #{Dir.pwd} -- you have to fix this first"
