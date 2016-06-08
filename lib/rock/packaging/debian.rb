@@ -211,6 +211,22 @@ module Autoproj
                 @architecture = architecture || "amd64"
             end
 
+            def ==(other)
+                if other.kind_of?(TargetPlatform)
+                    return distribution_release_name == other.distribution_release_name &&
+                        architecture == other.architecture
+                end
+                false
+            end
+
+            def eql?(other)
+                self == other
+            end
+
+            def hash
+                [ distribution_release_name, architecture ].hash
+            end
+
             def to_s
                 "#{distribution_release_name}/#{architecture}"
             end
