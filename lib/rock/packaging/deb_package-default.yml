@@ -55,4 +55,4 @@ rock_releases:
         url: http://rimres-gcs2-u/rock-releases/master-16.06
     transterra:
         url: http://rimres-gcs2-u/rock-releases/transterra-16.06
-        depends_on: master
+        depends_on: master, trusty
