@@ -261,35 +261,44 @@ module Autoproj
                 false
             end
 
-            def self.allParents(release_name)
+            def ancestors
+                TargetPlatform::ancestors(distribution_release_name)
+            end
+
+            def self.ancestors(release_name)
                 if TargetPlatform::isRock(release_name)
-                    parents = Array.new
-                    Packaging::Config.rock_releases[release_name][:depends_on].each do |parent_release|
-                        parents << parent_release
+                    ancestors_list = Array.new
+                    Packaging::Config.rock_releases[release_name][:depends_on].each do |ancestor_release|
+                        ancestors_list << ancestor_release
                     end
-                    all_parents = parents
-                    parents.each do |p|
-                        all_parents = parents + allParents(p)
+                    all_ancestors = ancestors_list
+                    ancestors_list.each do |p|
+                        all_ancestors = all_ancestors + ancestors(p)
                     end
-                    all_parents.uniq
+                    all_ancestors.uniq
                 else
                     []
                 end
             end
 
-            # For Rock release this allow to check whether a parent given by the 
+            # For Rock release this allow to check whether a ancestor given by the 
             # depends_on option for a release already contains the package
-            def parentContains(package, cache_results = true)
-                release_name = distribution_release_name
-                TargetPlatform.allParents(release_name).each do |parent_release_name|
-                    platform = TargetPlatform.new(parent_release_name, architecture)
-                    if platform.contains(package)
-                        return true
+            # package Autobuild::Package
+            def ancestorContains(package_name, cache_results = true)
+                !releasedInAncestor(package_name, cache_results).emtpy?
+            end
+
+            def releasedInAncestor(package_name, cache_results = true)
+                TargetPlatform.ancestors(distribution_release_name).each do |ancestor_release_name|
+                    package_name = package_name.gsub(distribution_release_name, ancestor_release_name)
+                    platform = TargetPlatform.new(ancestor_release_name, architecture)
+                    if platform.contains(package_name)
+                        return ancestor_release_name
                     else
-                        Packager.info "#{self} parent #{p} does not contain #{package}"
+                        Packager.info "#{self} ancestor #{platform} does not contain #{package_name}"
                     end
                 end
-                false
+                return ""
             end
 
             # Check if the given release contains
@@ -925,18 +934,19 @@ module Autoproj
             end
 
             # Get the current rock-release-based prefix for rock packages
-            def rock_release_prefix
-                "rock-#{rock_release_name}-"
+            def rock_release_prefix(release_name = nil)
+                release_name ||= rock_release_name
+                "rock-#{release_name}-"
             end
 
             # Get the current rock-release-based prefix for rock-(ruby) packages
-            def rock_ruby_release_prefix
-                rock_release_prefix + "ruby-"
+            def rock_ruby_release_prefix(release_name = nil)
+                rock_release_prefix(release_name) + "ruby-"
             end
 
-            def debian_ruby_name(name, with_rock_release_prefix = true)
+            def debian_ruby_name(name, with_rock_release_prefix = true, release_name = nil)
                 if with_rock_release_prefix
-                    rock_ruby_release_prefix + canonize(name)
+                    rock_ruby_release_prefix(release_name) + canonize(name)
                 else
                     "ruby-" + canonize(name)
                 end
@@ -1078,6 +1088,15 @@ module Autoproj
                         Packager.warn "Unhandled dependencies: #{reverse_dependencies}"
                     end
                 end
+
+                if rock_release_name
+                    all_required_packages = all_required_packages.select do |pkg|
+                        pkg_name = debian_name(pkg, true || with_prefix)
+
+                        rock_release_platform = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                        !rock_release_platform.ancestorContains(pkg_name)
+                    end
+                end
                 all_required_packages
             end
 
@@ -1088,9 +1107,12 @@ module Autoproj
                         flow[:gem_versions][name] = "noversion"
                     end
                 end
+                # Filter all packages that are already provided by a rock release
+                # this one depends on (which is specified in the configuration file
+                # using the depends_on option)
 
                 Packager.info "Creating flow of gems: #{flow[:gems]}"
-
+                Packager.info "Creating flow of packages: #{flow[:packages]}"
                 create_flow_job_xml(name, flow, flavor, false, force)
             end
 
@@ -1367,6 +1389,19 @@ module Autoproj
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
 
+                # Filter all packages that are available
+                if rock_release_name
+                    rock_release_platform = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                    sorted_gem_list = sorted_gem_list.select do |gem|
+                        with_prefix = true
+                        pkg_ruby_name = debian_ruby_name(gem, !with_prefix)
+                        pkg_prefixed_name = debian_ruby_name(gem, with_prefix)
+
+                        !( rock_release_platform.ancestorContains(gem) ||
+                          rock_release_platform.ancestorContains(pkg_ruby_name) || 
+                          rock_release_platform.ancestorContains(pkg_prefixed_name))
+                    end
+                end
                 {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
             end
 
@@ -1484,19 +1519,34 @@ module Autoproj
                 {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
             end
 
-            # Check if the plain package name exists in the given distribution
-            # if that is the case use that one -- if not, then use the ruby name
-            # since then is it is either part of the flow job
-            # or an os dependency
+            # Check if the plain package name exists in the target (ubuntu/debian) distribution or any ancestor (rock) distributions
+            # and identify the correct package name
             # return [String,bool] Name of the dependency and whether this is an os dependency or not
             def native_dependency_name(name)
-                if target_platform.contains(name)
-                    [name, true]
-                elsif target_platform.contains(debian_ruby_name(name, false))
-                    [debian_ruby_name(name, false), true]
-                else
-                    [debian_ruby_name(name, true), false]
+                platforms = Set.new
+                platforms << target_platform
+
+                # Identify this rock release and its ancestors
+                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                this_rock_release.ancestors.each do |ancestor|
+                    platforms << TargetPlatform.new(ancestor, target_platform.architecture)
                 end
+
+                # Check for 'plain' name, the 'unprefixed' name and for the 'release' name
+                platforms.each do |platform|
+                    if platform.contains(name)
+                        return [name, true]
+                    elsif platform.contains(debian_ruby_name(name, false))
+                        return [debian_ruby_name(name, false), true]
+                    else
+                        pkg_name = debian_ruby_name(name, true, platform.distribution_release_name)
+                        if platform.contains(pkg_name)
+                            return [pkg_name, true]
+                        end
+                    end
+                end
+                # Return the 'release' name, since no other source provides this package
+                [debian_ruby_name(name, true), false]
             end
 
             def generate_debian_dir(pkg, dir, options)
