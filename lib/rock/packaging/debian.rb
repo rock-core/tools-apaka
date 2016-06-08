@@ -549,7 +549,7 @@ module Autoproj
                 deps = dependencies(pkg, with_rock_prefix)
                 deps_rock_packages = deps[:rock]
                 deps_osdeps_packages = deps[:osdeps]
-                deps_nonnative_packages = deps[:nonnative]
+                deps_nonnative_packages = deps[:nonnative].to_a
 
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                 Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
