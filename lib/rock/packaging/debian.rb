@@ -701,6 +701,12 @@ module Autoproj
                         pkg.srcdir = pkg_target_importdir
                         begin
                             Packager.debug "Importing repository to #{pkg.srcdir}"
+                            # Workaround for bug in autoproj:
+                            # archive_dir should be set from pkg.srcdir, but is actually set from pkg.name
+                            # see autobuild-1.9.3/lib/autobuild/import/archive.rb +406
+                            if pkg.importer.kind_of?(Autobuild::ArchiveImporter)
+                                pkg.importer.options[:archive_dir] ||= File.basename(pkg.srcdir)
+                            end
                             pkg.importer.import(pkg)
                         rescue Exception => e
                             if not e.message =~ /failed in patch phase/
