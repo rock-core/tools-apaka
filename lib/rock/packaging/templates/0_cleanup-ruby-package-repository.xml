@@ -25,9 +25,11 @@ Note: The list of distributions is hardcoded into this job</description>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>for i in vivid trusty wheezy jessie
+        <command>
+cd /var/www/packages/release/$release
+distributions=`cat conf/distributions | grep Codename | cut -d' ' -f2 | tr '\n' ' '`
+for i in $distributions
 do
-    cd /var/www/packages/release/$release
     reprepro removematched $i &apos;ruby-*&apos;
 done
 reprepro deleteunreferenced</command>

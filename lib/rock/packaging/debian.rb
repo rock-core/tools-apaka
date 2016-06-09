@@ -1325,6 +1325,22 @@ module Autoproj
                 end
             end
 
+            def self.create_cleanup_jobs(force = true)
+                binding.pry
+                Dir.glob("#{TEMPLATES}/../0_cleanup*").each do |file|
+                    name = File.basename(file).gsub(".xml","")
+                    if force
+                        cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{file}"
+                    else
+                        cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{file}"
+                    end
+                    Packager.info "creating cleanup job #{name}"
+                    if !system(cmd)
+                        Packager.warn "creation of cleanup job #{name} from #{file} failed"
+                    end
+                end
+            end
+
             # Cleanup job of a given name
             def self.cleanup_job(job_name)
                 # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-builds

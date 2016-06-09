@@ -41,6 +41,7 @@ o_rock_release_name = nil
 o_package_version = nil
 o_build_local = false
 o_show_config = false
+o_create_cleanup_jobs = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -118,6 +119,9 @@ options = OptionParser.new do |opt|
             puts "no jobname given"
             exit -1
         end
+    end
+    opt.on("--create-cleanup-jobs", "Create cleanup jobs") do
+        o_create_cleanup_jobs = true
     end
     opt.on("--cleanup-all-jobs", "Cleanup all jenkins jobs") do
         o_job_cleanup_all = true
@@ -201,6 +205,11 @@ if o_package_version && o_selected_packages.size != 1
     raise ArgumentError, "Cannot use package-version with multiple packages as argument"
 end
 ################################################################################
+
+if o_create_cleanup_jobs
+    Autoproj::Packaging::Debian.create_cleanup_jobs
+    exit 0
+end
 
 if o_job_cleanup && o_job_name
     Autoproj::Packaging::Debian.cleanup_job(o_job_name)
