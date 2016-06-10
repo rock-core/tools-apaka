@@ -58,8 +58,7 @@ options = OptionParser.new do |opt|
     opt.on("--build-dir DIR", String, "Build Folder of the source package -- needs to be within an autoproj installation") do |dir|
         o_build_dir = File.expand_path(dir)
         if !File.directory?(o_build_dir)
-            puts "Given build directory '#{o_build_dir}' does not exist"
-            exit -1
+            File.mkdir_p(o_build_dir)
         end
     end
     opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
