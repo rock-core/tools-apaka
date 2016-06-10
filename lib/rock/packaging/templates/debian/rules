@@ -92,33 +92,8 @@ include /usr/share/cdbs/1/class/cmake.mk
 <% elsif package.class == Autobuild::Autotools %>
 DEB_CONFIGURE_PREFIX= <%= rock_install_directory %>
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
-    <% if package.using[:libtool] %>
-DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
-    <% end %>
-    <% if package.using[:aclocal] %>
-# -- extract the first list of the command 'aclocal --version'
-# -- then grep the very last word, i.e., the version string
-# -- then extract the first two elements of the version string, since that is how the version tool link are named
-aclocal_version_ws=$(subst ., , $(lastword $(shell aclocal --version | grep aclocal)))
-DEB_AUTO_UPDATE_ACLOCAL = $(shell echo "$(word 1, $(aclocal_version_ws)).$(word 2, $(aclocal_version_ws))")
-    <% end %>
-    <% if package.using[:autoconf] %>
-autoconf_version_ws=$(subst ., , $(lastword $(shell autoconf --version | grep autoconf)))
-DEB_AUTO_UPDATE_AUTOCONF = $(shell echo "$(word 1, $(autoconf_version_ws)).$(word 2, $(autoconf_version_ws))")
-        <% if !package.using[:aclocal] %>
-aclocal_version_ws=$(subst ., , $(lastword $(shell aclocal --version | grep aclocal)))
-DEB_AUTO_UPDATE_ACLOCAL = $(shell echo "$(word 1, $(aclocal_version_ws)).$(word 2, $(aclocal_version_ws))")
-	<% end %>
-    <% end %>
-    <% if package.using[:automake] %>
-automake_version_ws=$(subst ., , $(lastword $(shell automake --version | grep automake)))
-DEB_AUTO_UPDATE_AUTOMAKE = $(shell echo "$(word 1, $(automake_version_ws)).$(word 2, $(automake_version_ws))")
-    <% end %>
-    <% if package.using[:autoheader] %>
-autoheader_version_ws=$(subst ., , $(lastword $(shell autoheader --version | grep autoheader)))
-DEB_AUTO_UPDATE_AUTOHEADER = $(shell echo "$(word 1, $(autoheader_version_ws)).$(word 2, $(autoheader_version_ws))")
-    <% end %>
 include /usr/share/cdbs/1/class/autotools.mk
+include /usr/share/cdbs/1/rules/autoreconf.mk
 
 # END AUTOTOOLS
 ############################################

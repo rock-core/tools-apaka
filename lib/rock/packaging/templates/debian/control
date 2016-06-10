@@ -13,6 +13,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     build_dependencies << "autotools-dev" # as autotools seems to be virtual...
 %     build_dependencies << "autoconf"
 %     build_dependencies << "automake"
+%     build_dependencies << "dh-autoreconf"
 % elsif package.kind_of?(Autobuild::Ruby)
 %     raise "debian/control: cannot handle ruby package"
 % elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage)
