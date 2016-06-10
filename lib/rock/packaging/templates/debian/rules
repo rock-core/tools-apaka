@@ -92,6 +92,15 @@ include /usr/share/cdbs/1/class/cmake.mk
 <% elsif package.class == Autobuild::Autotools %>
 DEB_CONFIGURE_PREFIX= <%= rock_install_directory %>
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
+
+# use autoreconf: check with external/libply
+# use autogen: check with drivers/araviz
+<% if package.using[:autogen].nil? %>
+<%     package.using[:autogen] = %w{autogen autogen.sh}.find { |f| File.exist?(File.join(package.srcdir, f)) } %>
+<% end %>
+<% if package.using[:autogen] %>
+DEB_DH_AUTORECONF_ARGS += <%= File.join(".",package.using[:autogen]) %>
+<% end %>
 include /usr/share/cdbs/1/class/autotools.mk
 include /usr/share/cdbs/1/rules/autoreconf.mk
 
