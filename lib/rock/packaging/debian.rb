@@ -2094,6 +2094,21 @@ module Autoproj
                 end
             end
 
+            def patch_directory(target_dir, patch_dir)
+                 if File.directory?(patch_dir)
+                     Packager.warn "Applying overlay (patch) from: #{patch_dir} to #{target_dir}"
+                     FileUtils.cp_r("#{patch_dir}/.", "#{target_dir}/.")
+
+                     # We need to commit if original files have been modified
+                     # so add a commit
+                     orig_files = Dir["#{patch_dir}/**"].reject { |f| f["#{patch_dir}/debian/"] }
+                     return if orig_files.size > 0
+                 else
+                     Packager.warn "No patch dir: #{patch_dir}"
+                     return false
+                 end
+            end
+
             # When providing the path to a gem file converts the gem into
             # a debian package (files will be residing in the same folder
             # as the gem)
@@ -2224,18 +2239,8 @@ module Autoproj
                             end
 
                             gem_patch_dir = File.join(patch_dir, gem_name)
-                            if File.directory?(gem_patch_dir)
-                                Packager.warn "Applying overlay (patch) to: gem '#{gem_name}'"
-                                FileUtils.cp_r("#{gem_patch_dir}/.", ".")
-
-                                # We need to commit if original files have been modified
-                                # so add a commit
-                                orig_files = Dir["#{gem_patch_dir}/**"].reject { |f| f["#{gem_patch_dir}/debian/"] }
-                                if orig_files.size > 0
-                                    dpkg_commit_changes("deb_autopackaging_overlay")
-                                end
-                            else
-                                Packager.warn "No patch dir: #{gem_patch_dir}"
+                            if patch_directory(Dir.pwd, gem_patch_dir)
+                                dpkg_commit_changes("deb_autopackaging_overlay")
                             end
                         end
 
