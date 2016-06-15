@@ -5,35 +5,17 @@
 # nocheck: This tag says to not run any build-time test suite provided by the package.
 export DEB_BUILD_OPTIONS=nocheck
 
-rock_install_dir = <%= rock_install_directory %>
-rock_bindir = $(rock_install_dir)/bin
 arch=$(shell gcc -print-multiarch)
-
 # Extract the default ruby version to build for on that platform
 # this assumes a proper setup of /usr/bin/ruby
 ruby_ver=$(shell ruby --version)
 ruby_arch_dir=$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['archdir']")
-rockruby_archdir=$(subst /usr,$(rock_install_dir),$(ruby_arch_dir))
-
 ruby_libdir =$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['rubylibdir']")
-rockruby_libdir=$(subst /usr,$(rock_install_dir),$(ruby_libdir))
 
-# Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
-# vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
-rockruby_extra_libdir = $(rock_install_dir)/lib/ruby/vendor_ruby/standard/:$(rock_install_dir)/lib/ruby/vendor_ruby/core/:$(rock_install_dir)/lib/ruby/vendor_ruby
+rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))
+rockruby_libdir=$(subst /usr,,$(ruby_libdir))
 
-# Setting up the env variables
-env_setup = PATH=$(rock_bindir):$(PATH)
-env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_libdir):$(RUBYLIB)
-env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake
-env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(rock_install_dir)/lib/$(arch)/pkgconfig:/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:$(PKG_CONFIG_PATH)
-env_setup += LD_LIBRARY_PATH=$(rock_install_dir)/lib:$(LD_LIBRARY_PATH)
-env_setup += OROGEN_PLUGIN_PATH=$(rock_install_dir)/share/orogen/plugins
-env_setup += CMAKE_PREFIX_PATH=$(rock_install_dir)
-<% if ["xenial"].include?(distribution) %>
-export TYPELIB_CXX_LOADER=castxml
-export DEB_CPPFLAGS_APPEND="-std=c++11"
-<% end %>
+<%= env_setup %>
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk

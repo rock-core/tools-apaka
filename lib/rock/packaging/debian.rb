@@ -45,6 +45,7 @@ module Autoproj
 
             attr_reader :target_platform
             attr_reader :rock_release_platform
+            attr_reader :rock_release_hierarchy
 
             def initialize(existing_debian_directories, options = Hash.new)
                 super()
@@ -197,6 +198,11 @@ module Autoproj
             def rock_release_name=(name)
                 @rock_release_name = name
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
+                @rock_release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
+                    TargetPlatform.isRock(release_name)
+                end
+                # Add the actual release name as first
+                @rock_release_hierarchy = [name] + @rock_release_hierarchy
             end
 
             # Compute all required packages from a given selection
@@ -1421,13 +1427,12 @@ module Autoproj
                         Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
-                        `sed -i '1 a env_setup += PATH=$(rock_install_dir)/bin:$(PATH)' debian/rules`
-                        `sed -i '1 a env_setup += RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby' debian/rules`
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",release_name)}$(rock_install_dir)' debian/rules`
-                        `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
-                        `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
+
+                        debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*$/,"")
+                        `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
+                        envsh = Regexp.escape(env_setup())
+                        `sed -i '1 a #{envsh}' debian/rules`
                         `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""))}$(rock_install_dir)' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
@@ -1502,6 +1507,60 @@ module Autoproj
                 ruby_versions
             end
 
+            def env_setup
+                Packager.info "Creating envsh"
+                path_env            = "PATH="
+                rubylib_env         = "RUBYLIB="
+                pkgconfig_env       = "PKG_CONFIG_PATH="
+                rock_dir_env        = "Rock_DIR="
+                ld_library_path_env = "LD_LIBRARY_PATH="
+                cmake_prefix_path   = "CMAKE_PREFIX_PATH="
+                orogen_plugin_path  = "OROGEN_PLUGIN_PATH="
+
+                rock_release_hierarchy.each do |release_name|
+                    install_dir = File.join(rock_base_install_directory, release_name)
+                    path_env    += "#{File.join(install_dir, "bin")}:"
+
+                    # Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
+                    # vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
+                    rubylib_env += "#{File.join(install_dir, "$(rockruby_libdir)")}:"
+                    rubylib_env += "#{File.join(install_dir, "$(rockruby_archdir)")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/standard")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/core")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby")}:"
+
+                    pkgconfig_env += "#{File.join(install_dir,"lib/pkgconfig")}:"
+                    pkgconfig_env += "#{File.join(install_dir,"lib/$(arch)/pkgconfig")}:"
+                    rock_dir_env += "#{File.join(install_dir,"share/rock/cmake")}:"
+                    ld_library_path_env += "#{File.join(install_dir,"lib")}:"
+                    cmake_prefix_path += "#{install_dir}:"
+                    orogen_plugin_path += "#{File.join(install_dir,"share/orogen/plugins")}:"
+                end
+
+                pkgconfig_env       += "/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:"
+
+                path_env            += "$(PATH)"
+                rubylib_env         += "$(RUBYLIB)"
+                pkgconfig_env       += "$(PKG_CONFIG_PATH)"
+                rock_dir_env        += "$(Rock_DIR)"
+                ld_library_path_env += "$(LD_LIBRARY_PATH)"
+                cmake_prefix_path   += "$(CMAKE_PREFIX_PATH)"
+                orogen_plugin_path  += "$(OROGEN_PLUGIN_PATH)"
+
+                envsh =  "env_setup =  #{path_env}\n"
+                envsh += "env_setup += #{rubylib_env}\n"
+                envsh += "env_setup += #{pkgconfig_env}\n"
+                envsh += "env_setup += #{rock_dir_env}\n"
+                envsh += "env_setup += #{ld_library_path_env}\n"
+                envsh += "env_setup += #{cmake_prefix_path}\n"
+                envsh += "env_setup += #{orogen_plugin_path}\n"
+
+                if ["xenial"].include?(target_platform.distribution_release_name)
+                    envsh += "export TYPELIB_CXX_LOADER=castxml\n"
+                    envsh += "export DEB_CPPFLAGS_APPEND='-std=c++11'\n"
+                end
+                envsh
+            end
         end #end Debian
     end
 end
