@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-require 'rock/packaging/debian'
+require 'rock/packaging'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
@@ -42,6 +42,11 @@ o_package_version = nil
 o_build_local = false
 o_show_config = false
 o_create_cleanup_jobs = false
+
+if ARGV.empty?
+    ARGV << "--help"
+end
+
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
