@@ -87,7 +87,7 @@ module Autoproj
             # depends_on option for a release already contains the package
             # package Autobuild::Package
             def ancestorContains(package_name, cache_results = true)
-                !releasedInAncestor(package_name, cache_results).emtpy?
+                !releasedInAncestor(package_name, cache_results).empty?
             end
 
             def releasedInAncestor(package_name, cache_results = true)
