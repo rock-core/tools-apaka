@@ -273,7 +273,7 @@ if o_distributions.size == 1
     if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(distribution)
         operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ distribution ]
     else
-        puts "WARNING: Custom setting of operating system to: #{distribution} is not supported"
+        raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
     end
 
     if !operating_system.empty?
@@ -398,6 +398,7 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_job
+
         options = Hash.new
         if !o_architectures.empty?
             options[:architectures] = o_architectures
@@ -410,26 +411,34 @@ Dir.chdir(packager.build_dir) do
             packager.rock_release_name = "$release"
         end
 
+        jenkins = Autoproj::Packaging::Jenkins.new(packager)
+
         packages = packager.all_required_rock_packages(selection)
         packages.each_with_index do |pkg, i|
             puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
-            packager.create_package_job(pkg, options, o_overwrite)
+            options[:force] = o_overwrite
+            jenkins.create_package_job(pkg, options)
         end
     end
 
     if o_flow
+        jenkins = Autoproj::Packaging::Jenkins.new(packager)
+
         puts "Creating FLOW-Job"
-        packager.create_flow_job(o_flow, selection, o_flavor,o_parallel_builds, o_overwrite)
+        options = { :force => o_overwrite }
+        jenkins.create_flow_job(o_flow, selection, o_flavor)
     end
 
     if o_control_job
         puts "Creating Control-Job (0_)"
-        packager.create_control_job("0_" + o_control_job, o_overwrite)
+        options = { :force => o_overwrite }
+        Autoproj::Packaging::Jenkins.create_control_job("0_" + o_control_job, options)
     end
 
     if o_all_control_jobs
         puts "Creating all Control-Jobs (0_)"
-        packager.create_control_jobs o_overwrite
+        options = { :force => o_overwrite }
+        Autoproj::Packaging::Jenkins.create_control_jobs options
     end
 
     if o_list
@@ -468,7 +477,8 @@ Dir.chdir(packager.build_dir) do
             puts "#{i}/#{all_gems.size} Creating Jenkins-job: #{gem_name}"
             options[:job_name] = gem_name
             options[:version] = "noversion" # default use no version
-            packager.create_ruby_job(gem_name, options, o_overwrite)
+            options[:force] = o_overwrite
+            packager.create_ruby_job(gem_name, options)
             i = i+1
         end
     end

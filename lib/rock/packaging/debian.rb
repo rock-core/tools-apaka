@@ -198,11 +198,14 @@ module Autoproj
             def rock_release_name=(name)
                 @rock_release_name = name
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
-                @rock_release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
-                    TargetPlatform.isRock(release_name)
+                @rock_release_hierarchy = [name]
+                if Config.rock_releases.has_key?(name)
+                    @rock_release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
+                        TargetPlatform.isRock(release_name)
+                    end
+                    # Add the actual release name as first
+                    @rock_release_hierarchy += @rock_release_hierarchy
                 end
-                # Add the actual release name as first
-                @rock_release_hierarchy = [name] + @rock_release_hierarchy
             end
 
             # Compute all required packages from a given selection
@@ -287,37 +290,6 @@ module Autoproj
                 all_required_packages
             end
 
-            def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
-                flow = all_required_packages(selection)
-                flow[:gems].each do |name|
-                    if !flow[:gem_versions].has_key?(name)
-                        flow[:gem_versions][name] = "noversion"
-                    end
-                end
-                # Filter all packages that are already provided by a rock release
-                # this one depends on (which is specified in the configuration file
-                # using the depends_on option)
-
-                Packager.info "Creating flow of gems: #{flow[:gems]}"
-                Packager.info "Creating flow of packages: #{flow[:packages]}"
-                create_flow_job_xml(name, flow, flavor, false, force)
-            end
-
-            def create_flow_job_xml(name, flow, flavor, parallel = false, force = false)
-                safe_level = nil
-                trim_mode = "%<>"
-
-                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
-                rendered = template.result(binding)
-                Packager.info "Rendering file: #{File.join(Dir.pwd, name)}.xml"
-                File.open("#{name}.xml", 'w') do |f|
-                      f.write rendered
-                end
-
-                Jenkins.install_job(name, force)
-
-            end
-
             def update_list(pkg, file)
                 Autoproj.info("Update Packagelist #{file} with #{pkg}")
                 if File.exist? file
@@ -334,116 +306,6 @@ module Autoproj
                 #    list.uniq!
                 end
                 File.open(file, 'w') {|f| f.write list.to_yaml }
-            end
-
-            # Create a jenkins job for a rock package (which is not a ruby package)
-            def create_package_job(pkg, options = Hash.new, force = false)
-                options[:type] = :package
-                # Use parameter for job
-                # for destination and build directory
-                options[:dir_name] = debian_name(pkg)
-                # avoid the rock-release prefix for jobs
-                with_rock_release_prefix = false
-                options[:job_name] = debian_name(pkg, with_rock_release_prefix)
-                options[:package_name] = pkg.name
-
-                all_deps = dependencies(pkg)
-                Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
-
-                # Prepare upstream dependencies
-                deps = all_deps[:rock].join(", ")
-                if !deps.empty?
-                    deps += ", "
-                end
-                options[:dependencies] = deps
-                Packager.info "Create package job: #{options[:job_name]}, options #{options}"
-                create_job(options[:job_name], options, force)
-            end
-
-            # Create a jenkins job for a ruby package
-            def create_ruby_job(gem_name, options = Hash.new, force = false)
-                options[:type] = :gem
-                # for destination and build directory
-                options[:dir_name] = debian_ruby_name(gem_name)
-                options[:job_name] = gem_name
-                options[:package_name] = gem_name
-                Packager.info "Create ruby job: #{gem_name}, options #{options}"
-                create_job(options[:job_name], options, force)
-            end
-
-
-            # Create a jenkins job
-            def create_job(package_name, options = Hash.new, force = false)
-                options[:architectures] ||= Packaging::Config.architectures.keys
-                options[:distributions] ||= Packaging::Config.active_distributions
-                options[:job_name] ||= package_name
-
-                combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
-
-
-                Packager.info "Creating jenkins-debian-glue job for #{package_name} with"
-                Packager.info "         options: #{options}"
-                Packager.info "         combination filter: #{combinations}"
-
-                safe_level = nil
-                trim_mode = "%<>"
-                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), safe_level, trim_mode)
-                rendered = template.result(binding)
-                rendered_filename = File.join("/tmp","#{options[:job_name]}.xml")
-                File.open(rendered_filename, 'w') do |f|
-                      f.write rendered
-                end
-
-                update_or_create = "create-job"
-                if force
-                    update_or_create = "update-job"
-                end
-                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name]}' < #{rendered_filename}")
-                    Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
-                elsif force
-                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name]}' < #{rendered_filename}")
-                        Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
-                    end
-                end
-            end
-
-            # Combination filter generates a filter for each job
-            # The filter allows to prevent building of the package, when this
-            # package is already part of the release of a distribution release, e.g.,
-            # there is no need to repackage the ruby package 'bundler' if it already
-            # exists in a specific release of Ubuntu or Debian
-            def combination_filter(architectures, distributions, package_name, isGem)
-                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
-                package: '#{package_name}', isGem: #{isGem}"
-                whitelist = []
-                Packaging::Config.architectures.each do |requested_architecture, allowed_distributions|
-                    allowed_distributions.each do |release|
-                        if not distributions.include?(release)
-                            next
-                        end
-                        target_platform = TargetPlatform.new(release, requested_architecture)
-
-                        if  (isGem && target_platform.contains(debian_ruby_name(package_name,false))) ||
-                                target_platform.contains(package_name)
-                            Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
-                        else
-                            whitelist << [release, requested_architecture]
-                        end
-                    end
-                end
-
-                ret = ""
-                and_placeholder = " &amp;&amp; "
-                architectures.each do |arch|
-                    distributions.each do |dist|
-                        if !whitelist.include? [dist, arch]
-                            ret += "#{and_placeholder} !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
-                        end
-                    end
-                end
-
-                # Cut the first and_placeholder away
-                ret = ret[and_placeholder.size..-1]
             end
 
             # Commit changes of a debian package using dpkg-source --commit
