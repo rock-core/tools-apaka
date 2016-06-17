@@ -1306,7 +1306,9 @@ module Autoproj
                     end
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
+                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*$/,"")
                     Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
+                    Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
 
 
                     # Check if patching is needed
@@ -1343,6 +1345,12 @@ module Autoproj
                         if File.exists?("debian/install")
                             `sed -i "s#/usr##{rock_install_directory}#g" debian/install`
                             dpkg_commit_changes("install_to_rock_specific_directory")
+                        end
+
+                        if File.exists?("debian/package.postinst")
+                            `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" debian/package.postinst`
+                            FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
+                            dpkg_commit_changes("add_postinst_script")
                         end
 
                         ################
@@ -1428,7 +1436,6 @@ module Autoproj
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
-                        debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*$/,"")
                         `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
                         envsh = Regexp.escape(env_setup())
                         `sed -i '1 a #{envsh}' debian/rules`
