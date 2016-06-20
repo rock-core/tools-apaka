@@ -1211,7 +1211,6 @@ module Autoproj
                         end
 
                         if File.exists?("debian/package.postinst")
-                            `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" debian/package.postinst`
                             FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
                             dpkg_commit_changes("add_postinst_script")
                         end
@@ -1317,6 +1316,12 @@ module Autoproj
                         # https://www.debian.org/doc/debian-policy/ch-source.html
                         `sed -i '1 a export DEB_BUILD_OPTIONS=nocheck' debian/rules`
                         dpkg_commit_changes("disable_tests")
+
+
+                        Dir.glob("debian/*").each do |file|
+                            `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" #{file}`
+                            dpkg_commit_changes("adapt_rock_install_dir")
+                        end
 
                         ###################
                         # debian/changelog
