@@ -426,7 +426,7 @@ Dir.chdir(packager.build_dir) do
 
         puts "Creating FLOW-Job"
         options = { :force => o_overwrite }
-        jenkins.create_flow_job(o_flow, selection, o_flavor)
+        jenkins.create_flow_job(o_flow, selection, o_flavor, options)
     end
 
     if o_control_job
@@ -471,6 +471,8 @@ Dir.chdir(packager.build_dir) do
         i = 1
         all_packages = packager.all_required_packages(selection)
         all_gems  = all_packages[:gems]
+
+        jenkins = Autoproj::Packaging::Jenkins.new(packager)
         puts "Creating Gem-Jobs for #{all_gems}"
 
         all_gems.each do |gem_name|
@@ -478,7 +480,7 @@ Dir.chdir(packager.build_dir) do
             options[:job_name] = gem_name
             options[:version] = "noversion" # default use no version
             options[:force] = o_overwrite
-            packager.create_ruby_job(gem_name, options)
+            jenkins.create_ruby_job(gem_name, options)
             i = i+1
         end
     end

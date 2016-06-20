@@ -129,10 +129,16 @@ module Autoproj
                 end
             end
 
-            def create_flow_job(name, selection, flavor, options = Hash.new)
+            def create_flow_job(name, selection, release_name, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :parallel => false,
                     :force => false
+
+                if !release_name
+                    raise ArgumentError, "Jenkins.create_flow_job requires a release_name -- given: #{release_name}"
+                else
+                    debian_packager.rock_release_name = release_name
+                end
 
                 flow = debian_packager.all_required_packages(selection)
                 flow[:gems].each do |name|
@@ -146,7 +152,7 @@ module Autoproj
 
                 Packager.info "Creating flow of gems: #{flow[:gems]}"
                 Packager.info "Creating flow of packages: #{flow[:packages]}"
-                create_flow_job_xml(name, flow, flavor, options)
+                create_flow_job_xml(name, flow, release_name, options)
             end
 
             def create_flow_job_xml(name, flow, flavor, options)
