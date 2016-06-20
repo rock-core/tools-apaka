@@ -1032,6 +1032,9 @@ module Autoproj
                             end
                         end
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
+                        if !gem_file_name
+                            raise ArgumentError, "Could not retrieve a gem for #{gem_name} #{version} and options #{options}"
+                        end
                         convert_gem(gem_file_name, options)
                     else
                         Packager.info "gem: #{gem_name} up to date"
@@ -1079,6 +1082,10 @@ module Autoproj
                     :distribution => target_platform.distribution_release_name,
                     :architecture => target_platform.architecture,
                     :local_pkg => false
+
+                if !gem_path
+                    raise ArgumentError, "Debian.convert_gem: no #{gem_path} given"
+                end
 
                 distribution = options[:distribution]
 
