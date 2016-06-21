@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require 'rock/packaging/debian'
+require 'rock/packaging'
 
 # TODO Testcases
 #
@@ -63,21 +63,28 @@ class TestTargetPlatform < Minitest::Test
     def test_rock_package_unavailable
         ["rock-master-nopackage"].each do |pkg|
             @rock_platforms.each do |platform|
-                assert( !platform.contains(pkg), "'#{pkg}' is available for #{platform}" )
+                assert( !platform.contains(pkg), "'#{pkg}' is not available for #{platform}" )
+            end
+        end
+    end
+    def test_ruby_package_unavailable
+        ["nonsense","concurrent-ruby"].each do |pkg|
+            @platforms.each do |platform|
+                assert( !platform.contains(pkg), "'#{pkg}' is not available for #{platform}")
             end
         end
     end
 
     def test_rock_all_parents
-        assert( Autoproj::Packaging::TargetPlatform.allParents("transterra") == ["master"] )
-        assert( Autoproj::Packaging::TargetPlatform.allParents("master").empty? )
+        assert( Autoproj::Packaging::TargetPlatform.ancestors("transterra") == ["master"] )
+        assert( Autoproj::Packaging::TargetPlatform.ancestors("master").empty? )
     end
 
     def test_rock_parent_contains
         Autoproj::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
         transterra = Autoproj::Packaging::TargetPlatform.new("transterra","amd64")
         ["rock-master-base-cmake"].each do |pkg|
-            assert( transterra.parentContains(pkg), "'#{transterra} parent contains #{pkg}" )
+            assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
         end
     end
 end
