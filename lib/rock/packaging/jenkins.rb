@@ -243,14 +243,18 @@ module Autoproj
                       f.write rendered
                 end
 
-                update_or_create = "create-job"
-                if options[:force]
-                    update_or_create = "update-job"
-                end
-                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name]}' < #{rendered_filename}")
-                    Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename} succeeded"
+                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name]}' < #{rendered_filename}")
+                    Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename} succeeded"
                 else
-                    Packager.warn "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename} failed"
+                    Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename} failed"
+                    if options[:force]
+                        Packager.info "job #{options[:job_name]}': trying to update job from #{rendered_filename}"
+                        if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{options[:job_name]}' < #{rendered_filename}")
+                            Packager.warn "job #{options[:job_name]}': update-job from #{rendered_filename} succeeded"
+                        else
+                            Packager.warn "job #{options[:job_name]}': update-job from #{rendered_filename} failed"
+                        end
+                    end
                 end
             end
 
