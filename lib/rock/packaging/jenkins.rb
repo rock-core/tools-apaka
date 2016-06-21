@@ -281,9 +281,11 @@ module Autoproj
                         end
 
                         resolved_osdeps = nil
-                        if options[:package_name] && resolved_osdeps = Autoproj.osdeps.resolve_package(options[:package_name])
+                        if options[:package_name] && package_resolver = Autoproj.osdeps.resolve_package(options[:package_name])
                             begin
-                                resolved_osdeps = resolved_osdeps.first[2]
+                                if package_resolver.first[0].kind_of?(Autoproj::PackageManagers::AptDpkgManager)
+                                    resolved_osdeps = package_resolver.first[2]
+                                end
                             rescue Exception => e
                                 Packager.info "package: #{package_name} has no osdeps as replacement"
                             end
