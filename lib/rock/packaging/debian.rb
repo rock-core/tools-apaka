@@ -200,11 +200,11 @@ module Autoproj
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
                 @rock_release_hierarchy = [name]
                 if Config.rock_releases.has_key?(name)
-                    @rock_release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
+                    release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
                         TargetPlatform.isRock(release_name)
                     end
                     # Add the actual release name as first
-                    @rock_release_hierarchy += @rock_release_hierarchy
+                    @rock_release_hierarchy += release_hierarchy
                 end
             end
 

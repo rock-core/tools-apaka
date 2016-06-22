@@ -13,6 +13,13 @@ require 'rock/packaging'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
+class TestDebian < Minitest::Test
+    def test_release_name
+        packager = Autoproj::Packaging::Debian.new
+        packager.rock_release_name="master"
+        assert(packager.rock_release_hierarchy == ["master"], "Rock release hierarchy should contain self")
+    end
+end
 
 class TestTargetPlatform < Minitest::Test
 
@@ -76,8 +83,8 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_rock_all_parents
-        assert( Autoproj::Packaging::TargetPlatform.ancestors("transterra") == ["master"] )
-        assert( Autoproj::Packaging::TargetPlatform.ancestors("master").empty? )
+        assert( Autoproj::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra boostrap contains master" )
+        assert( Autoproj::Packaging::TargetPlatform.ancestors("master").empty?, "Ancestors of master release do not exist" )
     end
 
     def test_rock_parent_contains
