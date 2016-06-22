@@ -5,16 +5,9 @@
 # nocheck: This tag says to not run any build-time test suite provided by the package.
 export DEB_BUILD_OPTIONS=nocheck
 
-arch=$(shell gcc -print-multiarch)
-# Extract the default ruby version to build for on that platform
-# this assumes a proper setup of /usr/bin/ruby
-ruby_ver=$(shell ruby --version)
-ruby_arch_dir=$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['archdir']")
-ruby_libdir =$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['rubylibdir']")
-
-rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))
-rockruby_libdir=$(subst /usr,,$(ruby_libdir))
-
+# Setup of $(arch), $(rockruby_libdir) and $(rockruby_archdir)
+<%= ruby_arch_setup %>
+# Setup of paths: PATH,PKG_CONFIG_PATH,RUBYLIB,...
 <%= env_setup %>
 
 DEB_VERBOSE_ALL=1
@@ -54,10 +47,8 @@ pre-build::
 CMAKE = $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
-# Debian packaging discourages the use of rpath, and 
-# cdbs actively disables it setting CMAKE_SKIP_RPATH=ON
-# however since we install into <%= rock_install_directory %> we turn skipping off again
-# CXXFLAGS+=-Wl,-rpath-link,<%= rock_install_directory %>/lib
+# Debian packaging discourages the use of rpath, but
+# cdbs actively sets CMAKE_SKIP_RPATH=ON, so reinforcing OFF here
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
@@ -72,7 +63,7 @@ include /usr/share/cdbs/1/class/cmake.mk
 # BEGIN AUTOTOOLS
 #
 <% elsif package.class == Autobuild::Autotools %>
-DEB_CONFIGURE_PREFIX= <%= rock_install_directory %>
+DEB_CONFIGURE_PREFIX= $(rock_install_dir)
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
 
 # use autoreconf: check with external/libply

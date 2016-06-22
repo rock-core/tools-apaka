@@ -1308,6 +1308,8 @@ module Autoproj
                         `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
                         envsh = Regexp.escape(env_setup())
                         `sed -i '1 a #{envsh}' debian/rules`
+                        ruby_arch_env = Regexp.escape(ruby_arch_setup())
+                        `sed -i '1 a #{ruby_arch_env}' debian/rules`
                         `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
@@ -1389,6 +1391,20 @@ module Autoproj
                 ruby_versions
             end
 
+            def ruby_arch_setup
+                Packager.info "Creating ruby env setup"
+                setup = "arch=$(shell gcc -print-multiarch)\n"
+                # Extract the default ruby version to build for on that platform
+                # this assumes a proper setup of /usr/bin/ruby
+                setup +="ruby_ver=$(shell ruby --version)\n"
+                setup += "ruby_arch_dir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['archdir']\")\n"
+                setup += "ruby_libdir =$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['rubylibdir']\")\n"
+
+                setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
+                setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
+                setup
+            end
+
             def env_setup
                 Packager.info "Creating envsh"
                 path_env            = "PATH="
@@ -1439,8 +1455,9 @@ module Autoproj
 
                 if ["xenial"].include?(target_platform.distribution_release_name)
                     envsh += "export TYPELIB_CXX_LOADER=castxml\n"
-                    envsh += "export DEB_CPPFLAGS_APPEND='-std=c++11'\n"
                 end
+                envsh += "export DEB_CPPFLAGS_APPEND='-std=c++11'\n"
+                envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
             end
         end #end Debian
