@@ -284,7 +284,7 @@ end
 
 options[:distribution] = o_distributions.first
 options[:architectures] = o_architectures.first
-packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), options)
+packager = Autoproj::Packaging::Debian.new(options)
 
 # First load autoproj so that we can query what is a in rock defined
 # package and what is not

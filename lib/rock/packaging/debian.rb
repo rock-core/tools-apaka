@@ -47,14 +47,13 @@ module Autoproj
             attr_reader :rock_release_platform
             attr_reader :rock_release_hierarchy
 
-            def initialize(existing_debian_directories, options = Hash.new)
+            def initialize(options = Hash.new)
                 super()
 
                 options, unknown_options = Kernel.filter_options options,
                     :distribution => nil,
                     :architecture => nil
 
-                @existing_debian_directories = existing_debian_directories
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
@@ -531,10 +530,10 @@ module Autoproj
 
                 distribution = options[:distribution]
 
-                existing_dir = File.join(existing_debian_directories, pkg.name)
+                existing_debian_dir = File.join(pkg.srcdir,"debian")
                 template_dir =
-                    if File.directory?(existing_dir)
-                        existing_dir
+                    if File.directory?(existing_debian_dir)
+                        existing_debian_dir
                     else
                         TEMPLATES
                     end
