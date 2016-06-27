@@ -847,13 +847,22 @@ module Autoproj
             end
 
             def debian_version(pkg, distribution, revision = "1")
-                if !@debian_version.has_key?(pkg.name)
+#                if !@debian_version.has_key?(pkg.name)
                     #@debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d") + "-" + revision
+		    if pkg.description.nil?
+                       v = "0"
+		    else
+                    	if !pkg.description.version
+                           v = "0"
+                        else
+                           v = pkg.description.version
+                        end
+                    end 
+                    @debian_version[pkg.name] = v + "." + Time.now.strftime("%Y%m%d") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
-                end
+ #               end
                 @debian_version[pkg.name]
             end
 
@@ -1712,35 +1721,90 @@ module Autoproj
             end
 
             def build_local(pkg, options)
+		filepath = BUILD_DIR
 		distribution = max_one_distribution(options[:distributions])
-            # cd package_name
-            # tar -xf package_name_0.0.debian.tar.gz
-            # tar -xf package_name_0.0.orig.tar.gz
-            # mv debian/ package_name_0.0/
-            # cd package_name_0.0/
-            # debuild -us -uc
-            # #to install
-            # cd ..
-            # sudo dpkg -i package_name_0.0.deb
-                filepath = BUILD_DIR
-                Packager.info "Building #{pkg.name} locally"
-		begin
-		    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
-		        FileUtils.rm_rf "debian"
-		        FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
-		        `tar -xf *.debian.tar.gz`
-		        `tar -xf *.orig.tar.gz`
-			FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
-                        FileUtils.chdir plain_versioned_name(pkg, distribution) do
-			    `debuild -us -uc`
-		        end
-                        filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, distribution)}_ARCHITECTURE.deb" 
-                    end
-                rescue Errno::ENOENT
-                    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package"
-		    return
-                end
+#		if !options[:rebuild]
+#puts "try to skip #{pkg.name}"
+#                   return if File.exist? File.join(BUILD_DIR, debian_name(pkg)) + '/' + "#{versioned_name(pkg, distribution)}_*.deb" 
+#puts "not skipped"
+# 		end
+		
+#		if options[:recursive]
+#		    pkg.dependencies.each do |pkg_name|
+#puts "DEPENDENCIES of #{pkg.name}"
+#    		        if pkg = Autoproj.manifest.package(pkg_name)
+#		            pkg = pkg.autobuild
+#                            build_local pkg, (options)
+#                        else
+#                          puts "nix!" 
+#                        end
+#		    end
+#		end
+#		if !options[:rebuild]
+#puts "try to skip #{pkg.name} after dependencies"
+#                   return if File.exist? File.join(BUILD_DIR, debian_name(pkg)) + '/' + "#{versioned_name(pkg, distribution)}_*.deb" 
+#puts "not skipped after dependencies"
+# 		end
+
+		    # cd package_name
+		    # tar -xf package_name_0.0.debian.tar.gz
+		    # tar -xf package_name_0.0.orig.tar.gz
+		    # mv debian/ package_name_0.0/
+		    # cd package_name_0.0/
+		    # debuild -us -uc
+		    # #to install
+		    # cd ..
+		    # sudo dpkg -i package_name_0.0.deb
+			
+
+			Packager.info "Building #{pkg.name} locally"
+			begin
+			    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
+				FileUtils.rm_rf "debian"
+				FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
+				FileUtils.mkdir "#{plain_versioned_name(pkg, distribution)}"
+				`tar -xf *.debian.tar.gz`
+				`tar -x --strip-components=1 -C #{plain_versioned_name(pkg, distribution)} -f *.orig.tar.gz`
+				FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
+				FileUtils.chdir plain_versioned_name(pkg, distribution) do
+				    `debuild -us -uc`
+				end
+				filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, FALSE)}_ARCHITECTURE.deb" 
+			    end
+			rescue Errno::ENOENT
+			    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package and --recursive if #{pkg.name} is a dependency of your desired package"
+			    return
+			end
                 filepath
+                
+            end
+
+            def install( pkg, options)
+		install_dependencies = options[:dependencies]
+	#	operating_system = options[:operating_system]
+		distribution = max_one_distribution(options[:distributions])
+	#	distribution = operating_system[1][1]
+		architecture = `uname -m`.strip
+		case architecture
+		    when 'x86_64'
+			architecture = 'amd64'
+		    when 'i686'
+                        architecture = 'i386'
+                    when 'armv7l'
+                        atchitecture = 'armel'
+                    else
+                        Packager.error "Architecture not recognized"
+			return
+                end
+		
+                begin
+                    #go through all deps
+                    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do
+                        `sudo dpkg -i #{versioned_name(pkg, FALSE)}_#{architecture}.deb`
+		    end
+                rescue
+			Packager.error "Installation failed"
+                end
                 
             end
 

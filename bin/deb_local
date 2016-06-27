@@ -1,0 +1,109 @@
+#! /usr/bin/env ruby
+require 'find'
+require 'optparse'
+require 'autoproj'
+require 'autobuild'
+require 'rock/packaging/debian'
+
+o_skip = false
+o_verbose = false
+#o_dest_dir = false
+
+options = OptionParser.new do |opt|
+    opt.banner = "Usage: deb_local [options]"
+    opt.on('--skip', 'Skip existing packages') do
+        o_skip = true
+    end
+    opt.on('--verbose', 'Display output') do
+        o_verbose = true
+    end
+#    opt.on("--dest-dir DIR", String, "Destination Folder of the source-package") do |dir|
+#        o_dest_dir = File.expand_path(dir)
+#        if !File.directory?(o_dest_dir)
+#            puts "Given destination directory '#{o_dest_dir}' does not exist"
+#            exit -1
+#        end
+end
+
+o_selected_packages = options.parse(ARGV)
+
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(nil)
+
+selected_gems = []
+selected_rock_packages = o_selected_packages.select do |name|
+    if pkg = Autoproj.manifest.package(name)
+        Autoproj.warn "Package: #{name} is a known rock package"
+        true
+    elsif Autoproj::Packaging::GemDependencies::isGem(name)
+        Autoproj.warn "Package: #{name} is a gem"
+        packager.ruby_gems << [name, o_package_version]
+        false
+    else
+        true
+    end
+end
+
+
+Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+
+
+selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
+selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
+def exists?(pkg)
+    packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
+    puts "look for #{packager.debian_name pkg}-#{packager.debian_version pkg, 'trusty'}.deb" #TODO generic tursty!!!
+    false 
+end
+
+def all_dependencies(pkg_name)
+    deps = [pkg_name]
+    pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
+    pkg = pkg_manifest.package
+
+    pkg.resolve_optional_dependencies
+    pkg.dependencies.each do |pkg_name|
+	if !deps.include? pkg_name
+        	deps.concat all_dependencies(pkg_name)
+        end
+    end
+    deps.uniq!
+    deps
+end
+packages = []
+selection.each do |pkg_name|
+    if pkg = Autoproj.manifest.package(pkg_name)
+        pkg = pkg.autobuild
+            Autoproj.warn "Package: #{pkg_name} is a known rock package"
+    else
+        Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+        next
+    end
+    if ! exists? pkg
+        (all_dependencies pkg.name).each do |pkg_name|
+	    packages << pkg_name
+        end
+    end
+    
+
+end
+packages.uniq!
+puts "!#!#!#!#!#!#! packaging !#!#!#!#!#!#!"
+packages.each do |pkg_name|
+    puts "############### package #{pkg_name} #####################"
+    output =  `deb_package --package #{pkg_name}`
+    puts output if o_verbose
+end
+puts "!#!#!#!#!#!#! building !#!#!#!#!#!#!"
+packages.each do |pkg_name|
+    puts "############### build #{pkg_name} #####################"
+    output = `deb_package --build-local --distribution trusty #{pkg_name}`
+    puts output if o_verbose
+end
+puts "!#!#!#!#!#!#! installing !#!#!#!#!#!#!"
+packages.each do |pkg_name|
+    puts "############### install #{pkg_name} #####################"
+    output = `deb_package --local-env --distribution trusty #{pkg_name}`
+    puts output if o_verbose
+end

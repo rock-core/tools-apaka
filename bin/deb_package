@@ -40,6 +40,8 @@ o_exists = false
 o_rock_release_name = nil
 o_package_version = nil
 o_build_local = false
+o_local_env = false
+o_recursive = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -179,6 +181,14 @@ options = OptionParser.new do |opt|
     opt.on("--build-local", String, "Build a debian-package locally and without Buildserver (Jenkins)") do
         o_build_local = true
     end
+    opt.on("--local-env", String, "Build an environment up to the given package based on debian-packages") do
+        o_build_local = true
+        o_local_env = true
+    end
+    opt.on("--recursive", String, "package and/or build packages with their recursive dependencies") do
+        o_recursive = true
+    end
+    
 end
 
 # The remaining arguments are the packages that have been selected on console
@@ -488,6 +498,18 @@ Dir.chdir(packager.build_dir) do
                 puts "Debian package here: " + filepath
             end
         end        
+    end
+
+    if o_local_env
+        selection.each_with_index do |pkg_name, i|
+	    if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
+	    packager.install pkg, :install_dependencies => true, :distributions => o_distributions, :package => o_package
+        end
     end
 
     packager.cleanup
