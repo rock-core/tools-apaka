@@ -3,33 +3,29 @@ require 'find'
 require 'optparse'
 require 'autoproj'
 require 'autobuild'
-require 'rock/packaging/debian'
+require 'rock/packaging'
 
 o_skip = false
 o_verbose = false
-#o_dest_dir = false
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_local [options]"
-    opt.on('--skip', 'Skip existing packages') do
-        o_skip = true
-    end
     opt.on('--verbose', 'Display output') do
         o_verbose = true
     end
-#    opt.on("--dest-dir DIR", String, "Destination Folder of the source-package") do |dir|
-#        o_dest_dir = File.expand_path(dir)
-#        if !File.directory?(o_dest_dir)
-#            puts "Given destination directory '#{o_dest_dir}' does not exist"
-#            exit -1
-#        end
 end
 
 o_selected_packages = options.parse(ARGV)
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
-packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
+#packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
+option = Hash.new
+option[:distribution] = NIL #o_distributions.first
+option[:architectures] = NIL #o_architectures.first
+packager = Autoproj::Packaging::Debian.new(option)
+packager.rock_release_name = "local"
+
 
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
@@ -66,6 +62,9 @@ packages = packages[:packages]
 
 puts "############################### GEMS ######################"
 packager.ruby_gems.each do |pkg, version|
+    if pkg == "kramdown"
+        next # it's in the ubuntu-repos, this should be done in another way
+    end
     puts "############### package #{pkg} #####################"
     if version
         output =  `deb_package --package --rebuild --distributions trusty--release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --package-version #{version} #{pkg}` 
@@ -77,7 +76,7 @@ end
     output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --release-name  #{packager.rock_release_name} #{pkg}`
     puts output if o_verbose
     puts "############### install #{pkg} #####################"
-    output = `deb_package --install --distributions trusty #{pkg}`
+    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg}`
     puts output if o_verbose
 end
 
@@ -93,6 +92,6 @@ packages.each do |pkg|
     puts output if o_verbose
     puts "############### install #{pkg.name} #####################"
     puts "deb_package --install --distributions trusty #{pkg.name}"
-    output = `deb_package --install --distributions trusty #{pkg.name}`
+    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg.name}`
     puts output if o_verbose
 end

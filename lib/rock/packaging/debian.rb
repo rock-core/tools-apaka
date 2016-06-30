@@ -398,9 +398,10 @@ module Autoproj
                 pkg = pkg_manifest.package
 
                 pkg.resolve_optional_dependencies
+		this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
                     debian_name = debian_name( findPackageByName(dep_name), with_rock_release_prefix)
-                    rock_release_platform.packageReleaseName(debian_name)
+                    this_rock_release.packageReleaseName(debian_name)
                 end.sort
 
                 Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
@@ -924,30 +925,19 @@ module Autoproj
             def install( pkg, options)
 		install_dependencies = options[:dependencies]
 		distribution = max_one_distribution(options[:distributions])
-		if pkg.class == String
-                     name = rock_ruby_release_prefix + pkg
-                     long_name = rock_ruby_release_prefix + pkg
+		
+		if pkg.class == String # it's a gem
+                     name = rock_ruby_release_prefix(rock_release_name) + pkg
+                     long_name = rock_ruby_release_prefix(rock_release_name) + pkg
                 else
                      name = debian_name(pkg)
                      long_name = debian_name(pkg, TRUE)
                 end
-		#architecture = `uname -m`.strip
-		#case architecture
-		#    when 'x86_64'
-	#		architecture = 'amd64'
-#		    when 'i686'
-#                        architecture = 'i386'
-#                    when 'armv7l'
-#                        architecture = 'armel'
-#                    else
-#                        Packager.error "Architecture not recognized"
-#			return
-#                end
 		
                 begin
+puts "In #{BUILD_DIR + '/' + name}:  sudo dpkg -i #{long_name}*.deb"
                     #go through all deps
-                    FileUtils.chdir File.join(BUILD_DIR, name) do
-                        #`sudo dpkg -i #{debian_name(pkg, FALSE)}*_#{architecture}.deb`
+                    FileUtils.chdir File.join(BUILD_DIR, '/' + name) do
                         `sudo dpkg -i #{long_name}*.deb`
 		    end
                 rescue

@@ -575,7 +575,8 @@ Dir.chdir(packager.build_dir) do
                 Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
-	    packager.install pkg, :install_dependencies => true, :distributions => o_distributions
+            puts "Installing #{pkg.name}"
+	    packager.install pkg, :install_dependencies => true, :distributions => o_distributions, :verbose => Autobuild.verbose
         end
     end
 
