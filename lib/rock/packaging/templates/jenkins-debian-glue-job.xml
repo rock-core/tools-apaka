@@ -72,7 +72,8 @@
   </combinationFilter>
   <builders>
     <hudson.tasks.Shell>
-      <command>dest_dir=`pwd`
+        <command>
+dest_dir=`pwd`
 build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$distribution-$architecture`
 
 echo "Destination dir for <%= options[:package_name] %> ($architecture): $dest_dir"
@@ -81,37 +82,58 @@ mkdir -p $build_dir
 
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --distributions ${distribution} --architectures ${architecture} --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= options[:package_name] %>
-cd -
-# Making sure that the artifact land in the workspace directory
-# This is different for the gem, since it creates a directory ruby-my_gem
-# in the workspace -- all files need to be in the workspace dir when
-# calling build-and-provide-package -- so copy them there
-<% if options[:type] == :gem %>
-mv $dest_dir/<%= options[:dir_name] %>/* .
-<% else %>
-mv $build_dir/<%= options[:dir_name] %>/* .
-<% end %> </command>
-    </hudson.tasks.Shell>
-    <hudson.tasks.Shell>
-      <command>
-export REMOVE_FROM_RELEASE=true
-export RELEASE_DISTRIBUTION=${distribution}
-/usr/bin/build-and-provide-package
 
+status=`deb_package --activation-status --distributions ${distribution} --architectures ${architecture} | tail -1`
+if [ "${status}" = "active" ]; then
+    deb_package --distributions ${distribution} --architectures ${architecture} --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= options[:package_name] %>
+    cd -
+    # Making sure that the artifact land in the workspace directory
+    # This is different for the gem, since it creates a directory ruby-my_gem
+    # in the workspace -- all files need to be in the workspace dir when
+    # calling build-and-provide-package -- so copy them there
+    <% if options[:type] == :gem %>
+    mv $dest_dir/<%= options[:dir_name] %>/* .
+    <% else %>
+    mv $build_dir/<%= options[:dir_name] %>/* .
+    <% end %>
+    echo "Step: 'debian source package creation' completed"
+elif [ "${status}" = "inactive" ]; then
+    echo "Configuration: ${distribution} ${architecture} is not a requested configuration"
+    echo "Step: 'debian source package creation' skipped"
+else
+    echo "Unknown activation status: expect inactive or active, but got ${status}"
+fi
+</command>
+        </hudson.tasks.Shell>
+        <hudson.tasks.Shell>
+          <command>
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
-deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
+status=`deb_package --activation-status --distributions ${distribution} --architectures ${architecture} | tail -1`
+if [ "${status}" = "active" ]; then
+    export REMOVE_FROM_RELEASE=true
+    export RELEASE_DISTRIBUTION=${distribution}
+    /usr/bin/build-and-provide-package
+
+    deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
+    echo "Step: 'build debian package' completed"
+elif [ "${status}" = "inactive" ]; then
+    echo "Configuration: ${distribution} ${architecture} is not a requested configuration"
+    echo "Step: 'build debian package' skipped"
+else
+    echo "Unknown activation status: expect inactive or active, but got ${status}"
+fi
       </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers>
     <hudson.tasks.ArtifactArchiver>
       <artifacts>*.gz,*.bz2,*.xz,*.deb,*.dsc,*.changes</artifacts>
-      <allowEmptyArchive>false</allowEmptyArchive>
+      <allowEmptyArchive>true</allowEmptyArchive>
       <onlyIfSuccessful>false</onlyIfSuccessful>
       <fingerprint>false</fingerprint>
       <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
     </hudson.tasks.ArtifactArchiver>
     <org.jenkinsci.plugins.postbuildscript.PostBuildScript>
       <buildSteps>

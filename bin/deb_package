@@ -42,6 +42,7 @@ o_package_version = nil
 o_build_local = false
 o_show_config = false
 o_create_cleanup_jobs = false
+o_activation_status=false
 
 if ARGV.empty?
     ARGV << "--help"
@@ -195,15 +196,32 @@ options = OptionParser.new do |opt|
     opt.on("--show-config", "Show the current configuration") do
         o_show_config = true
     end
-end
-
-if o_show_config
-    Autoproj::Packaging::Config
+    opt.on("--activation-status","Check the configuration setting for building thi particualr distribution and release combination") do
+        o_activation_status = true
+    end
 end
 
 # The remaining arguments are the packages that have been selected on console
 # only these ones should be considered
 o_selected_packages = options.parse(ARGV)
+
+if o_show_config
+    Autoproj::Packaging::Config
+end
+
+if o_activation_status
+    distribution = o_distributions.first
+    architecture = o_architectures.first
+
+    if Autoproj::Packaging::Config.architectures.include?(architecture) &&
+        Autoproj::Packaging::Config.architectures[architecture].include?(distribution)
+        puts "active"
+        exit 0
+    else
+        puts "inactive"
+        exit 0
+    end
+end
 
 if o_package_version && o_selected_packages.size != 1
     raise ArgumentError, "Cannot use package-version with multiple packages as argument"
