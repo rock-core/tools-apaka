@@ -29,6 +29,7 @@ o_selected_packages = options.parse(ARGV)
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
+packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
 
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
@@ -37,7 +38,7 @@ selected_rock_packages = o_selected_packages.select do |name|
         true
     elsif Autoproj::Packaging::GemDependencies::isGem(name)
         Autoproj.warn "Package: #{name} is a gem"
-        packager.ruby_gems << [name, o_package_version]
+        packager.ruby_gems << [name, nil]
         false
     else
         true
@@ -51,59 +52,47 @@ Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{se
 selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
-def exists?(pkg)
-    packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
-    puts "look for #{packager.debian_name pkg}-#{packager.debian_version pkg, 'trusty'}.deb" #TODO generic tursty!!!
-    false 
-end
+`export ROCK_RELEASE=#{packager.rock_release_name}`
+`. custom-env.sh`
 
-def all_dependencies(pkg_name)
-    deps = [pkg_name]
-    pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
-    pkg = pkg_manifest.package
+# Compute dependencies
+packages = packager.all_required_rock_packages selection
 
-    pkg.resolve_optional_dependencies
-    pkg.dependencies.each do |pkg_name|
-	if !deps.include? pkg_name
-        	deps.concat all_dependencies(pkg_name)
-        end
-    end
-    deps.uniq!
-    deps
-end
-packages = []
-selection.each do |pkg_name|
-    if pkg = Autoproj.manifest.package(pkg_name)
-        pkg = pkg.autobuild
-            Autoproj.warn "Package: #{pkg_name} is a known rock package"
+packages = packager.all_required_packages selection
+gems = packages[:gems]
+gem_versions = packages[:gem_versions]
+packages = packages[:packages]
+
+
+puts "############################### GEMS ######################"
+packager.ruby_gems.each do |pkg, version|
+    puts "############### package #{pkg} #####################"
+    if version
+        output =  `deb_package --package --rebuild --distributions trusty--release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --package-version #{version} #{pkg}` 
     else
-        Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
-        next
-    end
-    if ! exists? pkg
-        (all_dependencies pkg.name).each do |pkg_name|
-	    packages << pkg_name
-        end
-    end
-    
+        output =  `deb_package --package --rebuild --distributions trusty --release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ #{pkg}` 
+end
+    puts output if o_verbose
+    puts "############### build #{pkg} #####################"
+    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --release-name  #{packager.rock_release_name} #{pkg}`
+    puts output if o_verbose
+    puts "############### install #{pkg} #####################"
+    output = `deb_package --install --distributions trusty #{pkg}`
+    puts output if o_verbose
+end
 
-end
-packages.uniq!
-puts "!#!#!#!#!#!#! packaging !#!#!#!#!#!#!"
-packages.each do |pkg_name|
-    puts "############### package #{pkg_name} #####################"
-    output =  `deb_package --package #{pkg_name}`
+puts "################## PACKAGES #####################"
+packages.each do |pkg|
+    puts "############### package #{pkg.name} #####################"
+    puts "deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}" 
+    output =  `deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}`
     puts output if o_verbose
-end
-puts "!#!#!#!#!#!#! building !#!#!#!#!#!#!"
-packages.each do |pkg_name|
-    puts "############### build #{pkg_name} #####################"
-    output = `deb_package --build-local --distribution trusty #{pkg_name}`
+    puts "############### build #{pkg.name} #####################"
+    puts "deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}"
+    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}`
     puts output if o_verbose
-end
-puts "!#!#!#!#!#!#! installing !#!#!#!#!#!#!"
-packages.each do |pkg_name|
-    puts "############### install #{pkg_name} #####################"
-    output = `deb_package --local-env --distribution trusty #{pkg_name}`
+    puts "############### install #{pkg.name} #####################"
+    puts "deb_package --install --distributions trusty #{pkg.name}"
+    output = `deb_package --install --distributions trusty #{pkg.name}`
     puts output if o_verbose
 end

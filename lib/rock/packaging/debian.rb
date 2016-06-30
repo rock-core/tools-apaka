@@ -1437,7 +1437,7 @@ module Autoproj
                 deps = dependencies(pkg, with_rock_prefix)
                 deps_rock_packages = deps[:rock]
                 deps_osdeps_packages = deps[:osdeps]
-                deps_nonnative_packages = deps[:nonnative].to_a
+                deps_nonnative_packages = deps[:nonnative].to_a.flatten.compact
 
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                 Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
@@ -1720,32 +1720,49 @@ module Autoproj
                 end
             end
 
+	    def build_local_gem(gem_name, options)
+		filepath = BUILD_DIR
+		distribution = max_one_distribution(options[:distributions])
+			Packager.info "Building #{gem_name} locally"
+			begin
+			    gem_version = "FAILED"
+			    FileUtils.chdir File.join(BUILD_DIR, rock_ruby_release_prefix + gem_name) do 
+				Find.find("#{BUILD_DIR}/#{rock_ruby_release_prefix + gem_name}/").each do |file|
+				    if FileTest.directory?(file)
+					if File.basename(file)[0] == ?.
+                                            Find.prune
+                                        end
+                                    end
+                                    if file.end_with? ".gem"
+                                        gem_version = File.basename(file).sub(gem_name + '-', '').sub('.gem', '')
+					break
+                                    end
+                                end
+				#FileUtils.rm_rf "debian"
+				#FileUtils.rm_rf "#{rock_ruby_release_prefix + gem_name + gem_version}"
+				#FileUtils.mkdir "#{rock_ruby_release_prefix + gem_name + gem_version}"
+				`tar -xf *.debian.tar.gz`
+				`tar -x --strip-components=1 -C #{rock_ruby_release_prefix + gem_name + '-' + gem_version} -f *.orig.tar.gz`
+				FileUtils.mv 'debian', rock_ruby_release_prefix + gem_name + '-' + gem_version + '/', :force => true
+				FileUtils.chdir rock_ruby_release_prefix + gem_name + '-' + gem_version do
+				    output = `debuild -us -uc`
+				    if options[:verbose]
+				        puts output
+                                    end
+				end
+				filepath = FileUtils.pwd + '/' + "#{rock_ruby_release_prefix + gem_name + '-' + gem_version}.deb" 
+			    end
+			rescue Errno::ENOENT
+			    Packager.error "Package #{gem_name} seems not to be packaged, try adding --package before"
+			    return
+			end
+                filepath || "FAILED"
+                
+            end
+
             def build_local(pkg, options)
 		filepath = BUILD_DIR
 		distribution = max_one_distribution(options[:distributions])
-#		if !options[:rebuild]
-#puts "try to skip #{pkg.name}"
-#                   return if File.exist? File.join(BUILD_DIR, debian_name(pkg)) + '/' + "#{versioned_name(pkg, distribution)}_*.deb" 
-#puts "not skipped"
-# 		end
-		
-#		if options[:recursive]
-#		    pkg.dependencies.each do |pkg_name|
-#puts "DEPENDENCIES of #{pkg.name}"
-#    		        if pkg = Autoproj.manifest.package(pkg_name)
-#		            pkg = pkg.autobuild
-#                            build_local pkg, (options)
-#                        else
-#                          puts "nix!" 
-#                        end
-#		    end
-#		end
-#		if !options[:rebuild]
-#puts "try to skip #{pkg.name} after dependencies"
-#                   return if File.exist? File.join(BUILD_DIR, debian_name(pkg)) + '/' + "#{versioned_name(pkg, distribution)}_*.deb" 
-#puts "not skipped after dependencies"
-# 		end
-
 		    # cd package_name
 		    # tar -xf package_name_0.0.debian.tar.gz
 		    # tar -xf package_name_0.0.orig.tar.gz
@@ -1755,7 +1772,6 @@ module Autoproj
 		    # #to install
 		    # cd ..
 		    # sudo dpkg -i package_name_0.0.deb
-			
 
 			Packager.info "Building #{pkg.name} locally"
 			begin
@@ -1767,13 +1783,16 @@ module Autoproj
 				`tar -x --strip-components=1 -C #{plain_versioned_name(pkg, distribution)} -f *.orig.tar.gz`
 				FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
 				FileUtils.chdir plain_versioned_name(pkg, distribution) do
-				    `debuild -us -uc`
+				    output = `debuild -us -uc`
+				    if options[:verbose]
+				        puts output
+                                    end
 				end
 				filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, FALSE)}_ARCHITECTURE.deb" 
 			    end
 			rescue Errno::ENOENT
-			    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package and --recursive if #{pkg.name} is a dependency of your desired package"
-			    return
+			    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package before"
+			    return "FAILED"
 			end
                 filepath
                 
@@ -1781,26 +1800,32 @@ module Autoproj
 
             def install( pkg, options)
 		install_dependencies = options[:dependencies]
-	#	operating_system = options[:operating_system]
 		distribution = max_one_distribution(options[:distributions])
-	#	distribution = operating_system[1][1]
-		architecture = `uname -m`.strip
-		case architecture
-		    when 'x86_64'
-			architecture = 'amd64'
-		    when 'i686'
-                        architecture = 'i386'
-                    when 'armv7l'
-                        atchitecture = 'armel'
-                    else
-                        Packager.error "Architecture not recognized"
-			return
+		if pkg.class == String
+                     name = rock_ruby_release_prefix + pkg
+                     long_name = rock_ruby_release_prefix + pkg
+                else
+                     name = debian_name(pkg)
+                     long_name = debian_name(pkg, TRUE)
                 end
+		#architecture = `uname -m`.strip
+		#case architecture
+		#    when 'x86_64'
+	#		architecture = 'amd64'
+#		    when 'i686'
+#                        architecture = 'i386'
+#                    when 'armv7l'
+#                        architecture = 'armel'
+#                    else
+#                        Packager.error "Architecture not recognized"
+#			return
+#                end
 		
                 begin
                     #go through all deps
-                    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do
-                        `sudo dpkg -i #{versioned_name(pkg, FALSE)}_#{architecture}.deb`
+                    FileUtils.chdir File.join(BUILD_DIR, name) do
+                        #`sudo dpkg -i #{debian_name(pkg, FALSE)}*_#{architecture}.deb`
+                        `sudo dpkg -i #{long_name}*.deb`
 		    end
                 rescue
 			Packager.error "Installation failed"
