@@ -5,35 +5,10 @@
 # nocheck: This tag says to not run any build-time test suite provided by the package.
 export DEB_BUILD_OPTIONS=nocheck
 
-rock_install_dir = <%= rock_install_directory %>
-rock_bindir = $(rock_install_dir)/bin
-arch=$(shell gcc -print-multiarch)
-
-# Extract the default ruby version to build for on that platform
-# this assumes a proper setup of /usr/bin/ruby
-ruby_ver=$(shell ruby --version)
-ruby_arch_dir=$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['archdir']")
-rockruby_archdir=$(subst /usr,$(rock_install_dir),$(ruby_arch_dir))
-
-ruby_libdir =$(shell ruby -r rbconfig -e "print RbConfig::CONFIG['rubylibdir']")
-rockruby_libdir=$(subst /usr,$(rock_install_dir),$(ruby_libdir))
-
-# Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
-# vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
-rockruby_extra_libdir = $(rock_install_dir)/lib/ruby/vendor_ruby/standard/:$(rock_install_dir)/lib/ruby/vendor_ruby/core/:$(rock_install_dir)/lib/ruby/vendor_ruby
-
-# Setting up the env variables
-env_setup = PATH=$(rock_bindir):$(PATH)
-env_setup += RUBYLIB=$(rockruby_libdir):$(rockruby_archdir):$(rockruby_extra_libdir):$(RUBYLIB)
-env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake
-env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(rock_install_dir)/lib/$(arch)/pkgconfig:/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:$(PKG_CONFIG_PATH)
-env_setup += LD_LIBRARY_PATH=$(rock_install_dir)/lib:$(LD_LIBRARY_PATH)
-env_setup += OROGEN_PLUGIN_PATH=$(rock_install_dir)/share/orogen/plugins
-env_setup += CMAKE_PREFIX_PATH=$(rock_install_dir)
-<% if ["xenial"].include?(distribution) %>
-export TYPELIB_CXX_LOADER=castxml
-export DEB_CPPFLAGS_APPEND="-std=c++11"
-<% end %>
+# Setup of $(arch), $(rockruby_libdir) and $(rockruby_archdir)
+<%= ruby_arch_setup %>
+# Setup of paths: PATH,PKG_CONFIG_PATH,RUBYLIB,...
+<%= env_setup %>
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
@@ -72,10 +47,8 @@ pre-build::
 CMAKE = $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
-# Debian packaging discourages the use of rpath, and 
-# cdbs actively disables it setting CMAKE_SKIP_RPATH=ON
-# however since we install into <%= rock_install_directory %> we turn skipping off again
-# CXXFLAGS+=-Wl,-rpath-link,<%= rock_install_directory %>/lib
+# Debian packaging discourages the use of rpath, but
+# cdbs actively sets CMAKE_SKIP_RPATH=ON, so reinforcing OFF here
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
@@ -90,35 +63,19 @@ include /usr/share/cdbs/1/class/cmake.mk
 # BEGIN AUTOTOOLS
 #
 <% elsif package.class == Autobuild::Autotools %>
-DEB_CONFIGURE_PREFIX= <%= rock_install_directory %>
+DEB_CONFIGURE_PREFIX= $(rock_install_dir)
 DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
-    <% if package.using[:libtool] %>
-DEB_AUTO_UPDATE_LIBTOOL = pre # post / pre
-    <% end %>
-    <% if package.using[:aclocal] %>
-# -- extract the first list of the command 'aclocal --version'
-# -- then grep the very last word, i.e., the version string
-# -- then extract the first two elements of the version string, since that is how the version tool link are named
-aclocal_version_ws=$(subst ., , $(lastword $(shell aclocal --version | grep aclocal)))
-DEB_AUTO_UPDATE_ACLOCAL = $(shell echo "$(word 1, $(aclocal_version_ws)).$(word 2, $(aclocal_version_ws))")
-    <% end %>
-    <% if package.using[:autoconf] %>
-autoconf_version_ws=$(subst ., , $(lastword $(shell autoconf --version | grep autoconf)))
-DEB_AUTO_UPDATE_AUTOCONF = $(shell echo "$(word 1, $(autoconf_version_ws)).$(word 2, $(autoconf_version_ws))")
-        <% if !package.using[:aclocal] %>
-aclocal_version_ws=$(subst ., , $(lastword $(shell aclocal --version | grep aclocal)))
-DEB_AUTO_UPDATE_ACLOCAL = $(shell echo "$(word 1, $(aclocal_version_ws)).$(word 2, $(aclocal_version_ws))")
-	<% end %>
-    <% end %>
-    <% if package.using[:automake] %>
-automake_version_ws=$(subst ., , $(lastword $(shell automake --version | grep automake)))
-DEB_AUTO_UPDATE_AUTOMAKE = $(shell echo "$(word 1, $(automake_version_ws)).$(word 2, $(automake_version_ws))")
-    <% end %>
-    <% if package.using[:autoheader] %>
-autoheader_version_ws=$(subst ., , $(lastword $(shell autoheader --version | grep autoheader)))
-DEB_AUTO_UPDATE_AUTOHEADER = $(shell echo "$(word 1, $(autoheader_version_ws)).$(word 2, $(autoheader_version_ws))")
-    <% end %>
+
+# use autoreconf: check with external/libply
+# use autogen: check with drivers/araviz
+<% if package.using[:autogen].nil? %>
+<%     package.using[:autogen] = %w{autogen autogen.sh}.find { |f| File.exist?(File.join(package.srcdir, f)) } %>
+<% end %>
+<% if package.using[:autogen] %>
+DEB_DH_AUTORECONF_ARGS += <%= File.join(".",package.using[:autogen]) %>
+<% end %>
 include /usr/share/cdbs/1/class/autotools.mk
+include /usr/share/cdbs/1/rules/autoreconf.mk
 
 # END AUTOTOOLS
 ############################################

@@ -30,10 +30,12 @@ Note: The list of distributions is hardcoded into this job</description>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>for i in xenial wily vivid trusty wheezy jessie
+      <command>
+cd /var/www/packages/release/$release
+distributions=`cat conf/distributions | grep Codename | cut -d' ' -f2 | tr '\n' ' '`
+for i in $distributions
 do
-    cd /var/www/packages/release/$release
-    reprepro removematched $i &quot;&apos;*$package*&apos;&quot;
+    reprepro removematched $i &quot;*$package&quot;
 done
 reprepro deleteunreferenced</command>
     </hudson.tasks.Shell>

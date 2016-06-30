@@ -4,8 +4,11 @@ Priority: extra
 Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 % dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
 % build_dependencies = dependencies.dup
-% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen
+% if package.class == Autobuild::CMake
 %     build_dependencies << "cmake"
+% elsif package.class == Autobuild::Orogen
+%     build_dependencies << "cmake"
+%     build_dependencies << debian_name( findPackageByName("orogen") )
 % elsif package.class == Autobuild::Autotools
 %     if package.using[:libtool]
 %         build_dependencies << "libtool"
@@ -13,6 +16,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     build_dependencies << "autotools-dev" # as autotools seems to be virtual...
 %     build_dependencies << "autoconf"
 %     build_dependencies << "automake"
+%     build_dependencies << "dh-autoreconf"
 % elsif package.kind_of?(Autobuild::Ruby)
 %     raise "debian/control: cannot handle ruby package"
 % elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage)
@@ -20,7 +24,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 % else
 %     raise "debian/control: cannot handle package type #{package.class} for #{package.name}"
 % end
-Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.sort.join(", ") %>
+Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.uniq.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: http://rock-robotics.org
 #Vcs-Git: git://git.debian.org/collab-maint/bla.git

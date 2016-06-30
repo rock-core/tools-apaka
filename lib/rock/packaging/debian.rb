@@ -1,715 +1,10 @@
 require 'find'
-require 'autoproj'
-require 'autobuild'
 require 'tmpdir'
 require 'utilrb'
 require 'timeout'
-require 'set'
-require 'yaml'
-require 'singleton'
-require 'rubygems/requirement'
 
 module Autoproj
     module Packaging
-        # Directory for temporary data to
-        # validate obs_packages
-        BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
-        LOG_DIR=File.join(BUILD_DIR, "logs")
-        LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
-
-        class Config
-            include Singleton
-
-            attr_accessor :config_file
-
-            attr_reader :linux_distribution_releases
-            attr_reader :ubuntu_releases
-            attr_reader :debian_releases
-
-            attr_reader :architectures
-
-            attr_reader :packages_aliases
-            attr_reader :packages_optional
-            attr_reader :packages_enforce_build
-            attr_reader :timestamp_format
-
-            def reload_config(file)
-                configuration = YAML.load_file(file)
-                @config_file = File.absolute_path(file)
-                @linux_distribution_releases = Hash.new
-
-                configuration["distributions"] ||= Hash.new
-                configuration["architectures"] ||= Hash.new
-                configuration["packages"] ||= Hash.new
-
-                configuration["distributions"].each do |key, values|
-                    types  = values["type"].gsub(' ','').split(",")
-                    labels = values["labels"].gsub(' ','').split(",")
-                    @linux_distribution_releases[key] = [types,labels]
-                end
-
-                @ubuntu_releases = @linux_distribution_releases.select do |release, values|
-                    values[0].include?("ubuntu")
-                end
-                @debian_releases = @linux_distribution_releases.select do |release, values|
-                    types = values[0]
-                    types.size == 1 && types.include?("debian")
-                end
-
-                @architectures = Hash.new
-                architectures = configuration["architectures"] || Hash.new
-                architectures.each do |arch,allowed_releases|
-                    @architectures[arch] = allowed_releases.gsub(' ','').split(",")
-                end
-                @packages_aliases = configuration["packages"]["aliases"] || Hash.new
-                @packages_optional = configuration["packages"]["optional"] || ""
-                if @packages_optional
-                    @packages_optional = @packages_optional.split(",")
-                end
-                @packages_enforce_build = configuration["packages"]["enforce_build"] || ""
-                if @packages_enforce_build
-                    @packages_enforce_build = @packages_enforce_build.split(",")
-                end
-                @timestamp_format = configuration["packages"]["timestamp_format"] || '%Y-%m-%d'
-            end
-
-            def initialize
-                config_file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
-                reload_config(config_file)
-            end
-
-            def self.config_file
-                instance.config_file
-            end
-
-            def self.linux_distribution_releases
-                instance.linux_distribution_releases
-            end
-
-            def self.ubuntu_releases
-                instance.ubuntu_releases
-            end
-
-            def self.debian_releases
-                instance.debian_releases
-            end
-
-            def self.architectures
-                instance.architectures
-            end
-
-            def self.packages_aliases
-                instance.packages_aliases
-            end
-
-            def self.packages_optional
-                instance.packages_optional
-            end
-
-            def self.packages_enforce_build
-                instance.packages_enforce_build
-            end
-
-            def self.timestamp_format
-                instance.timestamp_format
-            end
-
-            def self.active_distributions
-                linux_distribution_releases.collect do |name,ids|
-                    if build_for_distribution?(name)
-                        name
-                    end
-                end.compact
-            end
-
-            def self.build_for_distribution?(distribution_name)
-                architectures.each do |arch, allowed_distributions|
-                    if allowed_distributions.include?(distribution_name)
-                        return true
-                    end
-                end
-                return false
-            end
-
-
-            def self.to_s
-                s = "packager configuration file: #{config_file}\n"
-                s += "linux distribution releases:\n"
-                linux_distribution_releases.each do |key, values|
-                    label = key + ":"
-                    s += "    #{label.ljust(10,' ')}#{values}\n"
-                end
-                s += "\narchitectures:\n"
-                architectures.each do |arch, distributions|
-                    label = arch + ":"
-                    s += "    #{label.ljust(10,' ')}#{distributions}\n"
-                end
-                s += "active linux distribution releases: #{active_distributions}\n"
-                s+= "packages:\n"
-                s += "    aliases:\n"
-                packages_aliases.each do |pkg_name, a|
-                    s += "        #{pkg_name} --> #{a}\n"
-                end
-                s += "    optional packages:\n"
-                packages_optional.each do |pkg_name|
-                    s += "        #{pkg_name}\n"
-                end
-                s += "    enforce build  packages:\n"
-                packages_enforce_build.each do |pkg_name|
-                    s += "        #{pkg_name}\n"
-                end
-                s += "    timestamp format: #{timestamp_format}"
-                s
-            end
-        end # end Config
-
-        class TargetPlatform
-            attr_reader :distribution_release_name
-            attr_reader :architecture
-
-            def initialize(distribution_release_name, architecture)
-                if distribution_release_name
-                    @distribution_release_name = distribution_release_name.downcase
-                else
-                    @distribution_release_name = nil
-                end
-                @architecture = architecture || "amd64"
-            end
-
-            def to_s
-                "#{distribution_release_name}/#{architecture}"
-            end
-
-            # Check if the given name refers to an existing
-            # Ubuntu release
-            # New releases have to be added to the default configuration
-            def self.isUbuntu(release_name)
-                release_name = release_name.downcase
-                if Packaging::Config.ubuntu_releases.keys.include?(release_name)
-                    return true
-                end
-                false
-            end
-
-            # Check if the given name refers to an existing
-            # Debian release
-            # New releases have to be added to the default configuration
-            def self.isDebian(release_name)
-                release_name = release_name.downcase
-                if Packaging::Config.debian_releases.keys.include?(release_name)
-                    return true
-                end
-                false
-            end
-
-            # Check if the given release contains
-            # a package of the given name
-            #
-            # This method relies on the launchpad website for Ubuntu packages
-            # and the packages.debian.org/source website for Debian packages
-            def contains(package, cache_results = true)
-                # handle corner cases, e.g. rgl
-                if Packaging::Config.packages_enforce_build.include?(package)
-                    Packager.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
-                    return false
-                end
-                release_name = distribution_release_name
-                urls = Array.new
-                ubuntu="https://launchpad.net/ubuntu/"
-                debian="https://packages.debian.org/"
-                if TargetPlatform::isUbuntu(release_name)
-                    urls << File.join(ubuntu,release_name,architecture,package)
-                    # Retrieve the latest status and check on "superseeded or deleted" vs. "published"
-                elsif TargetPlatform::isDebian(release_name)
-                    urls << File.join(debian,release_name,architecture,package,"download")
-                else
-                    raise ArgumentError, "Unknown distribution #{release_name}"
-                end
-
-                outfile = nil
-                errorfile = nil
-                result = true
-
-                urls.each do |url|
-                    puts "URL: #{url}"
-                    result = false
-                    outfile="/tmp/deb_package-availability-#{package}-in-#{release_name}-#{architecture}"
-                    errorfile="#{outfile}.error"
-                    if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
-                        # query already done sometime before
-                    else
-                        cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
-                        Packager.info "TargetPlatform::contains: query with #{cmd}"
-                        system(cmd)
-                    end
-
-                    if TargetPlatform::isUbuntu(release_name)
-                        # -A1 -> 1 line after the match
-                        # -m1 -> first match: we assume that the first date refers to the latest entry
-                        # grep 'published': only published will be available otherwise there might be deleted,superseded
-                        if system("grep -ir -A1 -m1 -e '[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}' #{outfile} | grep -i 'published' > /dev/null 2>&1")
-                            result = true
-                        end
-                    elsif TargetPlatform::isDebian(release_name)
-                        if !system("grep -ir \"No such package\" #{outfile} > /dev/null 2>&1")
-                            result = true
-                        end
-                    end
-                    if result
-                        break
-                    end
-                end
-
-
-                # Leave files as cache
-                [outfile, errorfile].each do |file|
-                    if file && File.exists?(file)
-                        if !cache_results
-                            FileUtils.rm(file)
-                        else
-                            begin
-                                # allow all users to read and write file
-                                FileUtils.chmod 0666, file
-                            rescue
-                                Packager.info "TargetPlatform::contains could not change permissions for #{file}"
-                            end
-                        end
-                    end
-                end
-
-                if result
-                    Packager.info "TargetPlatform #{to_s} contains #{package}"
-                else
-                    Packager.info "TargetPlatform #{to_s} does not contain #{package}"
-                end
-                result
-            end
-        end
-
-        class GemDependencies
-            # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
-            # This will only work if the local installation is update to date
-            # regarding the gems
-            # return [:deps => , :version =>  ]
-            def self.resolve_by_name(gem_name, version = nil, runtime_deps_only = true)
-                if not gem_name.kind_of?(String)
-                    raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
-                end
-                version_requirements = Array.new
-                if version
-                    if version.kind_of?(Set)
-                        version_requirements = version.to_a.compact
-                    elsif version.kind_of?(String)
-                        version_requirements = version.gsub(' ','').split(',')
-                    else
-                        version_requirements = version
-                    end
-                end
-                gem_dependency_cmd = "gem dependency #{gem_name}"
-                gem_dependency = `#{gem_dependency_cmd}`
-
-                if $?.exitstatus != 0
-                    raise ArgumentError, "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- pls install locally"
-                end
-
-                # Output of gem dependency is not providing more information
-                # than for the specific gem found
-                regexp = /(.*)\s\((.*)\)/
-                found_gem = false
-                current_version = nil
-                versioned_gems = Array.new
-                dependencies = Hash.new
-                gem_dependency.split("\n").each do |line|
-                    if match = /Gem #{gem_name}-([0-9].*)/.match(line)
-                        # add after completion of the parsing
-                        if current_version
-                            versioned_gems << {:version => current_version, :deps => dependencies}
-                            # Reset dependencies
-                            dependencies = Hash.new
-                            current_version = nil
-                        end
-                        current_version = match[1].strip
-                        next
-                    elsif match = /Gem/.match(line) # other package names
-                        # We assume here that the first GEM entry found is related to the
-                        # one we want, discarding the others
-                        break
-                    end
-
-                    mg = regexp.match(line)
-                    if mg
-                        dep_gem_name = mg[1].strip
-                        dep_gem_version = mg[2].strip
-                        # Separate runtime dependencies from development dependencies
-                        # Typically we are interested only in the runtime dependencies
-                        # for the use case here (that why runtime_deps_only is true as default)
-                        if runtime_deps_only && /development/.match(dep_gem_version)
-                            next
-                        end
-                        # There can be multiple version requirement for a dependency,
-                        # so we store them as an array
-                        dependencies[dep_gem_name] = dep_gem_version.gsub(' ','').split(',')
-                    end
-                end
-                # Finalize by adding the last one found (if there has been one)
-                if current_version
-                    versioned_gems << { :version => current_version, :deps => dependencies }
-                end
-
-                # pick last, i.e. highest version
-                requirements = Array.new
-                version_requirements.each do |requirement|
-                    requirements << Gem::Version::Requirement.new(requirement)
-                end
-                versioned_gems = versioned_gems.select do |description|
-                    do_select = true
-                    requirements.each do |required_version|
-                        available_version = Gem::Version.new(description[:version])
-                        if !required_version.satisfied_by?(available_version)
-                            do_select = false
-                        end
-                    end
-                    do_select
-                end
-                if versioned_gems.empty?
-                    raise RuntimeError, "GemDependencies::resolve_by_name failed to find a (locally installed) gem that satisfies the version requirements: #{version_requirements}"
-                else
-                    versioned_gems.last
-                end
-            end
-
-            # Resolve all dependencies of a list of name or |name,version| tuples of gems
-            # Returns[Hash] with keys as required gems and versioned dependencies
-            # as values (a Ruby Set)
-            def self.resolve_all(gems)
-                Autoproj.info "Resolve all: #{gems}"
-
-                dependencies = Hash.new
-                handled_gems = Set.new
-
-                if gems.kind_of?(String)
-                    gems = [gems]
-                end
-
-                remaining_gems = Hash.new
-                if gems.kind_of?(Array)
-                    gems.collect do |value|
-                        # only the gem name is given
-                        if value.kind_of?(String)
-                            name = value
-                            version = nil
-                        else
-                            name, version = value
-                        end
-
-                        remaining_gems[name] ||= Array.new
-                        remaining_gems[name] << version
-                    end
-                elsif gems.kind_of?(Hash)
-                    remaining_gems = gems
-                end
-
-                Autoproj.info "Resolve remaining: #{remaining_gems}"
-
-                while !remaining_gems.empty?
-                    Autoproj.info "Resolve all: #{remaining_gems.to_a}"
-                    remaining = Hash.new
-                    remaining_gems.each do |gem_name, gem_versions|
-                        deps = resolve_by_name(gem_name, gem_versions)[:deps]
-                        handled_gems << gem_name
-
-                        dependencies[gem_name] = Hash.new
-                        deps.each do |gem_dep_name, gem_dep_version|
-                            dependencies[gem_name][gem_dep_name] ||= Array.new
-                            dependencies[gem_name][gem_dep_name] += gem_dep_version
-
-                            if !handled_gems.include?(gem_dep_name)
-                                remaining[gem_dep_name] ||= Array.new
-                                remaining[gem_dep_name] += gem_dep_version
-                            end
-                        end
-                    end
-                    remaining_gems.select! { |g| !handled_gems.include?(g) }
-                    remaining.each do |name, versions|
-                        remaining_gems[name] ||= Array.new
-                        remaining_gems[name] = (remaining_gems[name] + versions).uniq
-                    end
-                end
-                dependencies
-            end
-
-            # Sort gems based on their interdependencies
-            # Dependencies is a hash where the key is the gem and
-            # the value is the set of versioned dependencies
-            def self.sort_by_dependency(dependencies = Hash.new)
-                ordered_gem_list = Array.new
-                while true
-                    if dependencies.empty?
-                        break
-                    end
-
-                    handled_packages = Array.new
-
-                    # Take all gems which are either standalone, or
-                    # whose dependencies have already been processed
-                    dependencies.each do |gem_name, gem_dependencies|
-                        if gem_dependencies.empty?
-                            handled_packages << gem_name
-                            ordered_gem_list << gem_name
-                        end
-                    end
-
-                    # Remove handled packages from the list of dependencies
-                    handled_packages.each do |gem_name|
-                        dependencies.delete(gem_name)
-                    end
-
-                    # Remove the handled packages from the dependency lists
-                    # of all other packages
-                    dependencies_refreshed = Hash.new
-                    dependencies.each do |gem_name, gem_dependencies|
-                        gem_dependencies.reject! { |x, version| handled_packages.include? x }
-                        dependencies_refreshed[gem_name] = gem_dependencies
-                    end
-                    dependencies = dependencies_refreshed
-
-                    if handled_packages.empty? && !dependencies.empty?
-                        raise ArgumentError, "Unhandled dependencies of gem: #{dependencies}"
-                    end
-                end
-                ordered_gem_list
-            end
-
-            # Sorted list of dependencies
-            def self.sorted_gem_list(gems)
-                dependencies = resolve_all(gems)
-                sort_by_dependency(dependencies)
-            end
-
-            def self.gem_exact_versions(gems)
-                gem_exact_version = Hash.new
-                gems.each do |gem_name, version_requirements|
-                    gem_exact_version[gem_name] = resolve_by_name(gem_name, version_requirements)[:version]
-                end
-                gem_exact_version
-            end
-
-            # Check is the given name refers to an existing gem
-            # uses 'gem fetch' for testing
-            def self.isGem(gem_name)
-                if gem_name =~ /\//
-                    Autoproj.info "GemDependencies: invalid name -- cannot be a gem"
-                    return false
-                end
-                # Check if this is a gem or not
-                Dir.chdir("/tmp") do
-                    outfile = "/tmp/gem-fetch-#{gem_name}"
-                    if not File.exists?(outfile)
-                        if !system("gem fetch #{gem_name} > #{outfile}")
-                            return false
-                        end
-                    end
-                    if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
-                        Autoproj.info "GemDependencies: #{gem_name} is a ruby gem"
-                        return true
-                    end
-                end
-                return false
-            end
-        end
-
-        class Packager
-            extend Logger::Root("Packager", Logger::INFO)
-
-            attr_accessor :build_dir
-            attr_accessor :log_dir
-            attr_accessor :local_tmp_dir
-
-            def initialize
-                @build_dir = BUILD_DIR
-                @log_dir = LOG_DIR
-                @local_tmp_dir = LOCAL_TMP
-            end
-
-            # Check that the list of distributions contains at maximum one entry
-            # raises ArgumentError if that number is exceeded
-            def max_one_distribution(distributions)
-                distribution = nil
-                if !distributions.kind_of?(Array)
-                    raise ArgumentError, "max_one_distribution: expecting Array as argument, but got: #{distributions}"
-                end
-
-                if distributions.size > 1
-                    raise ArgumentError, "Unsupported requests. You provided more than one distribution where maximum one 1 allowed"
-                elsif distributions.empty?
-                    Packager.warn "You provided no distribution for debian package generation."
-                else
-                    distribution = distributions.first
-                end
-                distribution
-            end
-
-            def prepare_source_dir(pkg, options = Hash.new)
-                options, unknown_options = Kernel.filter_options options,
-                    :existing_source_dir => nil
-
-                Packager.debug "Preparing source dir #{pkg.name}"
-                if existing_source_dir = options[:existing_source_dir]
-                    Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
-                    pkg_dir = File.join(@build_dir, debian_name(pkg))
-                    if not File.directory?(pkg_dir)
-                        FileUtils.mkdir_p pkg_dir
-                    end
-
-                    target_dir = File.join(pkg_dir, dir_name(pkg, target_platform.distribution_release_name))
-                    FileUtils.cp_r existing_source_dir, target_dir
-
-                    pkg.srcdir = target_dir
-                else
-                    Autoproj.manifest.load_package_manifest(pkg.name)
-
-                    # Test whether there is a local
-                    # version of the package to use.
-                    # Only for Git-based repositories
-                    # If it is not available import package
-                    # from the original source
-                    if pkg.importer.kind_of?(Autobuild::Git)
-                        if not File.exists?(pkg.srcdir)
-                            Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
-                            pkg.importer.import(pkg)
-                        else
-                            Packager.debug "Using locally available git repository of '#{pkg.name}'"
-                        end
-                        pkg.importer.repository = pkg.srcdir
-                    end
-
-                    pkg.srcdir = File.join(@build_dir, debian_name(pkg), plain_dir_name(pkg, target_platform.distribution_release_name))
-                    begin
-                        Packager.debug "Importing repository to #{pkg.srcdir}"
-                        pkg.importer.import(pkg)
-                    rescue Exception => e
-                        if not e.message =~ /failed in patch phase/
-                            raise
-                        else
-                            Packager.warn "Patching #{pkg.name} failed"
-                        end
-                    end
-
-                    Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
-                        FileUtils.rm_f file
-                    end
-                end
-            end
-
-            def self.obs_package_name(pkg)
-                "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
-            end
-        end
-
-        class OBS
-
-            @@obs_cmd = "osc"
-
-            def self.obs_cmd
-                @@obs_cmd
-            end
-
-            # Update the open build local checkout
-            # using a given checkout directory and the pkg name
-            # use a specific file pattern to set allowed files
-            # source directory
-            # obs_dir target obs checkout directory
-            # src_dir where the source dir is
-            # pkg_name
-            # allowed file patterns
-            def self.update_dir(obs_dir, src_dir, pkg_obs_name, file_suffix_patterns = ".*", commit = true)
-                pkg_obs_dir = File.join(obs_dir, pkg_obs_name)
-                if !File.directory?(pkg_obs_dir)
-                    FileUtils.mkdir_p pkg_obs_dir
-                    system("#{obs_cmd} add #{pkg_obs_dir}")
-                end
-
-                # sync the directory in build/obs and the target directory based on an existing
-                # files pattern
-                files = []
-                file_suffix_patterns.map do |p|
-                    # Finding files that exist in the source directory
-                    # needs to handle ruby-hoe_0.20130113/*.dsc vs. ruby-hoe-yard_0.20130113/*.dsc
-                    # and ruby-hoe/_service
-                    glob_exp = File.join(src_dir,pkg_obs_name,"*#{p}")
-                    files += Dir.glob(glob_exp)
-                end
-                files = files.flatten.uniq
-                Packager.debug "update directory: files in src #{files}"
-
-                # prepare pattern for target directory
-                expected_files = files.map do |f|
-                    File.join(pkg_obs_dir, File.basename(f))
-                end
-                Packager.debug "target directory: expected files: #{expected_files}"
-
-                existing_files = Dir.glob(File.join(pkg_obs_dir,"*"))
-                Packager.debug "target directory: existing files: #{existing_files}"
-
-                existing_files.each do |existing_path|
-                    if not expected_files.include?(existing_path)
-                        Packager.warn "OBS: deleting #{existing_path} -- not present in the current packaging"
-                        FileUtils.rm_f existing_path
-                        system("#{obs_cmd} rm #{existing_path}")
-                    end
-                end
-
-                # Add the new unchanged files
-                files.each do |path|
-                    target_file = File.join(pkg_obs_dir, File.basename(path))
-                    exists = File.exists?(target_file)
-                    if exists
-                        if File.read(path) == File.read(target_file)
-                            Packager.info "OBS: #{target_file} is unchanged, skipping"
-                        else
-                            Packager.info "OBS: #{target_file} updated"
-                            FileUtils.cp path, target_file
-                        end
-                    else
-                        FileUtils.cp path, target_file
-                        system("#{obs_cmd} add #{target_file}")
-                    end
-                end
-
-                if commit
-                    Packager.info "OBS: committing #{pkg_obs_dir}"
-                    system("#{obs_cmd} ci #{pkg_obs_dir} -m \"autopackaged using autoproj-packaging tools\"")
-                else
-                    Packager.info "OBS: not commiting #{pkg_obs_dir}"
-                end
-            end
-
-            # List the existing package in the projects
-            # The list will contain only the name, suffix '.deb' has
-            # been removed
-            def self.list_packages(project, repository, architecture = "i586")
-                result = %x[#{obs_cmd} ls -b -r #{repository} -a #{architecture} #{project}].split("\n")
-                pkg_list = result.collect { |pkg| pkg.sub(/(_.*)?.deb/,"") }
-                pkg_list
-            end
-
-            def self.resolve_dependencies(package_name)
-                record = `apt-cache depends #{package_name}`.split("\n").map(&:strip)
-                if $?.exitstatus != 0
-                    raise
-                end
-
-                depends_on = []
-                record.each do |line|
-                    if line =~ /^\s*Depends:\s*[<]?([^>]*)[>]?/
-                        depends_on << $1.strip
-                    end
-                end
-
-                depends_on
-            end
-        end
-
         # Packaging details:
         # - one main temporary folder in use: <autoproj-root>/build/obs/
         # - in the temp folder we create one folder per package to handle the packaging
@@ -749,28 +44,30 @@ module Autoproj
             attr_accessor :gem_creation_alternatives
 
             attr_reader :target_platform
+            attr_reader :rock_release_platform
+            attr_reader :rock_release_hierarchy
 
-            def initialize(existing_debian_directories, options = Hash.new)
+            def initialize(options = Hash.new)
                 super()
 
                 options, unknown_options = Kernel.filter_options options,
                     :distribution => nil,
                     :architecture => nil
 
-                @existing_debian_directories = existing_debian_directories
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
                 @package_aliases = Hash.new
                 @debian_version = Hash.new
                 @rock_base_install_directory = "/opt/rock"
-                @rock_release_name = Time.now.strftime("%Y%m%d")
 
                 # Rake targets that will be used to clean and create
                 # gems
                 @gem_clean_alternatives = ['clean','dist:clean','clobber']
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
+
+                rock_release_name = Time.now.strftime("%Y%m%d")
 
                 if not File.exists?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir
@@ -829,18 +126,19 @@ module Autoproj
             end
 
             # Get the current rock-release-based prefix for rock packages
-            def rock_release_prefix
-                "rock-#{rock_release_name}-"
+            def rock_release_prefix(release_name = nil)
+                release_name ||= rock_release_name
+                "rock-#{release_name}-"
             end
 
             # Get the current rock-release-based prefix for rock-(ruby) packages
-            def rock_ruby_release_prefix
-                rock_release_prefix + "ruby-"
+            def rock_ruby_release_prefix(release_name = nil)
+                rock_release_prefix(release_name) + "ruby-"
             end
 
-            def debian_ruby_name(name, with_rock_release_prefix = true)
+            def debian_ruby_name(name, with_rock_release_prefix = true, release_name = nil)
                 if with_rock_release_prefix
-                    rock_ruby_release_prefix + canonize(name)
+                    rock_ruby_release_prefix(release_name) + canonize(name)
                 else
                     "ruby-" + canonize(name)
                 end
@@ -902,21 +200,21 @@ module Autoproj
                 File.join(rock_base_install_directory, rock_release_name)
             end
 
-            def create_control_jobs(force)
-                templates = Dir.glob "#{TEMPLATES}/../0_*.xml"
-                templates.each do |template|
-                    template = File.basename template, ".xml"
-                    create_control_job template, force
-                end
+            def findPackageByName(package_name)
+                Autoproj.manifest.package(package_name).autobuild
             end
 
-            def create_control_job(name, force)
-                if force
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{TEMPLATES}/../#{name}.xml")
-                else
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{TEMPLATES}/../#{name}.xml")
+            def rock_release_name=(name)
+                @rock_release_name = name
+                @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
+                @rock_release_hierarchy = [name]
+                if Config.rock_releases.has_key?(name)
+                    release_hierarchy = Config.rock_releases[name][:depends_on].select do |release_name|
+                        TargetPlatform.isRock(release_name)
+                    end
+                    # Add the actual release name as first
+                    @rock_release_hierarchy += release_hierarchy
                 end
-
             end
 
             # Compute all required packages from a given selection
@@ -991,40 +289,14 @@ module Autoproj
                         Packager.warn "Unhandled dependencies: #{reverse_dependencies}"
                     end
                 end
-                all_required_packages
-            end
 
-            def create_flow_job(name, selection, flavor, parallel_builds = false, force = false)
-                flow = all_required_packages(selection)
-                flow[:gems].each do |name|
-                    if !flow[:gem_versions].has_key?(name)
-                        flow[:gem_versions][name] = "noversion"
+                if rock_release_name
+                    all_required_packages = all_required_packages.select do |pkg|
+                        pkg_name = debian_name(pkg, true || with_prefix)
+                        !rock_release_platform.ancestorContains(pkg_name)
                     end
                 end
-
-                Packager.info "Creating flow of gems: #{flow[:gems]}"
-
-                create_flow_job_xml(name, flow, flavor, false, force)
-            end
-
-            def create_flow_job_xml(name, flow, flavor, parallel = false, force = false)
-                safe_level = nil
-                trim_mode = "%<>"
-
-                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-flow-job.xml")), safe_level, trim_mode)
-                rendered = template.result(binding)
-                Packager.info "Rendering file: #{File.join(Dir.pwd, name)}.xml"
-                File.open("#{name}.xml", 'w') do |f|
-                      f.write rendered
-                end
-
-                if force
-                    Packager.info "Update job: #{name}"
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ update-job '#{name}' < #{name}.xml")
-                else
-                    Packager.info "Create job: #{name}"
-                    system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{name}' < #{name}.xml")
-                end
+                all_required_packages
             end
 
             def update_list(pkg, file)
@@ -1045,186 +317,6 @@ module Autoproj
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
 
-            # Create a jenkins job for a rock package (which is not a ruby package)
-            def create_package_job(pkg, options = Hash.new, force = false)
-                options[:type] = :package
-                # Use parameter for job
-                # for destination and build directory
-                options[:dir_name] = debian_name(pkg)
-                # avoid the rock-release prefix for jobs
-                with_rock_release_prefix = false
-                options[:job_name] = debian_name(pkg, with_rock_release_prefix)
-                options[:package_name] = pkg.name
-
-                all_deps = dependencies(pkg)
-                Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
-
-                # Prepare upstream dependencies
-                deps = all_deps[:rock].join(", ")
-                if !deps.empty?
-                    deps += ", "
-                end
-                options[:dependencies] = deps
-                Packager.info "Create package job: #{options[:job_name]}, options #{options}"
-                create_job(options[:job_name], options, force)
-            end
-
-            # Create a jenkins job for a ruby package
-            def create_ruby_job(gem_name, options = Hash.new, force = false)
-                options[:type] = :gem
-                # for destination and build directory
-                options[:dir_name] = debian_ruby_name(gem_name)
-                options[:job_name] = gem_name
-                options[:package_name] = gem_name
-                Packager.info "Create ruby job: #{gem_name}, options #{options}"
-                create_job(options[:job_name], options, force)
-            end
-
-
-            # Create a jenkins job
-            def create_job(package_name, options = Hash.new, force = false)
-                options[:architectures] ||= Packaging::Config.architectures.keys
-                options[:distributions] ||= Packaging::Config.active_distributions
-                options[:job_name] ||= package_name
-
-                combinations = combination_filter(options[:architectures], options[:distributions], package_name, options[:type] == :gem)
-
-
-                Packager.info "Creating jenkins-debian-glue job for #{package_name} with"
-                Packager.info "         options: #{options}"
-                Packager.info "         combination filter: #{combinations}"
-
-                safe_level = nil
-                trim_mode = "%<>"
-                template = ERB.new(File.read(File.join(File.dirname(__FILE__), "templates", "jenkins-debian-glue-job.xml")), safe_level, trim_mode)
-                rendered = template.result(binding)
-                rendered_filename = File.join("/tmp","#{options[:job_name]}.xml")
-                File.open(rendered_filename, 'w') do |f|
-                      f.write rendered
-                end
-
-                update_or_create = "create-job"
-                if force
-                    update_or_create = "update-job"
-                end
-                if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ #{update_or_create} '#{options[:job_name]}' < #{rendered_filename}")
-                    Packager.info "job #{options[:job_name]}': #{update_or_create} from #{rendered_filename}"
-                elsif force
-                    if system("java -jar ~/jenkins-cli.jar -s http://localhost:8080/ create-job '#{options[:job_name]}' < #{rendered_filename}")
-                        Packager.info "job #{options[:job_name]}': create-job from #{rendered_filename}"
-                    end
-                end
-            end
-
-            # Combination filter generates a filter for each job
-            # The filter allows to prevent building of the package, when this
-            # package is already part of the release of a distribution release, e.g.,
-            # there is no need to repackage the ruby package 'bundler' if it already
-            # exists in a specific release of Ubuntu or Debian
-            def combination_filter(architectures, distributions, package_name, isGem)
-                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
-                package: '#{package_name}', isGem: #{isGem}"
-                whitelist = []
-                Packaging::Config.architectures.each do |requested_architecture, allowed_distributions|
-                    allowed_distributions.each do |release|
-                        if not distributions.include?(release)
-                            next
-                        end
-                        target_platform = TargetPlatform.new(release, requested_architecture)
-
-                        if  (isGem && target_platform.contains(debian_ruby_name(package_name,false))) ||
-                                target_platform.contains(package_name)
-                            Packager.info "package: '#{package_name}' is part of the ubuntu release: '#{release}'"
-                        else
-                            whitelist << [release, requested_architecture]
-                        end
-                    end
-                end
-
-                ret = ""
-                and_placeholder = " &amp;&amp; "
-                architectures.each do |arch|
-                    distributions.each do |dist|
-                        if !whitelist.include? [dist, arch]
-                            ret += "#{and_placeholder} !(distribution == '#{dist}' &amp;&amp; architecture == '#{arch}')"
-                        end
-                    end
-                end
-
-                # Cut the first and_placeholder away
-                ret = ret[and_placeholder.size..-1]
-            end
-
-            def self.list_all_jobs
-                jobs_file = "/tmp/jenkins-jobs"
-                # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ list-jobs > #{jobs_file}"
-                if !system(cmd)
-                    raise RuntimeError, "Failed to list all jobs using: #{cmd}"
-                end
-
-                all_jobs = []
-                File.open(jobs_file,"r") do |file|
-                    all_jobs = file.read.split("\n")
-                end
-                all_jobs
-            end
-
-            def self.cleanup_all_jobs
-                all_jobs = list_all_jobs
-                max_count = all_jobs.size
-                i = 1
-                all_jobs.each do |job|
-                    Packager.info "Cleanup job #{i}/#{max_count}"
-                    cleanup_job job
-                    i += 1
-                end
-            end
-
-            def self.remove_all_jobs
-                all_jobs = list_all_jobs.delete_if{|job| job.start_with? 'a_' or job.start_with? '0_'}
-                max_count = all_jobs.size
-                i = 1
-                all_jobs.each do |job|
-                    Packager.info "Remove job #{i}/#{max_count}"
-                    remove_job job
-                    i += 1
-                end
-            end
-
-            def self.who_am_i
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ who-am-i"
-                if !system(cmd)
-                    raise RuntimeError, "Failed to identify user: please register your public key in jenkins"
-                end
-            end
-
-            # Cleanup job of a given name
-            def self.cleanup_job(job_name)
-                # java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-builds
-                # java -jar jenkins-cli.jar delete-builds JOB RANGE
-                # Delete build records of a specified job, possibly in a bulk.
-                #   JOB   : Name of the job to build
-                #   RANGE : Range of the build records to delete. 'N-M', 'N,M', or 'N'
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-builds '#{job_name}' '1-10000'"
-                Packager.info "job '#{job_name}': cleanup with #{cmd}"
-                if !system(cmd)
-                    Packager.warn "job '#{job_name}': cleanup failed"
-                end
-            end
-
-            # Remove job of a given name
-            def self.remove_job(job_name)
-                #java -jar /home/rimresadmin/jenkins-cli.jar -s http://localhost:8080 help delete-job
-                #java -jar jenkins-cli.jar delete-job VAL ...
-                #    Deletes job(s).
-                #     VAL : Name of the job(s) to delete
-                cmd = "java -jar ~/jenkins-cli.jar -s http://localhost:8080/ delete-job '#{job_name}'"
-                Packager.info "job '#{job_name}': remove with #{cmd}"
-                if !system(cmd)
-                    Packager.warn "job '#{job_name}': remove failed"
-                end
-            end
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
             def dpkg_commit_changes(patch_name, directory = Dir.pwd)
@@ -1257,7 +349,7 @@ module Autoproj
                 end
 
                 all_packages.each do |pkg|
-                    pkg = Autoproj.manifest.package(pkg.name).autobuild
+                    pkg = findPackageByName(pkg.name)
                     deps = dependencies(pkg, with_rock_release_prefix)
                     deps[:nonnative].each do |dep, version|
                         gem_versions[dep] ||= Array.new
@@ -1280,6 +372,19 @@ module Autoproj
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
 
+                # Filter all packages that are available
+                if rock_release_name
+                    rock_release_platform = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                    sorted_gem_list = sorted_gem_list.select do |gem|
+                        with_prefix = true
+                        pkg_ruby_name = debian_ruby_name(gem, !with_prefix)
+                        pkg_prefixed_name = debian_ruby_name(gem, with_prefix)
+
+                        !( rock_release_platform.ancestorContains(gem) ||
+                          rock_release_platform.ancestorContains(pkg_ruby_name) || 
+                          rock_release_platform.ancestorContains(pkg_prefixed_name))
+                    end
+                end
                 {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
             end
 
@@ -1294,7 +399,8 @@ module Autoproj
 
                 pkg.resolve_optional_dependencies
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
-                    debian_name(Autoproj.manifest.package(dep_name).autobuild, with_rock_release_prefix)
+                    debian_name = debian_name( findPackageByName(dep_name), with_rock_release_prefix)
+                    rock_release_platform.packageReleaseName(debian_name)
                 end.sort
 
                 Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
@@ -1397,19 +503,34 @@ module Autoproj
                 {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
             end
 
-            # Check if the plain package name exists in the given distribution
-            # if that is the case use that one -- if not, then use the ruby name
-            # since then is it is either part of the flow job
-            # or an os dependency
+            # Check if the plain package name exists in the target (ubuntu/debian) distribution or any ancestor (rock) distributions
+            # and identify the correct package name
             # return [String,bool] Name of the dependency and whether this is an os dependency or not
             def native_dependency_name(name)
-                if target_platform.contains(name)
-                    [name, true]
-                elsif target_platform.contains(debian_ruby_name(name, false))
-                    [debian_ruby_name(name, false), true]
-                else
-                    [debian_ruby_name(name, true), false]
+                platforms = Set.new
+                platforms << target_platform
+
+                # Identify this rock release and its ancestors
+                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                this_rock_release.ancestors.each do |ancestor|
+                    platforms << TargetPlatform.new(ancestor, target_platform.architecture)
                 end
+
+                # Check for 'plain' name, the 'unprefixed' name and for the 'release' name
+                platforms.each do |platform|
+                    if platform.contains(name)
+                        return [name, true]
+                    elsif platform.contains(debian_ruby_name(name, false))
+                        return [debian_ruby_name(name, false), true]
+                    else
+                        pkg_name = debian_ruby_name(name, true, platform.distribution_release_name)
+                        if platform.contains(pkg_name)
+                            return [pkg_name, true]
+                        end
+                    end
+                end
+                # Return the 'release' name, since no other source provides this package
+                [debian_ruby_name(name, true), false]
             end
 
             def generate_debian_dir(pkg, dir, options)
@@ -1418,10 +539,10 @@ module Autoproj
 
                 distribution = options[:distribution]
 
-                existing_dir = File.join(existing_debian_directories, pkg.name)
+                existing_debian_dir = File.join(pkg.srcdir,"debian")
                 template_dir =
-                    if File.directory?(existing_dir)
-                        existing_dir
+                    if File.directory?(existing_debian_dir)
+                        existing_debian_dir
                     else
                         TEMPLATES
                     end
@@ -1613,6 +734,7 @@ module Autoproj
                 Packager.info "Package Deb: '#{pkg.name}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
+                    :patch_dir => nil,
                     :distribution => nil,
                     :architecture => nil
                 distribution = options[:distribution]
@@ -1626,6 +748,11 @@ module Autoproj
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
+                    patch_dir = File.join(options[:patch_dir], pkg.name)
+                    if patch_directory(pkg.srcdir, patch_dir)
+                        dpkg_commit_changes("deb_autopackaging_overlay")
+                    end
+
                     # Check first if actual source contains newer information than existing
                     # orig.tar.gz -- only then we create a new debian package
                     if package_updated?(pkg)
@@ -1637,10 +764,6 @@ module Autoproj
 
                         # Generate the debian directory
                         generate_debian_dir(pkg, pkg.srcdir, options)
-
-                        # Commit local changes, e.g. check for
-                        # control/urdfdom as an example
-                        dpkg_commit_changes("local_build_changes", pkg.srcdir)
 
                         # Run dpkg-source
                         # Use the new tar ball as source
@@ -1858,7 +981,7 @@ module Autoproj
                 # ignoring the current version-timestamp
                 orig_file_name = Dir.glob("#{debian_name(pkg)}*.orig.tar.gz")
                 if orig_file_name.empty?
-                    Packager.info "No filename found for #{debian_name(pkg)} -- package requires update #{Dir.entries('.')}"
+                    Packager.info "No filename found for #{debian_name(pkg)} (existing files: #{Dir.entries('.')} -- package requires update (regeneration of orig.tar.gz)"
                     return true
                 elsif orig_file_name.size > 1
                     Packager.warn "Multiple version of package #{debian_name(pkg)} in #{Dir.pwd} -- you have to fix this first"
@@ -1997,11 +1120,29 @@ module Autoproj
                             end
                         end
                         gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
+                        if !gem_file_name
+                            raise ArgumentError, "Could not retrieve a gem for #{gem_name} #{version} and options #{options}"
+                        end
                         convert_gem(gem_file_name, options)
                     else
                         Packager.info "gem: #{gem_name} up to date"
                     end
                 end
+            end
+
+            def patch_directory(target_dir, patch_dir)
+                 if File.directory?(patch_dir)
+                     Packager.warn "Applying overlay (patch) from: #{patch_dir} to #{target_dir}"
+                     FileUtils.cp_r("#{patch_dir}/.", "#{target_dir}/.")
+
+                     # We need to commit if original files have been modified
+                     # so add a commit
+                     orig_files = Dir["#{patch_dir}/**"].reject { |f| f["#{patch_dir}/debian/"] }
+                     return if orig_files.size > 0
+                 else
+                     Packager.warn "No patch dir: #{patch_dir}"
+                     return false
+                 end
             end
 
             # When providing the path to a gem file converts the gem into
@@ -2029,6 +1170,10 @@ module Autoproj
                     :distribution => target_platform.distribution_release_name,
                     :architecture => target_platform.architecture,
                     :local_pkg => false
+
+                if !gem_path
+                    raise ArgumentError, "Debian.convert_gem: no #{gem_path} given"
+                end
 
                 distribution = options[:distribution]
 
@@ -2119,7 +1264,9 @@ module Autoproj
                     end
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
+                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*$/,"")
                     Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
+                    Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
 
 
                     # Check if patching is needed
@@ -2134,18 +1281,8 @@ module Autoproj
                             end
 
                             gem_patch_dir = File.join(patch_dir, gem_name)
-                            if File.directory?(gem_patch_dir)
-                                Packager.warn "Applying overlay (patch) to: gem '#{gem_name}'"
-                                FileUtils.cp_r("#{gem_patch_dir}/.", ".")
-
-                                # We need to commit if original files have been modified
-                                # so add a commit
-                                orig_files = Dir["#{gem_patch_dir}/**"].reject { |f| f["#{gem_patch_dir}/debian/"] }
-                                if orig_files.size > 0
-                                    dpkg_commit_changes("deb_autopackaging_overlay")
-                                end
-                            else
-                                Packager.warn "No patch dir: #{gem_patch_dir}"
+                            if patch_directory(Dir.pwd, gem_patch_dir)
+                                dpkg_commit_changes("deb_autopackaging_overlay")
                             end
                         end
 
@@ -2166,6 +1303,11 @@ module Autoproj
                         if File.exists?("debian/install")
                             `sed -i "s#/usr##{rock_install_directory}#g" debian/install`
                             dpkg_commit_changes("install_to_rock_specific_directory")
+                        end
+
+                        if File.exists?("debian/package.postinst")
+                            FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
+                            dpkg_commit_changes("add_postinst_script")
                         end
 
                         ################
@@ -2250,13 +1392,13 @@ module Autoproj
                         Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
-                        `sed -i '1 a env_setup += PATH=$(rock_install_dir)/bin:$(PATH)' debian/rules`
-                        `sed -i '1 a env_setup += RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby' debian/rules`
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",release_name)}$(rock_install_dir)' debian/rules`
-                        `sed -i '1 a env_setup += PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:$(PKG_CONFIG_PATH)' debian/rules`
-                        `sed -i '1 a rock_install_dir = #{rock_install_directory}' debian/rules`
+
+                        `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
+                        envsh = Regexp.escape(env_setup())
+                        `sed -i '1 a #{envsh}' debian/rules`
+                        ruby_arch_env = Regexp.escape(ruby_arch_setup())
+                        `sed -i '1 a #{ruby_arch_env}' debian/rules`
                         `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
-                        `sed -i '1 a env_setup += Rock_DIR=$(rock_install_dir)/share/rock/cmake RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_name.gsub(/-[0-9\.]*$/,""))}$(rock_install_dir)' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
@@ -2271,6 +1413,12 @@ module Autoproj
                         # https://www.debian.org/doc/debian-policy/ch-source.html
                         `sed -i '1 a export DEB_BUILD_OPTIONS=nocheck' debian/rules`
                         dpkg_commit_changes("disable_tests")
+
+
+                        Dir.glob("debian/*").each do |file|
+                            `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" #{file}`
+                            dpkg_commit_changes("adapt_rock_install_dir")
+                        end
 
                         ###################
                         # debian/changelog
@@ -2331,6 +1479,75 @@ module Autoproj
                 ruby_versions
             end
 
+            def ruby_arch_setup
+                Packager.info "Creating ruby env setup"
+                setup = "arch=$(shell gcc -print-multiarch)\n"
+                # Extract the default ruby version to build for on that platform
+                # this assumes a proper setup of /usr/bin/ruby
+                setup +="ruby_ver=$(shell ruby --version)\n"
+                setup += "ruby_arch_dir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['archdir']\")\n"
+                setup += "ruby_libdir =$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['rubylibdir']\")\n"
+
+                setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
+                setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
+                setup
+            end
+
+            def env_setup
+                Packager.info "Creating envsh"
+                path_env            = "PATH="
+                rubylib_env         = "RUBYLIB="
+                pkgconfig_env       = "PKG_CONFIG_PATH="
+                rock_dir_env        = "Rock_DIR="
+                ld_library_path_env = "LD_LIBRARY_PATH="
+                cmake_prefix_path   = "CMAKE_PREFIX_PATH="
+                orogen_plugin_path  = "OROGEN_PLUGIN_PATH="
+
+                rock_release_hierarchy.each do |release_name|
+                    install_dir = File.join(rock_base_install_directory, release_name)
+                    path_env    += "#{File.join(install_dir, "bin")}:"
+
+                    # Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
+                    # vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
+                    rubylib_env += "#{File.join(install_dir, "$(rockruby_libdir)")}:"
+                    rubylib_env += "#{File.join(install_dir, "$(rockruby_archdir)")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/standard")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/core")}:"
+                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby")}:"
+
+                    pkgconfig_env += "#{File.join(install_dir,"lib/pkgconfig")}:"
+                    pkgconfig_env += "#{File.join(install_dir,"lib/$(arch)/pkgconfig")}:"
+                    rock_dir_env += "#{File.join(install_dir,"share/rock/cmake")}:"
+                    ld_library_path_env += "#{File.join(install_dir,"lib")}:"
+                    cmake_prefix_path += "#{install_dir}:"
+                    orogen_plugin_path += "#{File.join(install_dir,"share/orogen/plugins")}:"
+                end
+
+                pkgconfig_env       += "/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:"
+
+                path_env            += "$(PATH)"
+                rubylib_env         += "$(RUBYLIB)"
+                pkgconfig_env       += "$(PKG_CONFIG_PATH)"
+                rock_dir_env        += "$(Rock_DIR)"
+                ld_library_path_env += "$(LD_LIBRARY_PATH)"
+                cmake_prefix_path   += "$(CMAKE_PREFIX_PATH)"
+                orogen_plugin_path  += "$(OROGEN_PLUGIN_PATH)"
+
+                envsh =  "env_setup =  #{path_env}\n"
+                envsh += "env_setup += #{rubylib_env}\n"
+                envsh += "env_setup += #{pkgconfig_env}\n"
+                envsh += "env_setup += #{rock_dir_env}\n"
+                envsh += "env_setup += #{ld_library_path_env}\n"
+                envsh += "env_setup += #{cmake_prefix_path}\n"
+                envsh += "env_setup += #{orogen_plugin_path}\n"
+
+                if ["xenial"].include?(target_platform.distribution_release_name)
+                    envsh += "export TYPELIB_CXX_LOADER=castxml\n"
+                end
+                envsh += "export DEB_CPPFLAGS_APPEND='-std=c++11'\n"
+                envsh += "rock_install_dir=#{rock_install_directory}"
+                envsh
+            end
         end #end Debian
     end
 end

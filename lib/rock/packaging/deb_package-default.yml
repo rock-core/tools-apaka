@@ -50,4 +50,9 @@ packages:
     optional: llvm,clang
     enforce_build: rgl
     timestamp_format: '%Y-%m-%d'
-
+rock_releases:
+    master:
+        url: http://rimres-gcs2-u/rock-releases/master-16.06
+    transterra:
+        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
+        depends_on: master, trusty
