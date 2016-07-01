@@ -708,9 +708,11 @@ module Autoproj
                         gem_final_path = File.join(packaging_dir(pkg), File.basename(gem_rename))
                         FileUtils.cp gem, gem_final_path
 
-                        # Prepare injection of dependencies
+                        # Prepare injection of dependencies through options
+                        # provide package name to allow consistent patching schema
                         options[:deps] = deps
                         options[:local_pkg] = true
+                        options[:package_name] = pkg.name
                         convert_gem(gem_final_path, options)
                         # register gem with the correct naming schema
                         # to make sure dependency naming and gem naming are consistent
@@ -1080,7 +1082,8 @@ module Autoproj
                     :deps => {:rock => [], :osdeps => [], :nonnative => []},
                     :distribution => target_platform.distribution_release_name,
                     :architecture => target_platform.architecture,
-                    :local_pkg => false
+                    :local_pkg => false,
+                    :package_name => nil
 
                 if !gem_path
                     raise ArgumentError, "Debian.convert_gem: no #{gem_path} given"
@@ -1192,6 +1195,9 @@ module Autoproj
                             end
 
                             gem_patch_dir = File.join(patch_dir, gem_name)
+                            if options[:package_name] && !File.exists?(gem_patch_dir)
+                                gem_patch_dir = File.join(patch_dir, options[:package_name])
+                            end
                             if patch_directory(Dir.pwd, gem_patch_dir)
                                 dpkg_commit_changes("deb_autopackaging_overlay")
                             end
