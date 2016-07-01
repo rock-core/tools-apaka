@@ -1203,17 +1203,6 @@ module Autoproj
                             end
                         end
 
-                        #####################
-                        # pkgconfig/*.pc file
-                        #####################
-                        # allow usage of ${rock_install_dir} in pkgconfig files
-                        pkgconfig_file = Dir.glob("pkgconfig/*.pc")
-                        if !pkgconfig_file.empty?
-                            pkgconfig_file = pkgconfig_file.first
-                            `sed -i '1 i rock_install_dir=#{rock_install_directory}' #{pkgconfig_file}`
-                            dpkg_commit_changes("update_pkgconfig_file")
-                        end
-
                         ################
                         # debian/install
                         ################
@@ -1332,9 +1321,11 @@ module Autoproj
                         dpkg_commit_changes("disable_tests")
 
 
-                        Dir.glob("debian/*").each do |file|
-                            `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" #{file}`
-                            dpkg_commit_changes("adapt_rock_install_dir")
+                        ["debian","pkgconfig"].each do |subdir|
+                            Dir.glob("#{subdir}/*").each do |file|
+                                `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" #{file}`
+                                dpkg_commit_changes("adapt_rock_install_dir")
+                            end
                         end
 
                         ###################
