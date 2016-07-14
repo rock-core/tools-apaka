@@ -1,5 +1,19 @@
 <%= debian_name %> (<%= debian_version %>) unstable; urgency=low
 
   * Package automatically built using autoproj-package debian
+<%if pkg.importer.kind_of?(Autobuild::Git) %>
+<% status = pkg.importer.status(pkg) %>
+   * repository: <%= pkg.importer.repository_id %>
+   * branch: <%= pkg.importer.current_branch(pkg) %>
+   * commit: <%= status.common_commit %>
+   * tag: <%= pkg.importer.tag %>
+<%elsif pkg.importer.kind_of?(Autobuild::SVN) %>
+   * repository: <%= pkg.importer.repository %>
+   * revision: <%= pkg.importer.revision %>
+   * url: <%= pkg.importer.svn_url %>
+<%elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) %>
+    * url: <%= pkg.importer.url %>
+    * filename: <%= pkg.importer.filename %>
+<%end%>
 
- -- Packaging Daemon <rock-dev@dfki.de>  Mon, 10 Sep 2012 17:01:58 +0200
+ -- Packaging Daemon <rock-dev@dfki.de>  <%= Time.now.strftime("%a, %d %b %Y %H:%M:%S %z") %>
