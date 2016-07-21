@@ -8,9 +8,8 @@
    * commit: <%= status.common_commit %>
    * tag: <%= pkg.importer.tag %>
 <%elsif pkg.importer.kind_of?(Autobuild::SVN) %>
-   * repository: <%= pkg.importer.repository %>
+   * repository: <%= pkg.importer.repository_id %>
    * revision: <%= pkg.importer.revision %>
-   * url: <%= pkg.importer.svn_url %>
 <%elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) %>
     * url: <%= pkg.importer.url %>
     * filename: <%= pkg.importer.filename %>
