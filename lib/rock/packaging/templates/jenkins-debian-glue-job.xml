@@ -115,7 +115,7 @@ if [ "${status}" = "active" ]; then
     export RELEASE_DISTRIBUTION=${distribution}
     /usr/bin/build-and-provide-package
 
-    deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps-${distribution}-${architecture}.osdeps <%= options[:package_name] %>
+    deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps.osdeps-${release}-${architecture} <%= options[:package_name] %>
     echo "Step: 'build debian package' completed"
 elif [ "${status}" = "inactive" ]; then
     echo "Configuration: ${distribution} ${architecture} is not a requested configuration"
@@ -135,17 +135,6 @@ fi
       <defaultExcludes>true</defaultExcludes>
       <caseSensitive>true</caseSensitive>
     </hudson.tasks.ArtifactArchiver>
-    <org.jenkinsci.plugins.postbuildscript.PostBuildScript>
-      <buildSteps>
-        <hudson.tasks.Shell>
-          <command>curl http://localhost:8080/job/${JOB_NAME}/${BUILD_NUMBER}/stop</command>
-        </hudson.tasks.Shell>
-      </buildSteps>
-      <scriptOnlyIfSuccess>false</scriptOnlyIfSuccess>
-      <scriptOnlyIfFailure>true</scriptOnlyIfFailure>
-      <markBuildUnstable>false</markBuildUnstable>
-      <executeOn>MATRIX</executeOn>
-    </org.jenkinsci.plugins.postbuildscript.PostBuildScript>
   </publishers>
   <buildWrappers>
     <hudson.plugins.ws__cleanup.PreBuildCleanup>

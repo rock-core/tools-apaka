@@ -3,6 +3,68 @@ require 'yaml'
 
 module Autoproj
     module Packaging
+
+        # Example yaml configuration file
+        #
+        #---
+        ## what distributions are available
+        ## type: refers to autoproj type that is searched for in the osdeps file
+        ## labels: refers to autoproj labels that are searched for in the
+        ## osdeps files
+        #distributions:
+        #    precise:
+        #        type: ubuntu,debian
+        #        labels: 12.04,12.04.4,lts,precise,pangolin,default
+        #    trusty:
+        #        type: ubuntu, debian
+        #        labels: 14.04,14.04.2,lts,trusty,tahr,default
+        #    vivid:
+        #        type: ubuntu,debian
+        #        labels: 15.04,lts,vivid,vervet,default
+        #    wily:
+        #        type: ubuntu,debian
+        #        labels: 15.10,wily,werewolf,default
+        #    xenial:
+        #        type: ubuntu,debian
+        #        labels: 16.04,lts,xenial,xerus,default
+        #    yakkety:
+        #        type: ubuntu,debian
+        #        labels: 16.10,yakkety,yak,default
+        #    squeeze:
+        #        type: debian
+        #        labels: 6.0,squeeze,default
+        #    wheezy:
+        #        type: debian
+        #        labels: 7.8,wheezy,default
+        #    jessie:
+        #        type: debian
+        #        labels: 8.1,jessie,default
+        #    sid:
+        #        type: debian
+        #        labels: 9.0,sid,default
+        ## what distribution should be build with which architecture
+        #architectures:
+        #    amd64: trusty,xenial
+        #    #amd64: trusty,xenial,jessie
+        #    #i386:  trusty,xenial,jessie
+        #    #armel: jessie
+        #    #armhf: jessie
+        #packages:
+        #    aliases:
+        #        tools/rtt: rtt
+        #        tools/rtt-typelib: rtt-typelib
+        #        tools/typelib: typelib
+        #        tools/utilrb: utilrb
+        #        tools/utilrb-ext: utilrb-ext
+        #    optional: llvm,clang
+        #    enforce_build: rgl
+        #    timestamp_format: '%Y-%m-%d'
+        #rock_releases:
+        #    master:
+        #        url: http://rimres-gcs2-u/rock-releases/master-16.06
+        #    transterra:
+        #        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
+        #        depends_on: master, trusty
         class Config
             include Singleton
 
@@ -128,6 +190,21 @@ module Autoproj
                         name
                     end
                 end.compact
+            end
+
+            def self.active_configurations
+                configurations = []
+                puts "Architectures: #{architectures}"
+                puts "Active distr: #{active_distributions}"
+                architectures.each do |arch, releases|
+                    puts "Releases: #{releases}"
+                    releases.each do |release|
+                        if active_distributions.include?(release)
+                            configurations << [release,arch]
+                        end
+                    end
+                end
+                configurations
             end
 
             def self.build_for_distribution?(distribution_name)

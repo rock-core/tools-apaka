@@ -290,21 +290,67 @@ module Autoproj
                 all_required_packages
             end
 
-            def update_list(pkg, file)
-                Autoproj.info("Update Packagelist #{file} with #{pkg}")
+            # Update the automatically generated osdeps list for a given 
+            # package
+            def update_osdeps_lists(pkg, osdeps_files_dir)
+                Packager.info "Update osdeps lists in #{osdeps_files_dir} for #{pkg}"
+                if !File.exists?(osdeps_files_dir)
+                    Packager.debug "Creating #{osdeps_files_dir}"
+                    FileUtils.mkdir_p osdeps_files_dir
+                else
+                    Packager.debug "#{osdeps_files_dir} already exists"
+                end
+
+                Dir.chdir(osdeps_files_dir) do
+                    Packaging::Config.active_configurations.each do |release,arch|
+                        selected_platform = TargetPlatform.new(release, arch)
+                        file = File.absolute_path("rock-osdeps.osdeps-#{rock_release_name}-#{arch}")
+                        update_osdeps_list(pkg.dup, file, selected_platform)
+                    end
+                end
+            end
+
+            def update_osdeps_list(pkg, file, selected_platform)
+                Packager.info "Update osdeps list for: #{selected_platform} -- in file #{file}"
+
+                list = Hash.new
                 if File.exist? file
+                    Packager.info("Packagelist #{file} already exists: reloading")
                     list = YAML.load_file(file)
-                else
-                    FileUtils.mkdir_p(File.dirname(file)) unless File.exists?(File.dirname(file))
-                    list = Hash.new
                 end
+
+                pkg_name = nil
+                dependency_name = nil
                 if pkg.is_a? String
-                    list[pkg] = {"debian,ubuntu" => debian_ruby_name(pkg)}
-                #    list.uniq!
+                    # Handling of ruby and other gems
+                    pkg_name = pkg
+                    release_name, is_osdep = native_dependency_name(pkg_name, selected_platform)
+                    Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
+                    if is_osdep
+                        dependency_name = release_name
+                    else
+                        dependency_name = debian_ruby_name(pkg_name)
+                    end
                 else
-                    list[pkg.name] = {"debian,ubuntu" => debian_name(pkg)}
-                #    list.uniq!
+                    # Handling of rock packages
+                    dependency_name = debian_name(pkg)
                 end
+
+                # Get the operating system label
+                types, labels = Config.linux_distribution_releases[selected_platform.distribution_release_name]
+                types_string = types.join(",")
+                labels_string = labels.join(",")
+
+                Packager.debug "Existing definition: #{list[pkg_name]}"
+                pkg_definition = list[pkg_name] || Hash.new
+                distributions = pkg_definition[types_string] || Hash.new
+                distributions[labels_string] = dependency_name
+                pkg_definition[types_string] = distributions
+
+                list[pkg_name] = pkg_definition
+                Packager.debug "New definition: #{list[pkg_name]}"
+
+                Packager.debug "Updating osdeps file: #{file} with #{pkg_name} -- #{pkg_definition}"
                 File.open(file, 'w') {|f| f.write list.to_yaml }
             end
 
@@ -497,14 +543,17 @@ module Autoproj
             # Check if the plain package name exists in the target (ubuntu/debian) distribution or any ancestor (rock) distributions
             # and identify the correct package name
             # return [String,bool] Name of the dependency and whether this is an os dependency or not
-            def native_dependency_name(name)
+            def native_dependency_name(name, selected_platform = nil)
                 platforms = Set.new
-                platforms << target_platform
+                if !selected_platform
+                    selected_platform = target_platform
+                end
+                platforms << selected_platform
 
                 # Identify this rock release and its ancestors
-                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                this_rock_release = TargetPlatform.new(rock_release_name, selected_platform.architecture)
                 this_rock_release.ancestors.each do |ancestor|
-                    platforms << TargetPlatform.new(ancestor, target_platform.architecture)
+                    platforms << TargetPlatform.new(ancestor, selected_platform.architecture)
                 end
 
                 # Check for 'plain' name, the 'unprefixed' name and for the 'release' name

@@ -30,7 +30,7 @@ o_flow = nil
 o_ruby_job = nil
 o_package = false
 o_overwrite = false
-o_list = false
+o_osdeps_list_dir = nil
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
 o_rock_base_install_dir=nil
 o_parallel_builds = false
@@ -160,8 +160,8 @@ options = OptionParser.new do |opt|
             o_flavor = name
         end
     end
-    opt.on("--update-list FILE", String, "Update the given osdep-file") do |file|
-        o_list = file
+    opt.on("--update-osdeps-lists DIR", String, "Update the osdeps files in the given directory") do |dir|
+        o_osdeps_list_dir = dir
     end
     opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of debian packages") do |dir|
         require 'pathname'
@@ -432,11 +432,19 @@ Dir.chdir(packager.build_dir) do
         jenkins = Autoproj::Packaging::Jenkins.new(packager)
 
         packages = packager.all_required_rock_packages(selection)
-        packages.each_with_index do |pkg, i|
-            puts "(#{i+1}/#{selection.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
+        if selection.size == 1
+            pkg = packages.last
+            puts "Creating Jenkins-job: #{pkg.name} -- #{pkg}"
             options[:force] = o_overwrite
             jenkins.create_package_job(pkg, options)
+        else
+            packages.each_with_index do |pkg, i|
+                puts "(#{i+1}/#{packages.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
+                options[:force] = o_overwrite
+                jenkins.create_package_job(pkg, options)
+            end
         end
+
     end
 
     if o_flow
@@ -459,15 +467,25 @@ Dir.chdir(packager.build_dir) do
         Autoproj::Packaging::Jenkins.create_control_jobs options
     end
 
-    if o_list
-        puts "Updating osdep-list"
-        selection.each do |pkg_name|
+    # Updating the osdeps files in a given directory
+    if o_osdeps_list_dir
+        puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
+        update_package_list = nil
+        if o_selected_packages.empty?
+            selection.each do |pkg_name|
+                update_package_list << pkg_name
+            end
+        else
+            update_package_list = o_selected_packages
+        end
+
+        update_package_list.each do |pkg_name|
             pkg = Autoproj.manifest.package(pkg_name)
             if !pkg.nil?
                 pkg = pkg.autobuild
-                packager.update_list(pkg, o_list)
+                packager.update_osdeps_lists(pkg, o_osdeps_list_dir)
             else
-                packager.update_list(pkg_name, o_list)
+                packager.update_osdeps_lists(pkg_name, o_osdeps_list_dir)
             end
         end
     end
