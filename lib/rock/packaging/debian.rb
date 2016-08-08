@@ -735,8 +735,13 @@ module Autoproj
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
                     ["debian","build",".travis"].each do |excluded_dir|
-                        FileUtils.rm_rf File.join(pkg.srcdir, excluded_dir)
+                        Dir.glob("**/#{excluded_dir}/").each do |remove_dir|
+                            directory = File.join(pkg.srcdir, remove_dir)
+                            Packager.warn "Removing conflicting folders: #{remove_dir}"
+                            FileUtils.rm_rf remove_dir
+                        end
                     end
+
 
                     sources_name = plain_versioned_name(pkg, distribution)
                     # First, generate the source tarball
