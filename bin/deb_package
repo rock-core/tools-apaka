@@ -160,6 +160,10 @@ options = OptionParser.new do |opt|
             o_flavor = name
         end
     end
+    opt.on("--update-list FILE", String, "Update the osdeps file in the given directory") do |file|
+        puts "The usage of --update-list is deprecated, use --update-osdeps-lists instead"
+        exit 0
+    end
     opt.on("--update-osdeps-lists DIR", String, "Update the osdeps files in the given directory") do |dir|
         o_osdeps_list_dir = dir
     end
@@ -470,7 +474,7 @@ Dir.chdir(packager.build_dir) do
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
-        update_package_list = nil
+        update_package_list = []
         if o_selected_packages.empty?
             selection.each do |pkg_name|
                 update_package_list << pkg_name

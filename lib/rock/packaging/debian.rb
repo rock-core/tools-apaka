@@ -332,6 +332,7 @@ module Autoproj
                         dependency_name = debian_ruby_name(pkg_name)
                     end
                 else
+                    pkg_name = pkg.name
                     # Handling of rock packages
                     dependency_name = debian_name(pkg)
                 end
