@@ -637,8 +637,9 @@ module Autoproj
                 # i.e. use gzip --no-name and set the initial date to the current day
                 #
                 # NOTE: What if building over midnight -- single point of failure
+                # exclude hidden files an directories
                 mtime=`date +#{Packaging::Config.timestamp_format}`
-                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude .travis --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
+                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.*' --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
                 if system(cmd_tar)
                     Packager.info "Package: successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} -- #{Dir.glob("**")}"
@@ -966,7 +967,7 @@ module Autoproj
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
                         diff_name = File.join(local_tmp_dir, "#{orig_file_name}.diff")
-                        `diff -urN --exclude .travis --exclude .git --exclude .svn --exclude CVS --exclude debian --exclude build #{pkg.srcdir} . > #{diff_name}`
+                        `diff -urN --exclude .* --exclude CVS --exclude debian --exclude build #{pkg.srcdir} . > #{diff_name}`
                         Packager.info "Package: '#{pkg.name}' checking diff file '#{diff_name}'"
                         if File.open(diff_name).lines.any?
                             return true
