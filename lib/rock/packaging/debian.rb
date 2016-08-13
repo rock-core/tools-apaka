@@ -1054,7 +1054,21 @@ module Autoproj
                                     if !gem.empty?
                                         gem_from_cache = true
                                         Packager.info "Using gem from cache: copying #{gem.first} to #{Dir.pwd}"
-                                        FileUtils.cp gem.first,"."
+                                        selected_gem = nil
+                                        if version
+                                            regexp = Regexp.new(version)
+                                            gem.each do |gem_name|
+                                                if regexp.match(gem_name)
+                                                    selected_gem = gem_name
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        if !selected_gem
+                                            Packager.warn "Gem(s) in cache does not match the expected version: #{version}"
+                                            raise RuntimeError, "Failed to find gem for '#{gem_name}' with version '#{version}' in cache: #{File.absolute_path(gem_dir)}"
+                                        end
+                                        FileUtils.cp selected_gem, "."
                                     end
                                 end
                             end
