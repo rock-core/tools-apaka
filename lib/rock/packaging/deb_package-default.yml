@@ -6,34 +6,34 @@
 distributions:
     precise:
         type: ubuntu,debian
-        labels: 12.04,12.04.4,lts,precise,pangolin,default
+        labels: 12.04,12.04.4,precise,pangolin
     trusty:
         type: ubuntu, debian
-        labels: 14.04,14.04.2,lts,trusty,tahr,default
+        labels: 14.04,14.04.2,trusty,tahr
     vivid:
         type: ubuntu,debian
-        labels: 15.04,lts,vivid,vervet,default
+        labels: 15.04,vivid,vervet
     wily:
         type: ubuntu,debian
-        labels: 15.10,wily,werewolf,default
+        labels: 15.10,wily,werewolf
     xenial:
         type: ubuntu,debian
-        labels: 16.04,lts,xenial,xerus,default
+        labels: 16.04,xenial,xerus
     yakkety:
         type: ubuntu,debian
-        labels: 16.10,yakkety,yak,default
+        labels: 16.10,yakkety,yak
     squeeze:
         type: debian
-        labels: 6.0,squeeze,default
+        labels: 6.0,squeeze
     wheezy:
         type: debian
-        labels: 7.8,wheezy,default
+        labels: 7.8,wheezy
     jessie:
         type: debian
-        labels: 8.1,jessie,default
+        labels: 8.1,jessie
     sid:
         type: debian
-        labels: 9.0,sid,default
+        labels: 9.0,sid
 # what distribution should be build with which architecture
 architectures:
     amd64: trusty,vivid,xenial,jessie
