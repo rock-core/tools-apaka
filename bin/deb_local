@@ -5,35 +5,105 @@ require 'autoproj'
 require 'autobuild'
 require 'rock/packaging'
 
+def build_and_install_locally(pkg_name, options)
+    options, unknown_options = Kernel.filter_options options,
+        :release_name => 'local',
+        :rock_base_install_dir => '/opt/rock',
+        :patch_dir => nil,
+        :package_version => nil
+
+    arguments = ""
+    if options[:release_name]
+        arguments += "--release-name #{options[:release_name]}"
+        arguments += " "
+    end
+    if options[:rock_base_install_dir]
+        arguments += "--rock-base-install-dir #{options[:rock_base_install_dir]}"
+        arguments += " "
+    end
+    if options[:patch_dir]
+        arguments += "--patch-dir #{options[:patch_dir]}"
+        arguments += " "
+    end
+    if options[:package_version]
+        arguments +=  "--package-version #{options[:package_version]}"
+        arguments += " "
+    end
+    arguments +="#{pkg_name}"
+
+    puts "Debian packaging: '#{pkg_name}' with arguments #{arguments}"
+
+    cmd = "deb_package --package --rebuild #{arguments} > /tmp/deb-package-rebuild.log"
+    Autoproj.message "Execution of: #{cmd}"
+    output = `#{cmd}`
+    Autoproj.info output
+    puts "############### build #{pkg_name} #####################"
+    cmd = "deb_package --build-local #{arguments} > /tmp/deb-package-build-local.log"
+    Autoproj.message "Execution of: #{cmd}"
+    output = `#{cmd}`
+    Autoproj.info output
+    puts "############### install #{pkg_name} #####################"
+    cmd = "deb_package --install #{arguments} > /tmp/deb-package-install.log"
+    Autoproj.message "Execution of: #{cmd}"
+    output = `#{cmd}`
+    Autoproj.info output
+end
+
 o_skip = false
 o_verbose = false
 
+build_options = Hash.new
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_local [options]"
     opt.on('--verbose', 'Display output') do
         o_verbose = true
     end
+    opt.on('--rock-name STRING',"Release name") do |name|
+        build_options[:release_name] = name
+    end
+    opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
+        patch_dir = File.expand_path(dir)
+        if !File.directory?(o_patch_dir)
+            puts "Given patch directory '#{o_patch_dir}' does not exist"
+            exit -1
+        end
+        build_options[:patch_dir] = patch_dir
+    end
+    opt.on("--release-name NAME", String, "Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir") do |name|
+        build_options[:release_name] = dir
+    end
+    opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of the local debian packages") do |dir|
+        require 'pathname'
+        if !Pathname.new(dir).absolute?
+            raise ArgumentError, "Given path for --rock-base-install-dir has to be absolute, but was relative: '#{dir}'"
+        end
+        build_options[:rock_base_install_dir] = dir
+    end
 end
+
+build_options[:release_name] ||= 'local'
 
 o_selected_packages = options.parse(ARGV)
 
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
-#packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
-option = Hash.new
-option[:distribution] = NIL #o_distributions.first
-option[:architectures] = NIL #o_architectures.first
-packager = Autoproj::Packaging::Debian.new(option)
-packager.rock_release_name = "local"
 
+option = Hash.new
+packager = Autoproj::Packaging::Debian.new
+packager.rock_release_name = build_options[:release_name]
+
+distribution,release = Autoproj::OSDependencies.operating_system
+debian_architecture= "#{`dpkg --print-architecture`}".strip
+
+puts "Building local package for: distribution: #{distribution}, release: #{release}, architecture: #{debian_architecture}"
 
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
-        Autoproj.warn "Package: #{name} is a known rock package"
+        Autoproj.debug "Package: #{name} is a known rock package"
         true
     elsif Autoproj::Packaging::GemDependencies::isGem(name)
-        Autoproj.warn "Package: #{name} is a gem"
+        Autoproj.debug "Package: #{name} is a gem"
         packager.ruby_gems << [name, nil]
         false
     else
@@ -42,56 +112,40 @@ selected_rock_packages = o_selected_packages.select do |name|
 end
 
 
-Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+Autoproj.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 
 
 selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
-`export ROCK_RELEASE=#{packager.rock_release_name}`
-`. custom-env.sh`
-
 # Compute dependencies
 packages = packager.all_required_rock_packages selection
-
+binding.pry
 packages = packager.all_required_packages selection
-gems = packages[:gems]
-gem_versions = packages[:gem_versions]
 packages = packages[:packages]
 
+patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
+if File.exists? patch_dir
+    patch_dir = "--patch-dir #{patch_dir}"
+else
+    Autoproj.warn "Patch directory: #{patch_dir} does not exist"
+end
 
-puts "############################### GEMS ######################"
+puts "# Packaging Gems ----"
 packager.ruby_gems.each do |pkg, version|
     if pkg == "kramdown"
         next # it's in the ubuntu-repos, this should be done in another way
     end
-    puts "############### package #{pkg} #####################"
+
+    pkg_build_options = build_options.dup
     if version
-        output =  `deb_package --package --rebuild --distributions trusty--release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --package-version #{version} #{pkg}` 
-    else
-        output =  `deb_package --package --rebuild --distributions trusty --release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ #{pkg}` 
-end
-    puts output if o_verbose
-    puts "############### build #{pkg} #####################"
-    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --release-name  #{packager.rock_release_name} #{pkg}`
-    puts output if o_verbose
-    puts "############### install #{pkg} #####################"
-    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg}`
-    puts output if o_verbose
+        pkg_build_options[:package_version] = version
+    end
+    build_and_install_locally(pkg,pkg_build_options)
 end
 
-puts "################## PACKAGES #####################"
+puts "# Packaging Rock Packages ----"
 packages.each do |pkg|
-    puts "############### package #{pkg.name} #####################"
-    puts "deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}" 
-    output =  `deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}`
-    puts output if o_verbose
-    puts "############### build #{pkg.name} #####################"
-    puts "deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}"
-    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}`
-    puts output if o_verbose
-    puts "############### install #{pkg.name} #####################"
-    puts "deb_package --install --distributions trusty #{pkg.name}"
-    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg.name}`
-    puts output if o_verbose
+    pkg_build_options = build_options.dup
+    build_and_install_locally(pkg.name, pkg_build_options)
 end

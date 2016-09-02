@@ -145,22 +145,21 @@ module Autoproj
             end
 
             def debian_version(pkg, distribution, revision = "1")
-#                if !@debian_version.has_key?(pkg.name)
-                    #@debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
-		    if pkg.description.nil?
+                if !@debian_version.has_key?(pkg.name)
+                    if pkg.description.nil?
                        v = "0"
-		    else
-                    	if !pkg.description.version
+                    else
+                        if !pkg.description.version
                            v = "0"
                         else
                            v = pkg.description.version
                         end
-                    end 
+                    end
                     @debian_version[pkg.name] = v + "." + Time.now.strftime("%Y%m%d") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
- #               end
+                end
                 @debian_version[pkg.name]
             end
 
@@ -299,7 +298,7 @@ module Autoproj
                 all_required_packages
             end
 
-            # Update the automatically generated osdeps list for a given 
+            # Update the automatically generated osdeps list for a given
             # package
             def update_osdeps_lists(pkg, osdeps_files_dir)
                 Packager.info "Update osdeps lists in #{osdeps_files_dir} for #{pkg}"
@@ -428,7 +427,7 @@ module Autoproj
                         pkg_prefixed_name = debian_ruby_name(gem, with_prefix)
 
                         !( rock_release_platform.ancestorContains(gem) ||
-                          rock_release_platform.ancestorContains(pkg_ruby_name) || 
+                          rock_release_platform.ancestorContains(pkg_ruby_name) ||
                           rock_release_platform.ancestorContains(pkg_prefixed_name))
                     end
                 end
@@ -445,7 +444,7 @@ module Autoproj
                 pkg = pkg_manifest.package
 
                 pkg.resolve_optional_dependencies
-		this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
+                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
                     debian_name = debian_name( findPackageByName(dep_name), with_rock_release_prefix)
                     this_rock_release.packageReleaseName(debian_name)
@@ -808,9 +807,11 @@ module Autoproj
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
-                    patch_dir = File.join(options[:patch_dir], pkg.name)
-                    if patch_directory(pkg.srcdir, patch_dir)
-                        dpkg_commit_changes("deb_autopackaging_overlay")
+                    if options[:patch_dir] && File.exists?(options[:patch_dir])
+                        patch_dir = File.join(options[:patch_dir], pkg.name)
+                        if patch_directory(pkg.srcdir, patch_dir)
+                            dpkg_commit_changes("deb_autopackaging_overlay")
+                        end
                     end
 
                     # Check first if actual source contains newer information than existing
@@ -853,7 +854,7 @@ module Autoproj
                 Dir.chdir(packaging_dir(pkg)) do
 
                     dir_name = plain_versioned_name(pkg, distribution)
-		    plain_dir_name = plain_versioned_name(pkg, distribution)
+                    plain_dir_name = plain_versioned_name(pkg, distribution)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -887,7 +888,7 @@ module Autoproj
 
                         # Run dpkg-source
                         # Use the new tar ball as source
-			puts `dpkg-source -I -b #{pkg.srcdir}`
+                        Packager.info `dpkg-source -I -b #{pkg.srcdir}`
                         if !system("dpkg-source", "-I", "-b", pkg.srcdir)
                             Packager.warn "Package: #{pkg.name} failed to perform dpkg-source: entries #{Dir.entries(pkg.srcdir)}"
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
@@ -903,106 +904,119 @@ module Autoproj
                 end
             end
 
-	    def build_local_gem(gem_name, options)
-		filepath = BUILD_DIR
-		distribution = max_one_distribution(options[:distributions])
-			Packager.info "Building #{gem_name} locally"
-			begin
-			    gem_version = "FAILED"
-			    FileUtils.chdir File.join(BUILD_DIR, rock_ruby_release_prefix + gem_name) do 
-				Find.find("#{BUILD_DIR}/#{rock_ruby_release_prefix + gem_name}/").each do |file|
-				    if FileTest.directory?(file)
-					if File.basename(file)[0] == ?.
-                                            Find.prune
-                                        end
-                                    end
-                                    if file.end_with? ".gem"
-                                        gem_version = File.basename(file).sub(gem_name + '-', '').sub('.gem', '')
-					break
-                                    end
-                                end
-				#FileUtils.rm_rf "debian"
-				#FileUtils.rm_rf "#{rock_ruby_release_prefix + gem_name + gem_version}"
-				#FileUtils.mkdir "#{rock_ruby_release_prefix + gem_name + gem_version}"
-				`tar -xf *.debian.tar.gz`
-				`tar -x --strip-components=1 -C #{rock_ruby_release_prefix + gem_name + '-' + gem_version} -f *.orig.tar.gz`
-				FileUtils.mv 'debian', rock_ruby_release_prefix + gem_name + '-' + gem_version + '/', :force => true
-				FileUtils.chdir rock_ruby_release_prefix + gem_name + '-' + gem_version do
-				    output = `debuild -us -uc`
-				    if options[:verbose]
-				        puts output
-                                    end
-				end
-				filepath = FileUtils.pwd + '/' + "#{rock_ruby_release_prefix + gem_name + '-' + gem_version}.deb" 
-			    end
-			rescue Errno::ENOENT
-			    Packager.error "Package #{gem_name} seems not to be packaged, try adding --package before"
-			    return
-			end
-                filepath || "FAILED"
-                
-            end
+            def build_local_gem(gem_name, options)
+                gem_version = nil
+                debian_package_name = rock_ruby_release_prefix + gem_name
 
-            def build_local(pkg, options)
-		filepath = BUILD_DIR
-		distribution = max_one_distribution(options[:distributions])
-		    # cd package_name
-		    # tar -xf package_name_0.0.debian.tar.gz
-		    # tar -xf package_name_0.0.orig.tar.gz
-		    # mv debian/ package_name_0.0/
-		    # cd package_name_0.0/
-		    # debuild -us -uc
-		    # #to install
-		    # cd ..
-		    # sudo dpkg -i package_name_0.0.deb
-
-			Packager.info "Building #{pkg.name} locally"
-			begin
-			    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
-				FileUtils.rm_rf "debian"
-				FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
-				FileUtils.mkdir "#{plain_versioned_name(pkg, distribution)}"
-				`tar -xf *.debian.tar.gz`
-				`tar -x --strip-components=1 -C #{plain_versioned_name(pkg, distribution)} -f *.orig.tar.gz`
-				FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
-				FileUtils.chdir plain_versioned_name(pkg, distribution) do
-				    output = `debuild -us -uc`
-				    if options[:verbose]
-				        puts output
-                                    end
-				end
-				filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, FALSE)}_ARCHITECTURE.deb" 
-			    end
-			rescue Errno::ENOENT
-			    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package before"
-			    return "FAILED"
-			end
-                filepath
-                
-            end
-
-            def install( pkg, options)
-		install_dependencies = options[:dependencies]
-		distribution = max_one_distribution(options[:distributions])
-		
-		if pkg.class == String # it's a gem
-                     name = rock_ruby_release_prefix(rock_release_name) + pkg
-                     long_name = rock_ruby_release_prefix(rock_release_name) + pkg
-                else
-                     name = debian_name(pkg)
-                     long_name = debian_name(pkg, TRUE)
+                # Find gem version
+                Find.find("#{BUILD_DIR}/#{debian_package_name}/").each do |file|
+                    if FileTest.directory?(file)
+                        if File.basename(file)[0] == ?.
+                            Find.prune
+                        end
+                    end
+                    if file.end_with? ".gem"
+                        gem_version = File.basename(file).sub(gem_name + '-', '').sub('.gem', '')
+                        break
+                    end
                 end
-		
+
+                versioned_build_dir = debian_package_name + '-' + gem_version
+                deb_filename = "#{versioned_build_dir}.deb"
+                build_local(gem_name, debian_package_name, versioned_build_dir, deb_filename, options)
+            end
+
+            def build_local_package(pkg, options)
+                pkg_name = pkg.name
+                distribution = max_one_distribution(options[:distributions])
+                versioned_build_dir = plain_versioned_name(pkg, distribution)
+                deb_filename = "#{plain_versioned_name(pkg, FALSE)}_ARCHITECTURE.deb"
+
+                build_local(pkg_name, debian_name(pkg), versioned_build_dir, deb_filename, options)
+            end
+
+            # Build package locally
+            # return path to locally build file
+            def build_local(pkg_name, debian_pkg_name, versioned_build_dir, deb_filename, options)
+                filepath = BUILD_DIR
+                distribution = max_one_distribution(options[:distributions])
+                # cd package_name
+                # tar -xf package_name_0.0.debian.tar.gz
+                # tar -xf package_name_0.0.orig.tar.gz
+                # mv debian/ package_name_0.0/
+                # cd package_name_0.0/
+                # debuild -us -uc
+                # #to install
+                # cd ..
+                # sudo dpkg -i package_name_0.0.deb
+                Packager.info "Building #{pkg_name} locally with arguments: pkg_name #{pkg_name}," \
+                    " debian_pkg_name #{debian_pkg_name}," \
+                    " versioned_build_dir #{versioned_build_dir}" \
+                    " deb_filename #{deb_filename}" \
+                    " options #{options}"
+
                 begin
-puts "In #{BUILD_DIR + '/' + name}:  sudo dpkg -i #{long_name}*.deb"
-                    #go through all deps
-                    FileUtils.chdir File.join(BUILD_DIR, '/' + name) do
-                        `sudo dpkg -i #{long_name}*.deb`
-		    end
-                rescue
-			Packager.error "Installation failed"
+                    FileUtils.chdir File.join(BUILD_DIR, debian_pkg_name) do
+                        FileUtils.rm_rf "debian"
+                        FileUtils.rm_rf "#{versioned_build_dir}"
+                        FileUtils.mkdir "#{versioned_build_dir}"
+                        cmd = "tar -xf *.debian.tar.gz"
+                        if !system(cmd)
+                             raise RuntimeError, "Packager: '#{cmd}' failed"
+                        end
+                        cmd = "tar -x --strip-components=1 -C #{versioned_build_dir} -f *.orig.tar.gz"
+                        if !system(cmd)
+                             raise RuntimeError, "Packager: '#{cmd}' failed"
+                        end
+
+                        FileUtils.mv 'debian', versioned_build_dir + '/'
+                        FileUtils.chdir versioned_build_dir do
+                            cmd = "debuild -us -uc"
+                            if !system(cmd)
+                                raise RuntimeError, "Packager: '#{cmd}' failed"
+                            end
+                        end
+                    end
+                    filepath = Dir.glob("#{debian_pkg_name}/*.deb")
+                    if filepath.size < 1
+                        raise RuntimeError, "No debian file generated in #{Dir.pwd}"
+                    elsif filepath.size > 1
+                        raise RuntimeError, "More than one debian file available in #{Dir.pwd}: #{filepath}"
+                    else
+                        filepath = filepath.first
+                    end
+                rescue Exception => e
+                    msg = "Package #{pkg_name} has not to been packaged"
+                    Packager.error msg
+                    raise RuntimeError, msg + " -- #{e}"
                 end
-                
+                filepath
+            end
+
+            def install_debfile(deb_filename)
+                cmd = "sudo dpkg -i #{deb_filename}"
+                Packager.info "Installing package via: '#{cmd}'"
+                if !system(cmd)
+                    raise RuntimeError, "Executing '#{cmd}' failed"
+                end
+            end
+
+            # Install package
+            def install(pkg_name, options)
+                begin
+                    pkg_build_dir = File.join(BUILD_DIR, pkg_name)
+                    filepath = Dir.glob("#{pkg_build_dir}/*.deb")
+                    if filepath.size < 1
+                        raise RuntimeError, "No debian file found for #{pkg_name}"
+                    elsif filepath.size > 1
+                        raise RuntimeError, "More than one debian file available in #{pkg_build_dir}: #{filepath}"
+                    else
+                        filepath = filepath.first
+                    end
+                    install_debfile(filepath)
+                rescue Exception => e
+                    raise RuntimeError, "Installation of package '#{pkg_name} failed -- #{e}"
+                end
             end
 
 
@@ -1154,8 +1168,8 @@ puts "In #{BUILD_DIR + '/' + name}:  sudo dpkg -i #{long_name}*.deb"
 
                             if !gem_from_cache
                                 error = true
-				max_retry = 10
-				retry_count = 1
+                                max_retry = 10
+                                retry_count = 1
                                 loop do
                                     Packager.warn "[#{retry_count}/#{max_retry}] Retrying gem fetch #{gem_name}" if retry_count > 1
                                     if version

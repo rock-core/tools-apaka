@@ -309,6 +309,14 @@ if o_distributions.size == 1
         Autoproj::OSDependencies.operating_system = operating_system
         puts "Custom setting of operating system to: #{operating_system}"
     end
+elsif o_distributions.size == 0
+    distribution,release = Autoproj::OSDependencies.operating_system
+    release.each do |label|
+        if Autoproj::Packaging::Config.linux_distribution_releases.keys.include?(label)
+            o_distributions << label
+            Autoproj.warn "No distribution specified, so autodetecting: #{o_distributions}"
+        end
+    end
 end
 
 options[:distribution] = o_distributions.first
@@ -556,13 +564,12 @@ Dir.chdir(packager.build_dir) do
 
     if o_build_local
 	packager.ruby_gems.each do |gem_name, gem_version|
-	    filepath = "FAILED"
             filepath = packager.build_local_gem gem_name, :distributions => o_distributions, :verbose => Autobuild.verbose
+            puts "Debian package created for gem '#{gem_name}': " + filepath
 	    if o_dest_dir
+                puts "Copying debian package to destination folder: #{dest_dir}"
             	FileUtils.mkdir_p dest_dir
             	FileUtils.cp filepath, dest_dir
-            else
-                puts "Debian package here: " + filepath
             end
         end        
 
@@ -574,21 +581,22 @@ Dir.chdir(packager.build_dir) do
                 next
             end
 
-            #Autoproj::Packaging::Packager.build_local pkg_name
-	    filepath = "FAILED"
-            filepath = packager.build_local pkg, :distributions => o_distributions, :verbose => Autobuild.verbose
+            filepath = packager.build_local_package pkg, :distributions => o_distributions, :verbose => Autobuild.verbose
+            puts "Debian package created for package '#{pkg}': #{filepath}"
 	    if o_dest_dir
+                puts "Copying debian package to destination folder: #{dest_dir}"
             	FileUtils.mkdir_p dest_dir
             	FileUtils.cp filepath, dest_dir
-            else
-                puts "Debian package here: " + filepath
             end
         end        
     end
 
     if o_install 
 	packager.ruby_gems.each do |gem_name, gem_version|
-	    packager.install gem_name, :install_dependencies => true, :distributions => o_distributions
+            puts "Installing locally: '#{gem_name}'"
+
+            debian_name = packager.debian_name(gem_name, false)
+	    packager.install debian_name, :distributions => o_distributions
         end        
         selection.each_with_index do |pkg_name, i|
 	    if pkg = Autoproj.manifest.package(pkg_name)
@@ -597,8 +605,10 @@ Dir.chdir(packager.build_dir) do
                 Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
-            puts "Installing #{pkg.name}"
-	    packager.install pkg, :install_dependencies => true, :distributions => o_distributions, :verbose => Autobuild.verbose
+            debian_name = packager.debian_name(pkg, true)
+
+            puts "Installing locally: '#{pkg.name}'"
+	    packager.install debian_name, :distributions => o_distributions, :verbose => Autobuild.verbose
         end
     end
 
