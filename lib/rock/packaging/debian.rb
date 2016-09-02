@@ -145,13 +145,22 @@ module Autoproj
             end
 
             def debian_version(pkg, distribution, revision = "1")
-                if !@debian_version.has_key?(pkg.name)
+#                if !@debian_version.has_key?(pkg.name)
                     #@debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d%H%M") + "-" + revision
-                    @debian_version[pkg.name] = (pkg.description.version || "0") + "." + Time.now.strftime("%Y%m%d") + "-" + revision
+		    if pkg.description.nil?
+                       v = "0"
+		    else
+                    	if !pkg.description.version
+                           v = "0"
+                        else
+                           v = pkg.description.version
+                        end
+                    end 
+                    @debian_version[pkg.name] = v + "." + Time.now.strftime("%Y%m%d") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
-                end
+ #               end
                 @debian_version[pkg.name]
             end
 
@@ -436,9 +445,10 @@ module Autoproj
                 pkg = pkg_manifest.package
 
                 pkg.resolve_optional_dependencies
+		this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
                     debian_name = debian_name( findPackageByName(dep_name), with_rock_release_prefix)
-                    rock_release_platform.packageReleaseName(debian_name)
+                    this_rock_release.packageReleaseName(debian_name)
                 end.sort
 
                 Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
@@ -599,7 +609,7 @@ module Autoproj
                 deps = dependencies(pkg, with_rock_prefix)
                 deps_rock_packages = deps[:rock]
                 deps_osdeps_packages = deps[:osdeps]
-                deps_nonnative_packages = deps[:nonnative].to_a
+                deps_nonnative_packages = deps[:nonnative].to_a.flatten.compact
 
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                 Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
@@ -893,36 +903,105 @@ module Autoproj
                 end
             end
 
-            def build_local(pkg, options)
+	    def build_local_gem(gem_name, options)
+		filepath = BUILD_DIR
 		distribution = max_one_distribution(options[:distributions])
-            # cd package_name
-            # tar -xf package_name_0.0.debian.tar.gz
-            # tar -xf package_name_0.0.orig.tar.gz
-            # mv debian/ package_name_0.0/
-            # cd package_name_0.0/
-            # debuild -us -uc
-            # #to install
-            # cd ..
-            # sudo dpkg -i package_name_0.0.deb
-                filepath = BUILD_DIR
-                Packager.info "Building #{pkg.name} locally"
-		begin
-		    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
-		        FileUtils.rm_rf "debian"
-		        FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
-		        `tar -xf *.debian.tar.gz`
-		        `tar -xf *.orig.tar.gz`
-			FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
-                        FileUtils.chdir plain_versioned_name(pkg, distribution) do
-			    `debuild -us -uc`
-		        end
-                        filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, distribution)}_ARCHITECTURE.deb" 
-                    end
-                rescue Errno::ENOENT
-                    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package"
-		    return
-                end
+			Packager.info "Building #{gem_name} locally"
+			begin
+			    gem_version = "FAILED"
+			    FileUtils.chdir File.join(BUILD_DIR, rock_ruby_release_prefix + gem_name) do 
+				Find.find("#{BUILD_DIR}/#{rock_ruby_release_prefix + gem_name}/").each do |file|
+				    if FileTest.directory?(file)
+					if File.basename(file)[0] == ?.
+                                            Find.prune
+                                        end
+                                    end
+                                    if file.end_with? ".gem"
+                                        gem_version = File.basename(file).sub(gem_name + '-', '').sub('.gem', '')
+					break
+                                    end
+                                end
+				#FileUtils.rm_rf "debian"
+				#FileUtils.rm_rf "#{rock_ruby_release_prefix + gem_name + gem_version}"
+				#FileUtils.mkdir "#{rock_ruby_release_prefix + gem_name + gem_version}"
+				`tar -xf *.debian.tar.gz`
+				`tar -x --strip-components=1 -C #{rock_ruby_release_prefix + gem_name + '-' + gem_version} -f *.orig.tar.gz`
+				FileUtils.mv 'debian', rock_ruby_release_prefix + gem_name + '-' + gem_version + '/', :force => true
+				FileUtils.chdir rock_ruby_release_prefix + gem_name + '-' + gem_version do
+				    output = `debuild -us -uc`
+				    if options[:verbose]
+				        puts output
+                                    end
+				end
+				filepath = FileUtils.pwd + '/' + "#{rock_ruby_release_prefix + gem_name + '-' + gem_version}.deb" 
+			    end
+			rescue Errno::ENOENT
+			    Packager.error "Package #{gem_name} seems not to be packaged, try adding --package before"
+			    return
+			end
+                filepath || "FAILED"
+                
+            end
+
+            def build_local(pkg, options)
+		filepath = BUILD_DIR
+		distribution = max_one_distribution(options[:distributions])
+		    # cd package_name
+		    # tar -xf package_name_0.0.debian.tar.gz
+		    # tar -xf package_name_0.0.orig.tar.gz
+		    # mv debian/ package_name_0.0/
+		    # cd package_name_0.0/
+		    # debuild -us -uc
+		    # #to install
+		    # cd ..
+		    # sudo dpkg -i package_name_0.0.deb
+
+			Packager.info "Building #{pkg.name} locally"
+			begin
+			    FileUtils.chdir File.join(BUILD_DIR, debian_name(pkg)) do 
+				FileUtils.rm_rf "debian"
+				FileUtils.rm_rf "#{plain_versioned_name(pkg, distribution)}"
+				FileUtils.mkdir "#{plain_versioned_name(pkg, distribution)}"
+				`tar -xf *.debian.tar.gz`
+				`tar -x --strip-components=1 -C #{plain_versioned_name(pkg, distribution)} -f *.orig.tar.gz`
+				FileUtils.mv 'debian', plain_versioned_name(pkg, distribution) + '/'
+				FileUtils.chdir plain_versioned_name(pkg, distribution) do
+				    output = `debuild -us -uc`
+				    if options[:verbose]
+				        puts output
+                                    end
+				end
+				filepath = FileUtils.pwd + '/' + "#{versioned_name(pkg, FALSE)}_ARCHITECTURE.deb" 
+			    end
+			rescue Errno::ENOENT
+			    Packager.error "Package #{pkg.name} seems not to be packaged, try adding --package before"
+			    return "FAILED"
+			end
                 filepath
+                
+            end
+
+            def install( pkg, options)
+		install_dependencies = options[:dependencies]
+		distribution = max_one_distribution(options[:distributions])
+		
+		if pkg.class == String # it's a gem
+                     name = rock_ruby_release_prefix(rock_release_name) + pkg
+                     long_name = rock_ruby_release_prefix(rock_release_name) + pkg
+                else
+                     name = debian_name(pkg)
+                     long_name = debian_name(pkg, TRUE)
+                end
+		
+                begin
+puts "In #{BUILD_DIR + '/' + name}:  sudo dpkg -i #{long_name}*.deb"
+                    #go through all deps
+                    FileUtils.chdir File.join(BUILD_DIR, '/' + name) do
+                        `sudo dpkg -i #{long_name}*.deb`
+		    end
+                rescue
+			Packager.error "Installation failed"
+                end
                 
             end
 

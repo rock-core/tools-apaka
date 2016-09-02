@@ -1,0 +1,97 @@
+#! /usr/bin/env ruby
+require 'find'
+require 'optparse'
+require 'autoproj'
+require 'autobuild'
+require 'rock/packaging'
+
+o_skip = false
+o_verbose = false
+
+options = OptionParser.new do |opt|
+    opt.banner = "Usage: deb_local [options]"
+    opt.on('--verbose', 'Display output') do
+        o_verbose = true
+    end
+end
+
+o_selected_packages = options.parse(ARGV)
+
+root_dir  = Autoproj::CmdLine.initialize_root_directory
+selection = Autoproj::CmdLine.initialize_and_load(nil)
+#packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"), {})
+option = Hash.new
+option[:distribution] = NIL #o_distributions.first
+option[:architectures] = NIL #o_architectures.first
+packager = Autoproj::Packaging::Debian.new(option)
+packager.rock_release_name = "local"
+
+
+selected_gems = []
+selected_rock_packages = o_selected_packages.select do |name|
+    if pkg = Autoproj.manifest.package(name)
+        Autoproj.warn "Package: #{name} is a known rock package"
+        true
+    elsif Autoproj::Packaging::GemDependencies::isGem(name)
+        Autoproj.warn "Package: #{name} is a gem"
+        packager.ruby_gems << [name, nil]
+        false
+    else
+        true
+    end
+end
+
+
+Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+
+
+selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
+selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+
+`export ROCK_RELEASE=#{packager.rock_release_name}`
+`. custom-env.sh`
+
+# Compute dependencies
+packages = packager.all_required_rock_packages selection
+
+packages = packager.all_required_packages selection
+gems = packages[:gems]
+gem_versions = packages[:gem_versions]
+packages = packages[:packages]
+
+
+puts "############################### GEMS ######################"
+packager.ruby_gems.each do |pkg, version|
+    if pkg == "kramdown"
+        next # it's in the ubuntu-repos, this should be done in another way
+    end
+    puts "############### package #{pkg} #####################"
+    if version
+        output =  `deb_package --package --rebuild --distributions trusty--release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --package-version #{version} #{pkg}` 
+    else
+        output =  `deb_package --package --rebuild --distributions trusty --release-name #{packager.rock_release_name} --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ #{pkg}` 
+end
+    puts output if o_verbose
+    puts "############### build #{pkg} #####################"
+    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --release-name  #{packager.rock_release_name} #{pkg}`
+    puts output if o_verbose
+    puts "############### install #{pkg} #####################"
+    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg}`
+    puts output if o_verbose
+end
+
+puts "################## PACKAGES #####################"
+packages.each do |pkg|
+    puts "############### package #{pkg.name} #####################"
+    puts "deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}" 
+    output =  `deb_package --package --rebuild --distributions trusty --architectures amd64 --patch-dir /opt/rock/master/deb_patches --rock-base-install-dir /opt/rock/ --release-name #{packager.rock_release_name} #{pkg.name}`
+    puts output if o_verbose
+    puts "############### build #{pkg.name} #####################"
+    puts "deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}"
+    output = `deb_package --build-local --distributions trusty --rock-base-install-dir /opt/rock/ --patch-dir /opt/rock/master/deb_patches --release-name #{packager.rock_release_name} #{pkg.name}`
+    puts output if o_verbose
+    puts "############### install #{pkg.name} #####################"
+    puts "deb_package --install --distributions trusty #{pkg.name}"
+    output = `deb_package --install --distributions trusty --release-name #{packager.rock_release_name} #{pkg.name}`
+    puts output if o_verbose
+end

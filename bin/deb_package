@@ -40,6 +40,8 @@ o_exists = false
 o_rock_release_name = nil
 o_package_version = nil
 o_build_local = false
+o_install = false
+o_recursive = false
 o_show_config = false
 o_create_cleanup_jobs = false
 o_activation_status=false
@@ -47,7 +49,6 @@ o_activation_status=false
 if ARGV.empty?
     ARGV << "--help"
 end
-
 
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_package [options]"
@@ -192,6 +193,12 @@ options = OptionParser.new do |opt|
     end
     opt.on("--build-local", String, "Build a debian-package locally and without Buildserver (Jenkins)") do
         o_build_local = true
+    end
+    opt.on("--install", String, "Build an environment up to the given package based on debian-packages") do
+        o_install = true
+    end
+    opt.on("--recursive", String, "package and/or build packages with their recursive dependencies") do
+        o_recursive = true
     end
     opt.on("--config-file CONFIG",String, "Read configuration file") do |file|
         Autoproj::Packaging::Config.reload_config(file)
@@ -548,6 +555,17 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_build_local
+	packager.ruby_gems.each do |gem_name, gem_version|
+	    filepath = "FAILED"
+            filepath = packager.build_local_gem gem_name, :distributions => o_distributions, :verbose => Autobuild.verbose
+	    if o_dest_dir
+            	FileUtils.mkdir_p dest_dir
+            	FileUtils.cp filepath, dest_dir
+            else
+                puts "Debian package here: " + filepath
+            end
+        end        
+
         selection.each_with_index do |pkg_name, i|
 	    if pkg = Autoproj.manifest.package(pkg_name)
                 pkg = pkg.autobuild
@@ -557,7 +575,8 @@ Dir.chdir(packager.build_dir) do
             end
 
             #Autoproj::Packaging::Packager.build_local pkg_name
-            filepath = packager.build_local pkg, :distributions => o_distributions
+	    filepath = "FAILED"
+            filepath = packager.build_local pkg, :distributions => o_distributions, :verbose => Autobuild.verbose
 	    if o_dest_dir
             	FileUtils.mkdir_p dest_dir
             	FileUtils.cp filepath, dest_dir
@@ -565,6 +584,22 @@ Dir.chdir(packager.build_dir) do
                 puts "Debian package here: " + filepath
             end
         end        
+    end
+
+    if o_install 
+	packager.ruby_gems.each do |gem_name, gem_version|
+	    packager.install gem_name, :install_dependencies => true, :distributions => o_distributions
+        end        
+        selection.each_with_index do |pkg_name, i|
+	    if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
+            puts "Installing #{pkg.name}"
+	    packager.install pkg, :install_dependencies => true, :distributions => o_distributions, :verbose => Autobuild.verbose
+        end
     end
 
     packager.cleanup
