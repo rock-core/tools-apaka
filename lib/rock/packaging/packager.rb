@@ -8,6 +8,7 @@ module Autoproj
         BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
         LOG_DIR=File.join(BUILD_DIR, "logs")
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
+        DEB_REPOSITORY=File.join(Autoproj.root_dir, "build/rock-reprepro")
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
@@ -15,11 +16,73 @@ module Autoproj
             attr_accessor :build_dir
             attr_accessor :log_dir
             attr_accessor :local_tmp_dir
+            attr_accessor :deb_repository
 
             def initialize
                 @build_dir = BUILD_DIR
                 @log_dir = LOG_DIR
                 @local_tmp_dir = LOCAL_TMP
+                @deb_repository = DEB_REPOSITORY
+            end
+
+            # Initialize the reprepro repository
+            #
+            def initialize_reprepro_repository
+                dir = deb_repository
+                conf_dir = File.join(dir,"conf")
+                FileUtils.mkdir_p conf_dir
+
+                distributions_file = File.join(conf_dir, "distributions")
+                if !File.exists?(distributions_file)
+                    File.open(distributions_file,"w") do |f|
+                        Config.linux_distribution_releases.each do |release_name, release|
+                            f.write("Codename: #{release_name}\n")
+                            f.write("Architectures: #{Config.architectures.keys.join(" ")} source\n")
+                            f.write("Components: main\n")
+                            f.write("UDebComponents: main\n")
+                            f.write("Tracking: minimal\n")
+                            f.write("Contents:\n\n")
+                        end
+                    end
+                end
+            end
+
+            # Get the reprepro binary and install the rerepo package if not
+            # already present
+            def reprepro_bin
+                reprepro = `which reprepro`
+                if $?.exitstatus != 0
+                    Packager.warn "Autoinstalling 'reprepro' for managing the debian package repository"
+                   `sudo apt-get install reprepro`
+                   reprepro = `which reprepro`
+                end
+                reprepro.strip
+            end
+
+            # Register the debian package for the given package and codename
+            # (=distribution)
+            # using reprepro
+            def register_debian_package(debian_pkg_name, codename)
+                dir = deb_repository
+
+                debian_package_dir = File.join(build_dir, debian_pkg_name)
+                logfile = File.join(log_dir,"reprepro-registration-#{debian_pkg_name}.log")
+
+                Dir.chdir(debian_package_dir) do
+                    debfile = Dir.glob("*.deb").first
+                    cmd = "#{reprepro_bin} -b #{dir} includedeb #{codename} #{debfile} > #{logfile} 2> #{logfile}"
+                    Packager.info "Execution: #{cmd}"
+                    if !system(cmd)
+                        raise RuntimeError, "Execution of #{cmd} failed"
+                    end
+
+                    dscfile = Dir.glob("*.dsc").first
+                    cmd = "#{reprepro_bin} -b #{dir} includedsc #{codename} #{dscfile} >> #{logfile} 2>> #{logfile}"
+                    Packager.info "Execution: #{cmd}"
+                    if !system(cmd)
+                        raise RuntimeError, "Execution of #{cmd} failed"
+                    end
+                end
             end
 
             # Check that the list of distributions contains at maximum one entry

@@ -34,17 +34,17 @@ def build_and_install_locally(packager, pkg_name, options)
     arguments +="#{pkg_name}"
 
     puts "Debian packaging: '#{pkg_name}' with arguments #{arguments}"
-
-    deb_files = Dir.glob(File.join(packager.build_dir, options[:debian_package_name],"*.deb"))
+    debian_package_dir = File.join(packager.build_dir, options[:debian_package_name])
+    deb_files = Dir.glob(File.join(debian_package_dir,"*.deb"))
     if options[:rebuild] || deb_files.empty?
-        rebuild_log = "/tmp/deb_local-#{options[:debian_package_name]}-rebuild.log"
+        rebuild_log = File.join(packager.log_dir, "deb_local-#{options[:debian_package_name]}-rebuild.log")
         cmd = "deb_package --package --rebuild #{arguments} > #{rebuild_log}"
         Autoproj.message "Execution of: #{cmd}"
         if !system(cmd)
             raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
         end
         puts "############### build #{pkg_name} #####################"
-        build_log = "/tmp/deb_local-#{options[:debian_package_name]}-build-local.log"
+        build_log = File.join(packager.log_dir,"deb_local-#{options[:debian_package_name]}-build-local.log")
         cmd = "deb_package --build-local #{arguments} > #{build_log}"
         Autoproj.message "Execution of: #{cmd}"
         if !system(cmd)
@@ -53,11 +53,13 @@ def build_and_install_locally(packager, pkg_name, options)
     end
 
     puts "############### install #{pkg_name} #####################"
-    install_log = "/tmp/deb_local-#{options[:debian_package_name]}-install.log"
+    install_log = File.join(packager.log_dir,"deb_local-#{options[:debian_package_name]}-install.log")
     cmd = "deb_package --install #{arguments} > #{install_log}"
     Autoproj.message "Execution of: #{cmd}"
     if !system(cmd)
         raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
+    else
+        packager.register_debian_package(options[:debian_package_name], packager.autodetect_linux_distribution_release)
     end
 end
 
@@ -108,10 +110,12 @@ packager = Autoproj::Packaging::Debian.new
 packager.rock_release_name = build_options[:release_name]
 build_options[:packager] = packager
 
+packager.initialize_reprepro_repository
+
 distribution,release = Autoproj::OSDependencies.operating_system
 debian_architecture= "#{`dpkg --print-architecture`}".strip
 
-puts "Building local package for: distribution: #{distribution}, release: #{release}, architecture: #{debian_architecture}"
+puts "Building local package for: #{packager.autodetect_linux_distribution_release}, architecture: #{packager.autodetect_dpkg_architecture}"
 
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
