@@ -254,7 +254,6 @@ module Autoproj
                             pkg_name = @package_aliases[pkg_name]
                         end
 
-                        #pkg = Autoproj.manifest.package(pkg_name).autobuild
                         pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
                         pkg = pkg_manifest.package
 

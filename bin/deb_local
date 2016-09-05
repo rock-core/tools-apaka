@@ -5,12 +5,14 @@ require 'autoproj'
 require 'autobuild'
 require 'rock/packaging'
 
-def build_and_install_locally(pkg_name, options)
+def build_and_install_locally(packager, pkg_name, options)
     options, unknown_options = Kernel.filter_options options,
         :release_name => 'local',
         :rock_base_install_dir => '/opt/rock',
         :patch_dir => nil,
-        :package_version => nil
+        :package_version => nil,
+        :debian_package_name => pkg_name.gsub("/",'-'),
+        :rebuild => false
 
     arguments = ""
     if options[:release_name]
@@ -33,20 +35,30 @@ def build_and_install_locally(pkg_name, options)
 
     puts "Debian packaging: '#{pkg_name}' with arguments #{arguments}"
 
-    cmd = "deb_package --package --rebuild #{arguments} > /tmp/deb-package-rebuild.log"
-    Autoproj.message "Execution of: #{cmd}"
-    output = `#{cmd}`
-    Autoproj.info output
-    puts "############### build #{pkg_name} #####################"
-    cmd = "deb_package --build-local #{arguments} > /tmp/deb-package-build-local.log"
-    Autoproj.message "Execution of: #{cmd}"
-    output = `#{cmd}`
-    Autoproj.info output
+    deb_files = Dir.glob(File.join(packager.build_dir, options[:debian_package_name],"*.deb"))
+    if options[:rebuild] || deb_files.empty?
+        rebuild_log = "/tmp/deb_local-#{options[:debian_package_name]}-rebuild.log"
+        cmd = "deb_package --package --rebuild #{arguments} > #{rebuild_log}"
+        Autoproj.message "Execution of: #{cmd}"
+        if !system(cmd)
+            raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
+        end
+        puts "############### build #{pkg_name} #####################"
+        build_log = "/tmp/deb_local-#{options[:debian_package_name]}-build-local.log"
+        cmd = "deb_package --build-local #{arguments} > #{build_log}"
+        Autoproj.message "Execution of: #{cmd}"
+        if !system(cmd)
+            raise RuntimeError, "Local build of pkg #{pkg_name} failed -- see #{build_log}"
+        end
+    end
+
     puts "############### install #{pkg_name} #####################"
-    cmd = "deb_package --install #{arguments} > /tmp/deb-package-install.log"
+    install_log = "/tmp/deb_local-#{options[:debian_package_name]}-install.log"
+    cmd = "deb_package --install #{arguments} > #{install_log}"
     Autoproj.message "Execution of: #{cmd}"
-    output = `#{cmd}`
-    Autoproj.info output
+    if !system(cmd)
+        raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
+    end
 end
 
 o_skip = false
@@ -63,8 +75,8 @@ options = OptionParser.new do |opt|
     end
     opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
         patch_dir = File.expand_path(dir)
-        if !File.directory?(o_patch_dir)
-            puts "Given patch directory '#{o_patch_dir}' does not exist"
+        if !File.directory?(patch_dir)
+            puts "Given patch directory '#{patch_dir}' does not exist"
             exit -1
         end
         build_options[:patch_dir] = patch_dir
@@ -79,6 +91,9 @@ options = OptionParser.new do |opt|
         end
         build_options[:rock_base_install_dir] = dir
     end
+    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used") do
+        build_options[:rebuild] = true
+    end
 end
 
 build_options[:release_name] ||= 'local'
@@ -91,13 +106,13 @@ selection = Autoproj::CmdLine.initialize_and_load(nil)
 option = Hash.new
 packager = Autoproj::Packaging::Debian.new
 packager.rock_release_name = build_options[:release_name]
+build_options[:packager] = packager
 
 distribution,release = Autoproj::OSDependencies.operating_system
 debian_architecture= "#{`dpkg --print-architecture`}".strip
 
 puts "Building local package for: distribution: #{distribution}, release: #{release}, architecture: #{debian_architecture}"
 
-selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
         Autoproj.debug "Package: #{name} is a known rock package"
@@ -111,18 +126,19 @@ selected_rock_packages = o_selected_packages.select do |name|
     end
 end
 
+Autoproj.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{packager.ruby_gems}"
 
-Autoproj.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+# When a ruby gem shall be packaged directly there are no selected rock
+# packages, but selected ony
+is_gem = selected_rock_packages.empty? && !o_selected_packages.empty?
+if !is_gem
+    selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
+    selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
-
-selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
-selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
-
-# Compute dependencies
-packages = packager.all_required_rock_packages selection
-binding.pry
-packages = packager.all_required_packages selection
-packages = packages[:packages]
+    # Compute dependencies
+    rock_packages = packager.all_required_packages selection
+    rock_packages = rock_packages[:packages]
+end
 
 patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
 if File.exists? patch_dir
@@ -131,21 +147,35 @@ else
     Autoproj.warn "Patch directory: #{patch_dir} does not exist"
 end
 
-puts "# Packaging Gems ----"
-packager.ruby_gems.each do |pkg, version|
-    if pkg == "kramdown"
-        next # it's in the ubuntu-repos, this should be done in another way
-    end
+if !packager.ruby_gems || packager.ruby_gems.empty?
+    puts "# No Gems to be packaged"
+else
+    puts "# Packaging Gems ---- #{packager.ruby_gems}"
+    packager.ruby_gems.each do |pkg, version|
+        is_osdeps = false
+        native_name, is_osdeps = packager.native_dependency_name(pkg)
+        if is_osdeps
+            Autoproj.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
+            next
+        end
 
-    pkg_build_options = build_options.dup
-    if version
-        pkg_build_options[:package_version] = version
+        pkg_build_options = build_options.dup
+        pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
+        if version
+            pkg_build_options[:package_version] = version
+        end
+        build_and_install_locally(packager, pkg, pkg_build_options)
     end
-    build_and_install_locally(pkg,pkg_build_options)
 end
 
-puts "# Packaging Rock Packages ----"
-packages.each do |pkg|
-    pkg_build_options = build_options.dup
-    build_and_install_locally(pkg.name, pkg_build_options)
+if !rock_packages || rock_packages.empty?
+    puts "# No Rock Packages to be packaged"
+else
+    pkg_names = rock_packages.collect {|pkg| pkg.name }
+    puts "# Packaging Rock Packages --- #{pkg_names}"
+    rock_packages.each do |pkg|
+        pkg_build_options = build_options.dup
+        pkg_build_options[:debian_package_name] = packager.debian_name(pkg,true)
+        build_and_install_locally(packager, pkg.name, pkg_build_options)
+    end
 end
