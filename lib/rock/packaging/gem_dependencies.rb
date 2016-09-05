@@ -1,5 +1,6 @@
 require 'rubygems/requirement'
 require 'set'
+require 'autoproj'
 
 module Autoproj
     module Packaging
@@ -26,7 +27,16 @@ module Autoproj
                 gem_dependency = `#{gem_dependency_cmd}`
 
                 if $?.exitstatus != 0
-                    raise ArgumentError, "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- pls install locally"
+                    Autoproj.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
+                    gem_manager = ::Autoproj::PackageManagers::GemManager.new
+                    if version_requirements.empty?
+                        gem_manager.install([[gem_name]])
+                    else
+                        if version_requirements.size != 1
+                            raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
+                        end
+                        gem_manager.install([[gem_name, version_requirements.first]])
+                    end
                 end
 
                 # Output of gem dependency is not providing more information
@@ -51,6 +61,9 @@ module Autoproj
                         # We assume here that the first GEM entry found is related to the
                         # one we want, discarding the others
                         break
+                    elsif !current_version
+                        # wait till will find the entry line 'Gem mygem-0.1' to continue processing
+                        next
                     end
 
                     mg = regexp.match(line)
