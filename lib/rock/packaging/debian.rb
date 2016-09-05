@@ -1012,9 +1012,9 @@ module Autoproj
                         filepath = filepath.first
                     end
                 rescue Exception => e
-                    msg = "Package #{pkg_name} has not to been packaged"
+                    msg = "Package #{pkg_name} has not been packaged -- #{e}"
                     Packager.error msg
-                    raise RuntimeError, msg + " -- #{e}"
+                    raise RuntimeError, msg
                 end
                 filepath
             end
