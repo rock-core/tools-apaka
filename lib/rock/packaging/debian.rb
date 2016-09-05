@@ -794,6 +794,14 @@ module Autoproj
 
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
+                    [".boring",".travis*"].each do |excluded_files|
+                        Dir.glob("**/#{excluded_files}").each do |remove_file|
+                            file = File.join(pkg.srcdir, remove_file)
+                            Packager.warn "Removing conflicting files: #{remove_file}"
+                            FileUtils.rm remove_file
+                        end
+                    end
+
                     ["debian","build",".travis"].each do |excluded_dir|
                         Dir.glob("**/#{excluded_dir}/").each do |remove_dir|
                             directory = File.join(pkg.srcdir, remove_dir)
