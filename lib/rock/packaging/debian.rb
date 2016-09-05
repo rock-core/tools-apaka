@@ -935,7 +935,7 @@ module Autoproj
                 debian_package_name = rock_ruby_release_prefix + gem_name
 
                 # Find gem version
-                Find.find("#{BUILD_DIR}/#{debian_package_name}/").each do |file|
+                Find.find(File.join(build_dir,debian_package_name,"/")).each do |file|
                     if FileTest.directory?(file)
                         if File.basename(file)[0] == ?.
                             Find.prune
@@ -964,7 +964,7 @@ module Autoproj
             # Build package locally
             # return path to locally build file
             def build_local(pkg_name, debian_pkg_name, versioned_build_dir, deb_filename, options)
-                filepath = BUILD_DIR
+                filepath = build_dir
                 distribution = max_one_distribution(options[:distributions])
                 # cd package_name
                 # tar -xf package_name_0.0.debian.tar.gz
@@ -982,7 +982,7 @@ module Autoproj
                     " options #{options}"
 
                 begin
-                    FileUtils.chdir File.join(BUILD_DIR, debian_pkg_name) do
+                    FileUtils.chdir File.join(build_dir, debian_pkg_name) do
                         FileUtils.rm_rf "debian"
                         FileUtils.rm_rf "#{versioned_build_dir}"
                         FileUtils.mkdir "#{versioned_build_dir}"
@@ -1030,7 +1030,7 @@ module Autoproj
             # Install package
             def install(pkg_name, options)
                 begin
-                    pkg_build_dir = File.join(BUILD_DIR, pkg_name)
+                    pkg_build_dir = File.join(build_dir, pkg_name)
                     filepath = Dir.glob("#{pkg_build_dir}/*.deb")
                     if filepath.size < 1
                         raise RuntimeError, "No debian file found for #{pkg_name}"
