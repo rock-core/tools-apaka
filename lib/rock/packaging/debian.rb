@@ -259,8 +259,8 @@ module Autoproj
                         pkg = pkg_manifest.package
 
                         pkg.resolve_optional_dependencies
-                        reverse_dependencies[pkg.name] = pkg.dependencies
                         Packager.info "deps: #{pkg.name} --> #{pkg.dependencies}"
+                        reverse_dependencies[pkg.name] = pkg.dependencies.dup
                         all_packages_refresh.merge(pkg.dependencies)
                     end
 
