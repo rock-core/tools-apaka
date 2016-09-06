@@ -982,21 +982,40 @@ module Autoproj
 
                 begin
                     FileUtils.chdir File.join(build_dir, debian_pkg_name) do
-                        FileUtils.rm_rf "debian"
-                        FileUtils.rm_rf "#{versioned_build_dir}"
-                        FileUtils.mkdir "#{versioned_build_dir}"
-                        cmd = "tar -xf *.debian.tar.gz"
-                        if !system(cmd)
-                             raise RuntimeError, "Packager: '#{cmd}' failed"
+                        if File.exists? "debian"
+                            FileUtils.rm_rf "debian"
                         end
-                        cmd = "tar -x --strip-components=1 -C #{versioned_build_dir} -f *.orig.tar.gz"
-                        if !system(cmd)
-                             raise RuntimeError, "Packager: '#{cmd}' failed"
+                        if File.exists? versioned_build_dir
+                            FileUtils.rm_rf versioned_build_dir
+                        end
+                        FileUtils.mkdir versioned_build_dir
+
+                        debian_tar_gz = Dir.glob("*.debian.tar.gz")
+                        if debian_tar_gz.empty?
+                            raise RuntimeError, "#{self} could not find file: *.debian.tar.gz in #{Dir.pwd}"
+                        else
+                            debian_tar_gz = debian_tar_gz.first
+                            cmd = "tar -xf #{debian_tar_gz}"
+                            if !system(cmd)
+                                 raise RuntimeError, "Packager: '#{cmd}' failed"
+                            end
+                        end
+
+                        orig_tar_gz = Dir.glob("*.orig.tar.gz")
+                        if orig_tar_gz.empty?
+                            raise RuntimeError, "#{self} could not find file: *.orig.tar.gz in #{Dir.pwd}"
+                        else
+                            orig_tar_gz = orig_tar_gz.first
+                            cmd = "tar -x --strip-components=1 -C #{versioned_build_dir} -f #{orig_tar_gz}"
+                            if !system(cmd)
+                                 raise RuntimeError, "Packager: '#{cmd}' failed"
+                            end
                         end
 
                         FileUtils.mv 'debian', versioned_build_dir + '/'
                         FileUtils.chdir versioned_build_dir do
-                            cmd = "debuild -us -uc"
+                            pkg = Autoproj.manifest.packages[pkg_name]
+                            cmd = "debuild -us -uc -j#{pkg.autobuild.parallel_build_level}"
                             if !system(cmd)
                                 raise RuntimeError, "Packager: '#{cmd}' failed"
                             end
