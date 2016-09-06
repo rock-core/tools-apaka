@@ -66,7 +66,7 @@ module Autoproj
                 dir = deb_repository
 
                 debian_package_dir = File.join(build_dir, debian_pkg_name)
-                logfile = File.join(log_dir,"reprepro-registration-#{debian_pkg_name}.log")
+                logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
                 Dir.chdir(debian_package_dir) do
                     debfile = Dir.glob("*.deb").first
