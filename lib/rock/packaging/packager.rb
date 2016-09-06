@@ -68,19 +68,25 @@ module Autoproj
                 debian_package_dir = File.join(build_dir, debian_pkg_name)
                 logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
+                cmd = "#{reprepro_bin} -V -b #{dir} remove #{codename} #{debian_pkg_name} > #{logfile} 2> #{logfile}"
+                Packager.info "Remove existing package '#{debian_pkg_name}': #{cmd}"
+                if !system(cmd)
+                    Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                end
+
                 Dir.chdir(debian_package_dir) do
                     debfile = Dir.glob("*.deb").first
-                    cmd = "#{reprepro_bin} -b #{dir} includedeb #{codename} #{debfile} > #{logfile} 2> #{logfile}"
-                    Packager.info "Execution: #{cmd}"
+                    cmd = "#{reprepro_bin} -V -b #{dir} includedeb #{codename} #{debfile} >> #{logfile} 2> #{logfile}"
+                    Packager.info "Register deb file: #{cmd}"
                     if !system(cmd)
-                        raise RuntimeError, "Execution of #{cmd} failed"
+                        raise RuntimeError, "Execution of #{cmd} failed -- see #{logfile}"
                     end
 
                     dscfile = Dir.glob("*.dsc").first
-                    cmd = "#{reprepro_bin} -b #{dir} includedsc #{codename} #{dscfile} >> #{logfile} 2>> #{logfile}"
-                    Packager.info "Execution: #{cmd}"
+                    cmd = "#{reprepro_bin} -V -b #{dir} includedsc #{codename} #{dscfile} >> #{logfile} 2>> #{logfile}"
+                    Packager.info "Register dsc file: #{cmd}"
                     if !system(cmd)
-                        raise RuntimeError, "Execution of #{cmd} failed"
+                        raise RuntimeError, "Execution of #{cmd} failed -- see #{logfile}"
                     end
                 end
             end
