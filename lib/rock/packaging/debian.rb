@@ -811,19 +811,25 @@ module Autoproj
 
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    [".boring",".travis*"].each do |excluded_files|
+                    # Exclude hidden files
+                    [".*"].each do |excluded_files|
                         Dir.glob("**/#{excluded_files}").each do |remove_file|
-                            file = File.join(pkg.srcdir, remove_file)
-                            Packager.warn "Removing conflicting files: #{remove_file}"
-                            FileUtils.rm remove_file
+                            if File.file?(remove_file)
+                                file = File.join(pkg.srcdir, remove_file)
+                                Packager.warn "Removing excluded files: #{remove_file}"
+                                FileUtils.rm remove_file
+                            end
                         end
                     end
 
-                    ["debian","build",".travis"].each do |excluded_dir|
+                    # Exclude directories that are known to create conflicts
+                    ["debian","build",".travis*",".autobuild*"].each do |excluded_dir|
                         Dir.glob("**/#{excluded_dir}/").each do |remove_dir|
-                            directory = File.join(pkg.srcdir, remove_dir)
-                            Packager.warn "Removing conflicting folders: #{remove_dir}"
-                            FileUtils.rm_rf remove_dir
+                            if File.directory?(remove_dir)
+                                directory = File.join(pkg.srcdir, remove_dir)
+                                Packager.warn "Removing excluded folders: #{remove_dir}"
+                                FileUtils.rm_rf remove_dir
+                            end
                         end
                     end
 
