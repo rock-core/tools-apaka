@@ -65,6 +65,7 @@ end
 
 o_skip = false
 o_verbose = false
+o_no_deps = false
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
@@ -95,6 +96,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used") do
         build_options[:rebuild] = true
+    end
+    opt.on("--no-deps","Ignore building dependencies") do
+        o_no_deps = true
     end
 end
 
@@ -168,7 +172,9 @@ else
         if version
             pkg_build_options[:package_version] = version
         end
-        build_and_install_locally(packager, pkg, pkg_build_options)
+        if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
+            build_and_install_locally(packager, pkg, pkg_build_options)
+        end
     end
 end
 
@@ -180,6 +186,8 @@ else
     rock_packages.each do |pkg|
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_name(pkg,true)
-        build_and_install_locally(packager, pkg.name, pkg_build_options)
+        if !o_no_deps || pkg.name =~ /#{o_selected_packages.first}/
+            build_and_install_locally(packager, pkg.name, pkg_build_options)
+        end
     end
 end
