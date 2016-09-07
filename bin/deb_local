@@ -84,7 +84,7 @@ options = OptionParser.new do |opt|
         build_options[:patch_dir] = patch_dir
     end
     opt.on("--release-name NAME", String, "Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir") do |name|
-        build_options[:release_name] = dir
+        build_options[:release_name] = name
     end
     opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of the local debian packages") do |dir|
         require 'pathname'
