@@ -1021,7 +1021,10 @@ module Autoproj
                         FileUtils.mv 'debian', versioned_build_dir + '/'
                         FileUtils.chdir versioned_build_dir do
                             pkg = Autoproj.manifest.packages[pkg_name]
-                            cmd = "debuild -us -uc -j#{pkg.autobuild.parallel_build_level}"
+                            cmd = "debuild -us -uc"
+                            if pkg && pkg.autobuild
+                                cmd += " -j#{pkg.autobuild.parallel_build_level}"
+                            end
                             if !system(cmd)
                                 raise RuntimeError, "Packager: '#{cmd}' failed"
                             end
