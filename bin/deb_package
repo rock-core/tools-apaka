@@ -439,10 +439,9 @@ Dir.chdir(packager.build_dir) do
         if !o_distributions.empty?
             options[:distributions] = o_distributions
         end
-        if not o_rock_release_name
-            # set general parameter for job
-            packager.rock_release_name = "$release"
-        end
+
+        # allow general parametrization for jobs
+        packager.rock_release_name = "$release"
 
         jenkins = Autoproj::Packaging::Jenkins.new(packager)
 
