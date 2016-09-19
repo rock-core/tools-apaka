@@ -4,6 +4,7 @@ require 'optparse'
 require 'autoproj'
 require 'autobuild'
 require 'rock/packaging'
+require 'tempfile'
 
 def build_and_install_locally(packager, pkg_name, options)
     options, unknown_options = Kernel.filter_options options,
@@ -59,22 +60,22 @@ def build_and_install_locally(packager, pkg_name, options)
     if !system(cmd)
         raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
     else
-        packager.register_debian_package(options[:debian_package_name], packager.autodetect_linux_distribution_release)
+        packager.register_debian_package(options[:debian_package_name], 
+                                         options[:release_name],
+                                         packager.autodetect_linux_distribution_release)
     end
 end
 
 o_skip = false
 o_verbose = false
 o_no_deps = false
+o_prepare_webserver = false
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_local [options]"
     opt.on('--verbose', 'Display output') do
         o_verbose = true
-    end
-    opt.on('--rock-name STRING',"Release name") do |name|
-        build_options[:release_name] = name
     end
     opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
         patch_dir = File.expand_path(dir)
@@ -100,22 +101,51 @@ options = OptionParser.new do |opt|
     opt.on("--no-deps","Ignore building dependencies") do
         o_no_deps = true
     end
+    opt.on("--prepare-webserver", "Prepare the webserver") do
+        o_prepare_webserver = true
+    end
 end
-
-build_options[:release_name] ||= 'local'
 
 o_selected_packages = options.parse(ARGV)
 
+build_options[:release_name] ||= 'local'
+
+packager = Autoproj::Packaging::Debian.new
+if o_prepare_webserver
+    puts "Preparing webserver"
+    Autoproj::Packaging::Installer.install_webserver
+
+    tempfile = Tempfile.new("jenkins.conf.")
+    document_root = File.join(packager.deb_repository)
+    packages_subfolder = build_options[:release_name]
+    release_prefix = build_options[:release_name]
+    target_path = tempfile.path
+
+    Autoproj::Packaging::Installer.create_webserver_config(document_root, packages_subfolder,
+                                                           release_prefix, target_path)
+
+    config_file = "jenkins-#{release_prefix}.conf"
+    `sudo cp #{target_path} /etc/apache2/sites-available/#{config_file}`
+    if $?.exitstatus == 0
+        `sudo a2ensite #{config_file}`
+        if $?.exitstatus == 0
+            `sudo service apache2 reload`
+            puts "Activated apache site #{config_file}"
+        else
+            puts "#{cmd} failed -- could not enable apache site #{config_file}"
+        end
+    else
+        puts "#{cmd} failed -- could not install site #{target_path} into apache2"
+    end
+end
+
+Autoproj.silent = true
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
 
-option = Hash.new
-packager = Autoproj::Packaging::Debian.new
 packager.rock_release_name = build_options[:release_name]
 build_options[:packager] = packager
-
-packager.initialize_reprepro_repository
-
+packager.initialize_reprepro_repository(build_options[:release_name])
 distribution,release = Autoproj::OSDependencies.operating_system
 debian_architecture= "#{`dpkg --print-architecture`}".strip
 
