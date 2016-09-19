@@ -321,6 +321,7 @@ packager = Autoproj::Packaging::Debian.new(options)
 
 # First load autoproj so that we can query what is a in rock defined
 # package and what is not
+Autoproj.silent = true
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
 
