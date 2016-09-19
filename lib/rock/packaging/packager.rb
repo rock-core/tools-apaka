@@ -114,7 +114,11 @@ module Autoproj
                     :existing_source_dir => nil
 
                 Packager.debug "Preparing source dir #{pkg.name}"
-                if existing_source_dir = options[:existing_source_dir]
+                if existing_source_dir = options[:existing_source_dir] || !pkg.importer
+                    if !pkg.importer
+                        existing_source_dir = pkg.srcdir
+                    end
+
                     Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
                     pkg_dir = File.join(@build_dir, debian_name(pkg))
                     if not File.directory?(pkg_dir)
