@@ -11,6 +11,9 @@ module Autoproj
         WWW_ROOT = File.join("/var/www")
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
 
+        EXCLUDED_DIRS_PREFIX = [".git",".travis","build","tmp","debian",".autobuild",".orogen"]
+        EXCLUDED_FILES_PREFIX = [".git",".travis","build","tmp",".orogen",".autobuild"]
+
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
@@ -96,6 +99,33 @@ module Autoproj
                 end
             end
 
+            def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
+                Dir.chdir(target_dir) do
+                    excluded_dirs.each do |excluded_dir|
+                        Dir.glob("**/#{excluded_dir}*/").each do |remove_dir|
+                            if File.directory?(remove_dir)
+                                Packager.info "Removing excluded directory: #{remove_dir}"
+                                binding.pry
+                                FileUtils.rm_r remove_dir
+                            end
+                        end
+                    end
+                end
+            end
+            def remove_excluded_files(target_dir, excluded_files = EXCLUDED_FILES_PREFIX)
+                Dir.chdir(target_dir) do
+                    excluded_files.each do |excluded_file|
+                        Dir.glob("**/#{excluded_file}*/").each do |excluded_file|
+                            if File.file?(excluded_file)
+                                Packager.info "Removing excluded file: #{excluded_file}"
+                                binding.pry
+                                FileUtils.rm excluded_file
+                            end
+                        end
+                    end
+                end
+            end
+
             # Check that the list of distributions contains at maximum one entry
             # raises ArgumentError if that number is exceeded
             def max_one_distribution(distributions)
@@ -132,8 +162,10 @@ module Autoproj
 
                     target_dir = File.join(pkg_dir, dir_name(pkg, target_platform.distribution_release_name))
                     FileUtils.cp_r existing_source_dir, target_dir
-
                     pkg.srcdir = target_dir
+
+                    remove_excluded_dirs(target_dir)
+                    remove_excluded_files(target_dir)
                 else
                     Autoproj.manifest.load_package_manifest(pkg.name)
 
