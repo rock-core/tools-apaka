@@ -33,6 +33,10 @@ module Autoproj
             #
             def initialize_reprepro_repository(release_prefix)
                 conf_dir = File.join(deb_repository, release_prefix, "conf")
+                if File.exist? conf_dir
+                    Packager.info "Reprepo repository exists: #{conf_dir}"
+                    return
+                end
                 Packager.info "Initializing reprepo repository in #{conf_dir}"
                 `sudo mkdir -p #{conf_dir}`
 
