@@ -808,7 +808,7 @@ module Autoproj
                         if prefix =~ /^./
                             exclude = "\\\\"
                         end
-                        exclude += prefix
+                        exclude += "^" + prefix
 
                         excludes += " grep -v #{exclude} |"
                     end
