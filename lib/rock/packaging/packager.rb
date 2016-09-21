@@ -12,7 +12,7 @@ module Autoproj
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
 
         EXCLUDED_DIRS_PREFIX = [".git",".travis","build","tmp","debian",".autobuild",".orogen"]
-        EXCLUDED_FILES_PREFIX = [".git",".travis","build","tmp",".orogen",".autobuild"]
+        EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
@@ -109,7 +109,6 @@ module Autoproj
                         Dir.glob("**/#{excluded_dir}*/").each do |remove_dir|
                             if File.directory?(remove_dir)
                                 Packager.info "Removing excluded directory: #{remove_dir}"
-                                binding.pry
                                 FileUtils.rm_r remove_dir
                             end
                         end
@@ -119,10 +118,9 @@ module Autoproj
             def remove_excluded_files(target_dir, excluded_files = EXCLUDED_FILES_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_files.each do |excluded_file|
-                        Dir.glob("**/#{excluded_file}*/").each do |excluded_file|
+                        Dir.glob("**/#{excluded_file}*").each do |excluded_file|
                             if File.file?(excluded_file)
                                 Packager.info "Removing excluded file: #{excluded_file}"
-                                binding.pry
                                 FileUtils.rm excluded_file
                             end
                         end
@@ -158,7 +156,7 @@ module Autoproj
                         existing_source_dir = pkg.srcdir
                     end
 
-                    Packager.debug "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
+                    Packager.info "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
                     pkg_dir = File.join(@build_dir, debian_name(pkg))
                     if not File.directory?(pkg_dir)
                         FileUtils.mkdir_p pkg_dir
@@ -183,7 +181,7 @@ module Autoproj
                             Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
                             pkg.importer.import(pkg)
                         else
-                            Packager.debug "Using locally available git repository of '#{pkg.name}'"
+                            Packager.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
                         end
                         pkg.importer.repository = pkg.srcdir
                     end
