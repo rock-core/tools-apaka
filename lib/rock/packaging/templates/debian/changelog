@@ -1,6 +1,7 @@
 <%= debian_name %> (<%= debian_version %>) unstable; urgency=low
 
   * Package automatically built using autoproj-package debian
+<%begin%>
 <%if pkg.importer.kind_of?(Autobuild::Git) %>
 <% status = pkg.importer.status(pkg) %>
    * repository: <%= pkg.importer.repository_id %>
@@ -13,6 +14,10 @@
 <%elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) %>
     * url: <%= pkg.importer.url %>
     * filename: <%= pkg.importer.filename %>
+<%end%>
+<%rescue Exception => e%>
+    * the repository and commit information could not be extracted
+      * error at generation: <%= e.to_s %>
 <%end%>
 
  -- Packaging Daemon <rock-dev@dfki.de>  <%= Time.now.strftime("%a, %d %b %Y %H:%M:%S %z") %>
