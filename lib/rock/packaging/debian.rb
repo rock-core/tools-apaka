@@ -800,22 +800,13 @@ module Autoproj
             end
 
             def self.generate_manifest_txt(directory = Dir.pwd)
-                Dir.chdir(directory) do
-                    # Construct excludes for the Manifest.txt generation
-                    excludes = ""
-                    EXCLUDED_FILES_PREFIX.each do |prefix|
-                        exclude = ""
-                        if prefix =~ /^./
-                            exclude = "\\\\"
-                        end
-                        exclude += "^" + prefix
-
-                        excludes += " grep -v #{exclude} |"
-                    end
-                    cmd = "find . -type f | #{excludes} sed \'s#\./##\' > Manifest.txt"
-                    Packager.info "Autogenerate manifest with: #{cmd}"
-                    if !system(cmd)
-                        raise RuntimeError, "Debian: failed to create an up to date Manifest.txt"
+                manifest_file = "Manifest.txt"
+                if File.exist?(manifest_file)
+                    FileUtils.rm manifest_file
+                end
+                Dir.glob("**/**") do |file|
+                    if File.file?(file)
+                       `echo #{file} >> #{manifest_file}`
                     end
                 end
             end
