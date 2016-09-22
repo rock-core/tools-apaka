@@ -99,4 +99,4 @@ end %>
 
 configure/<%=debian_name(package,true) %>::
 	echo "Adapt -I to -isystem in pkgconfig files"
-	result=$(shell find . -name *pc | xargs sed -i 's#-I#-isystem #g')
+	result=$(shell find . -name *pc | xargs sed -i 's#-I#-isystem#g')
