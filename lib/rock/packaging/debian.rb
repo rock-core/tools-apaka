@@ -454,11 +454,6 @@ module Autoproj
             # Compute dependencies of this package
             # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
-                # Reload pkg manifest to get all dependencies -- otherwise
-                # the dependencies list might be incomplete
-                # TODO: Check if this is a bug in autoproj
-                pkg_manifest = Autoproj.manifest.load_package_manifest(pkg.name)
-                pkg = pkg_manifest.package
 
                 pkg.resolve_optional_dependencies
                 this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
