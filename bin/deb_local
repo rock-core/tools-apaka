@@ -13,7 +13,8 @@ def build_and_install_locally(packager, pkg_name, options)
         :patch_dir => nil,
         :package_version => nil,
         :debian_package_name => pkg_name.gsub("/",'-'),
-        :rebuild => false
+        :rebuild => false,
+        :reinstall => false
 
     arguments = ""
     if options[:release_name]
@@ -54,20 +55,23 @@ def build_and_install_locally(packager, pkg_name, options)
         end
     end
 
-    puts "############### install #{pkg_name} #####################"
-    install_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
-    cmd = "deb_package --install #{arguments} > #{install_log}"
-    puts "Execution of: #{cmd}"
-    if !system(cmd)
-        raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
-    else
-        packager.register_debian_package(options[:debian_package_name],
-                                         options[:release_name],
-                                         packager.autodetect_linux_distribution_release)
+    if options[:reinstall] || !Autoproj::Packaging::Installer.installed?(options[:debian_package_name])
+        puts "############### install #{pkg_name} #####################"
+        install_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
+        cmd = "deb_package --install #{arguments} > #{install_log}"
+        puts "Execution of: #{cmd}"
+        if !system(cmd)
+            raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
+        else
+            packager.register_debian_package(options[:debian_package_name],
+                                             options[:release_name],
+                                             packager.autodetect_linux_distribution_release)
+        end
     end
 end
 
 o_skip = false
+o_reinstall = false
 o_verbose = false
 o_no_deps = false
 o_prepare_local_build = false
@@ -105,6 +109,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--prepare", "Prepare the local building of packages") do
         o_prepare_local_build = true
+    end
+    opt.on("--reinstall", "Reinstall already installed packages") do
+        o_reinstall = true
     end
 end
 
