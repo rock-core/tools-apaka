@@ -547,13 +547,13 @@ module Autoproj
                     non_native_dependencies = non_native_dependencies.map do |name, version|
                         dep_name,is_osdep = native_dependency_name(name)
                         # if with_rock_release_prefix is given all packages 'have to be'
-                        # os dependencies, otherwise it triggers further resolution of nonative packages
+                        # os dependencies, otherwise it triggers further resolution of nonnative packages
                         # which cannot exist (in resolve_all)
-                        if is_osdep || dep_name =~ /#{rock_release_prefix}/
+                        if is_osdep || with_rock_release_prefix
                             deps_osdeps_packages << dep_name
                             nil
                         else
-                            dep_name
+                            name
                         end
                     end.compact
                 end
