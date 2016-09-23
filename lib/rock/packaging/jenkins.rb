@@ -151,7 +151,8 @@ module Autoproj
                 # using the depends_on option)
 
                 Packager.info "Creating flow of gems: #{flow[:gems]}"
-                Packager.info "Creating flow of packages: #{flow[:packages]}"
+                package_names = flow[:packages].collect { |pkg| pkg.name }
+                Packager.info "Creating flow of packages: #{package_names}"
                 create_flow_job_xml(name, flow, release_name, options)
             end
 
