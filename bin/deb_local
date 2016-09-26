@@ -47,12 +47,17 @@ def build_and_install_locally(packager, pkg_name, options)
             raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
         end
         puts "############### build #{pkg_name} #####################"
-        build_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-build-local.log")
-        cmd = "deb_package --build-local #{arguments} > #{build_log}"
-        puts "Execution of: #{cmd}"
-        if !system(cmd)
-            raise RuntimeError, "Local build of pkg #{pkg_name} failed -- see #{build_log}"
-        end
+        dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
+        puts "Building package from #{dsc_file}"
+        Autoproj::Packaging::Installer.build_package_from_dsc(dsc_file,
+                                         packager.target_platform.distribution_release_name,
+                                         packager.target_platform.architecture,
+                                         options[:release_name],
+                                         debian_package_dir)
+
+        packager.register_debian_package(options[:debian_package_name],
+                                         options[:release_name],
+                                         packager.autodetect_linux_distribution_release)
     end
 
     if options[:reinstall] || !Autoproj::Packaging::Installer.installed?(options[:debian_package_name])
@@ -62,16 +67,11 @@ def build_and_install_locally(packager, pkg_name, options)
         puts "Execution of: #{cmd}"
         if !system(cmd)
             raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
-        else
-            packager.register_debian_package(options[:debian_package_name],
-                                             options[:release_name],
-                                             packager.autodetect_linux_distribution_release)
         end
     end
 end
 
 o_skip = false
-o_reinstall = false
 o_verbose = false
 o_no_deps = false
 o_prepare_local_build = false
@@ -111,7 +111,7 @@ options = OptionParser.new do |opt|
         o_prepare_local_build = true
     end
     opt.on("--reinstall", "Reinstall already installed packages") do
-        o_reinstall = true
+        build_options[:reinstall] = true
     end
 end
 

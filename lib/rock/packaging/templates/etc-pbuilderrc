@@ -1,0 +1,75 @@
+#!/bin/sh
+set -e
+
+echo "Reading pbuilder /etc/pbuilderrc"
+echo "DIST: ${DIST}"
+echo "ARCH: ${ARCH}"
+echo "COMPONENTS: ${COMPONENTS}"
+
+if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
+    echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
+    DIST=$DISTRIBUTION
+elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
+    echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
+    DISTRIBUTION=$DIST
+else
+    echo "warning: no distribution set -- using default"
+fi
+
+if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
+    DEBOOTSTRAP="qemu-debootstrap"
+fi
+
+if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] || [ "$DIST" == "xenial" ] || [ "$DIST" == "yakkety" ]; then
+    echo "Identified Ubuntu Distribution"
+
+    COMPONENTS="main restricted universe multiverse"
+    MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
+    if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
+        # The default mirror site only provides i386 and
+        MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
+    fi
+    #DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}"
+    #        "--keyring=/usr/share/keyrings/ubuntu-archive-keyring.gpg")
+    #EXTRA_PACKAGES+="ruby-all-dev,"
+elif [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "sid" ] || [ "$DIST" == "strech" ]; then
+    echo "Identified Debian Distribution"
+    echo " -- you have to make sure that 'debian-archive-keyring' is installed"
+
+    if [ "$DIST" != "wheezy" ]; then
+	# Not available on wheezy
+    	EXTRA_PACKAGES="ruby-all-dev,"
+    fi
+
+    MIRRORSITE=http://ftp.no.debian.org/debian/
+    if [ "$DIST" != "sid" ]; then
+        # as long as sid is testing
+        OTHERMIRROR="$OTHERMIRROR | deb $MIRRORSITE $DIST-backports $COMPONENTS"
+    fi
+
+    COMPONENTS="main contrib non-free"
+    # Update keyring
+    for((i=0; i < ${#DEBOOTSTRAPOPTS[@]}; i++))
+    do
+        DEBOOTSTRAPOPTS[$i]=`echo ${DEBOOTSTRAPOPTS[$i]} | sed 's#keyring=[^ ]\+#keyring=/usr/share/keyrings/debian-archive-keyring.gpg#g'`
+    done
+fi
+# Append additional packages here
+# cmake required by quite some package, including qtbindings
+# apt-utils: for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
+EXTRA_PACKAGES+="apt,apt-utils,rake,gem2deb,cmake,cdbs,dh-autoreconf,dh-autoreconf,fakeroot,lintian,libgl1-mesa-dev"
+DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
+echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
+echo "COMPONENTS: $COMPONENTS"
+
+
+###   ORIGINAL VERSION   #####
+
+# this is your configuration file for pbuilder.
+# the file in /usr/share/pbuilder/pbuilderrc is the default template.
+# /etc/pbuilderrc is the one meant for overwriting defaults in
+# the default template
+#
+# read pbuilderrc.5 document for notes on specific options.
+#MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
+
