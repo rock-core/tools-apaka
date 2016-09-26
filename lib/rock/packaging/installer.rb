@@ -62,13 +62,17 @@ module Autoproj
                 if installed?(package_name)
                     Installer.info "Installing '#{package_name}'"
                     `sudo apt-get -y install #{package_name}`
-                else
-                    Installer.info "'#{package_name}' is already installed"
                 end
             end
 
             def self.installed?(package_name)
-                return !system("dpkg -l #{package_name}")
+                if !system("dpkg -l #{package_name}")
+                    Installer.info "'#{package_name}' is not yet installed"
+                    return false
+                else
+                    Installer.info "'#{package_name}' is already installed"
+                    return true
+                end
             end
         end
     end
