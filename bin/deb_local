@@ -57,17 +57,21 @@ def build_and_install_locally(packager, pkg_name, options)
 
         packager.register_debian_package(options[:debian_package_name],
                                          options[:release_name],
-                                         packager.autodetect_linux_distribution_release)
+                                         packager.target_platform.distribution_release_name)
     end
 
-    if options[:reinstall] || !Autoproj::Packaging::Installer.installed?(options[:debian_package_name])
-        puts "############### install #{pkg_name} #####################"
-        install_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
-        cmd = "deb_package --install #{arguments} > #{install_log}"
-        puts "Execution of: #{cmd}"
-        if !system(cmd)
-            raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
+    if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform
+        if options[:reinstall] || !Autoproj::Packaging::Installer.installed?(options[:debian_package_name])
+            puts "############### install #{pkg_name} #####################"
+            install_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
+            cmd = "deb_package --install #{arguments} > #{install_log}"
+            puts "Execution of: #{cmd}"
+            if !system(cmd)
+                raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
+            end
         end
+    else
+        puts "Package has been build for #{packager.target_platform}. Not installing package since current platform is #{Autoproj::Packaging::TargetPlatform.autodetect_target_platform}"
     end
 end
 
@@ -76,6 +80,8 @@ o_verbose = false
 o_no_deps = false
 o_prepare_local_build = false
 o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
+o_distribution = nil
+o_architecture = nil
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
@@ -113,6 +119,12 @@ options = OptionParser.new do |opt|
     opt.on("--reinstall", "Reinstall already installed packages") do
         build_options[:reinstall] = true
     end
+    opt.on("--architecture NAME", "Target architecture to build for") do |arch|
+        build_options[:architecture] = arch
+    end
+    opt.on("--distribution NAME","Target distribution release to build for, e.g. trusty") do |dist|
+        build_options[:distribution] = dist
+    end
 end
 
 o_selected_packages = options.parse(ARGV)
@@ -125,8 +137,7 @@ else
     exit 0
 end
 
-
-packager = Autoproj::Packaging::Debian.new
+packager = Autoproj::Packaging::Debian.new(build_options)
 if o_prepare_local_build
     puts "Preparing local building of packages"
     Autoproj::Packaging::Installer.install_all_requirements
@@ -152,10 +163,7 @@ selection = Autoproj::CmdLine.initialize_and_load(nil)
 packager.rock_release_name = build_options[:release_name]
 build_options[:packager] = packager
 packager.initialize_reprepro_repository(build_options[:release_name])
-distribution,release = Autoproj::OSDependencies.operating_system
-debian_architecture= "#{`dpkg --print-architecture`}".strip
-
-puts "Building local package for: #{packager.autodetect_linux_distribution_release}, architecture: #{packager.autodetect_dpkg_architecture}"
+puts "Building local package for: #{packager.target_platform}"
 
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
