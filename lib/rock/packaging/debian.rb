@@ -51,8 +51,8 @@ module Autoproj
                 super()
 
                 options, unknown_options = Kernel.filter_options options,
-                    :distribution => autodetect_linux_distribution_release,
-                    :architecture => autodetect_dpkg_architecture
+                    :distribution => TargetPlatform.autodetect_linux_distribution_release,
+                    :architecture => TargetPlatform.autodetect_dpkg_architecture
 
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
@@ -76,24 +76,6 @@ module Autoproj
                 if not File.exists?(log_dir)
                     FileUtils.mkdir_p log_dir
                 end
-            end
-
-            def autodetect_dpkg_architecture
-                "#{`dpkg --print-architecture`}".strip
-            end
-
-            # Autodetect the linux distribution release
-            # require the general allow identification tag to be present in the
-            # configuration file
-            def autodetect_linux_distribution_release
-                distribution,release_tags = Autoproj::OSDependencies.operating_system
-                release = nil
-                release_tags.each do |tag|
-                    if Config.linux_distribution_releases.include?(tag)
-                        return tag
-                    end
-                end
-                raise RuntimeError, "#{self} Failed to autodetect linux distribution release"
             end
 
             # Canonize that name -- downcase and replace _ with -

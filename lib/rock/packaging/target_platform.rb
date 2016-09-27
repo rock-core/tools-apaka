@@ -33,6 +33,29 @@ module Autoproj
                 "#{distribution_release_name}/#{architecture}"
             end
 
+            def self.autodetect_dpkg_architecture
+                "#{`dpkg --print-architecture`}".strip
+            end
+
+            def self.autodetect_target_platform
+                TargetPlatform.new(autodetect_linux_distribution_release, 
+                                   autodetect_dpkg_architecture)
+            end
+
+            # Autodetect the linux distribution release
+            # require the general allow identification tag to be present in the
+            # configuration file
+            def self.autodetect_linux_distribution_release
+                distribution,release_tags = Autoproj::OSDependencies.operating_system
+                release = nil
+                release_tags.each do |tag|
+                    if Config.linux_distribution_releases.include?(tag)
+                        return tag
+                    end
+                end
+                raise RuntimeError, "#{self} Failed to autodetect linux distribution release"
+            end
+
             # Check if the given name refers to an existing
             # Ubuntu release
             # New releases have to be added to the default configuration
