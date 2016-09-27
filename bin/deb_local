@@ -11,6 +11,7 @@ def build_and_install_locally(packager, pkg_name, options)
         :release_name => 'local',
         :rock_base_install_dir => '/opt/rock',
         :patch_dir => nil,
+        :result_dir => nil,
         :package_version => nil,
         :debian_package_name => pkg_name.gsub("/",'-'),
         :rebuild => false,
@@ -49,11 +50,13 @@ def build_and_install_locally(packager, pkg_name, options)
         puts "############### build #{pkg_name} #####################"
         dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
         puts "Building package from #{dsc_file}"
+
+        options[:result_dir] ||= debian_package_dir
         Autoproj::Packaging::Installer.build_package_from_dsc(dsc_file,
                                          packager.target_platform.distribution_release_name,
                                          packager.target_platform.architecture,
                                          options[:release_name],
-                                         debian_package_dir)
+                                         options)
 
         packager.register_debian_package(options[:debian_package_name],
                                          options[:release_name],

@@ -86,10 +86,22 @@ module Autoproj
             end
 
             # Setup an image/chroot
-            def self.image_setup(distribution, architecture, release_prefix)
+            def self.image_setup(distribution, architecture, release_prefix, options = Hash.new)
+                options, unknown_options = Kernel.filter_options options,
+                    :patch_dir => nil
+
                 image_prepare(distribution, architecture)
                 image_update(distribution, architecture)
                 image_prepare_hookdir(distribution, architecture, release_prefix)
+
+                # If gem2deb_base_dir is given, then it will be tried to update
+                # (install a patched version of) gem2deb in the target chroot
+                # (if possible)
+                #
+                if options[:patch_dir]
+                    gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
+                    image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
+                end
             end
 
             # Get the base path to an image, e.g.
@@ -99,7 +111,8 @@ module Autoproj
                 File.join(PBUILDER_CACHE_DIR, name)
             end
 
-            # 
+            # Prepare the chroot/image in order to build for different target
+            # architectures
             def self.image_prepare(distribution, architecture)
                 basepath = image_basepath(distribution,architecture)
 
@@ -117,6 +130,7 @@ module Autoproj
                 end
             end
 
+            # Update the chroot/image using `cowbuilder --update`
             def self.image_update(distribution, architecture)
                 basepath = image_basepath(distribution, architecture)
                 cmd = "sudo DIST=#{distribution} ARCH=#{architecture} "
@@ -126,6 +140,41 @@ module Autoproj
                     raise RuntimeError, "#{self} failed to update base-image: #{basepath}"
                 else
                     Installer.info "Successfully update base-image: #{basepath}"
+                end
+            end
+
+            # Update the gem2deb version if a patched version is available
+            #
+            def self.image_update_gem2deb(distribution, architecture, gem2deb_debs_basedir)
+                basepath = image_basepath(distribution, architecture)
+
+                gem2deb_debs_dir = File.join(gem2deb_debs_basedir,"#{distribution}-all")
+                if !File.exist?(gem2deb_debs_dir)
+                    raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
+                        "Debian package directory: #{gem2deb_debs_dir} does not exist"
+                end
+
+                debfile = Dir.glob(File.join(gem2deb_debs_dir,"*.deb"))
+                if debfile.empty?
+                    raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
+                        "Debian package directory: #{gem2deb_debs_dir} does not contain a deb file"
+                else
+                    debfile = File.basename(debfile.first)
+                end
+
+                mountbase = "mnt"
+                mountdir = File.join(basepath,mountbase)
+                cmd = "sudo mount --bind #{gem2deb_debs_dir} #{mountdir}"
+                if !system(cmd)
+                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                end
+                cmd = "sudo chroot #{basepath} /bin/bash -c \"dpkg -i /#{mountbase}/#{debfile}\""
+                if !system(cmd)
+                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                end
+                cmd = "sudo umount #{mountdir}"
+                if !system(cmd)
+                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
                 end
             end
 
@@ -162,13 +211,16 @@ module Autoproj
             # --debbuildopts -sa --bindmounts '/var/www/rock-reprepro/local'
             # --hookdir /opt/workspace/drock/dev/build/rock-packager/pbuilder-hooks
             #
-            def self.build_package_from_dsc(dsc_file, distribution, architecture, release_prefix, result_dir)
-                image_setup(distribution, architecture, release_prefix)
+            def self.build_package_from_dsc(dsc_file, distribution, architecture, release_prefix, options)
+                build_options, unknown_build_options = Kernel.filter_options options,
+                    :result_dir => Dir.pwd
+
+                image_setup(distribution, architecture, release_prefix, options)
 
                 cmd  = "sudo DIST=#{distribution} ARCH=#{architecture} "
                 cmd += "cowbuilder --build #{dsc_file} "
                 cmd += "--basepath #{image_basepath(distribution, architecture)} "
-                cmd += "--buildresult #{result_dir} "
+                cmd += "--buildresult #{build_options[:result_dir]} "
                 cmd += "--debbuildopts -sa "
                 cmd += "--bindmounts #{File.join(DEB_REPOSITORY, release_prefix)} "
                 cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)}"
