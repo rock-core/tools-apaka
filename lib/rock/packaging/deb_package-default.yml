@@ -10,6 +10,7 @@ distributions:
     trusty:
         type: ubuntu, debian
         labels: 14.04,14.04.2,trusty,tahr,default
+        ruby_version: ruby20
     vivid:
         type: ubuntu,debian
         labels: 15.04,vivid,vervet,default
@@ -19,6 +20,7 @@ distributions:
     xenial:
         type: ubuntu,debian
         labels: 16.04,xenial,xerus,default
+        ruby_version: ruby23
     yakkety:
         type: ubuntu,debian
         labels: 16.10,yakkety,yak,default
@@ -31,15 +33,17 @@ distributions:
     jessie:
         type: debian
         labels: 8.1,jessie,default
+        ruby_version: ruby21
     sid:
         type: debian
         labels: 9.0,sid,default
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,vivid,xenial,jessie
-    i386:  trusty,vivid,xenial,jessie
-    armel: jessie
-    armhf: jessie
+    amd64: trusty,xenial
+    #amd64: trusty,vivid,xenial,jessie
+    #i386:  trusty,vivid,xenial,jessie
+    #armel: jessie
+    #armhf: jessie
 packages:
     aliases:
         tools/rtt: rtt

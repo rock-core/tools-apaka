@@ -15,18 +15,22 @@ module Autoproj
         #    precise:
         #        type: ubuntu,debian
         #        labels: 12.04,12.04.4,lts,precise,pangolin,default
+        #        ruby: ruby19
         #    trusty:
         #        type: ubuntu, debian
         #        labels: 14.04,14.04.2,lts,trusty,tahr,default
+        #        ruby: ruby20
         #    vivid:
         #        type: ubuntu,debian
         #        labels: 15.04,lts,vivid,vervet,default
+        #        ruby: ruby21
         #    wily:
         #        type: ubuntu,debian
         #        labels: 15.10,wily,werewolf,default
         #    xenial:
         #        type: ubuntu,debian
         #        labels: 16.04,lts,xenial,xerus,default
+        #        ruby: ruby23
         #    yakkety:
         #        type: ubuntu,debian
         #        labels: 16.10,yakkety,yak,default
@@ -39,6 +43,7 @@ module Autoproj
         #    jessie:
         #        type: debian
         #        labels: 8.1,jessie,default
+        #        ruby: 23
         #    sid:
         #        type: debian
         #        labels: 9.0,sid,default
@@ -71,6 +76,7 @@ module Autoproj
             attr_accessor :config_file
 
             attr_reader :linux_distribution_releases
+            attr_reader :preferred_ruby_version
             attr_reader :ubuntu_releases
             attr_reader :debian_releases
             attr_reader :rock_releases
@@ -90,6 +96,7 @@ module Autoproj
                 configuration = YAML.load_file(file)
                 @config_file = File.absolute_path(file)
                 @linux_distribution_releases = Hash.new
+                @preferred_ruby_version = Hash.new
                 @rock_releases = Hash.new
 
                 configuration["distributions"] ||= Hash.new
@@ -100,6 +107,10 @@ module Autoproj
                 configuration["distributions"].each do |key, values|
                     types  = values["type"].gsub(' ','').split(",")
                     labels = values["labels"].gsub(' ','').split(",")
+                    if values.has_key?("ruby_version")
+                        ruby_version = values["ruby_version"]
+                        @preferred_ruby_version[key] = ruby_version
+                    end
                     @linux_distribution_releases[key] = [types,labels]
                 end
 
@@ -154,6 +165,10 @@ module Autoproj
 
             def self.linux_distribution_releases
                 instance.linux_distribution_releases
+            end
+
+            def self.preferred_ruby_version
+                instance.preferred_ruby_version
             end
 
             def self.ubuntu_releases

@@ -299,15 +299,24 @@ puts "Using configuration:\n#{Autoproj::Packaging::Config}"
 if o_distributions.size == 1
     distribution = o_distributions[0]
     operating_system = []
+    preferred_ruby_version = nil
     if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(distribution)
         operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ distribution ]
     else
         raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
     end
 
+    if Autoproj::Packaging::Config.preferred_ruby_version.has_key?(distribution)
+        preferred_ruby_version = Autoproj::Packaging::Config.preferred_ruby_version[ distribution ]
+    end
+
     if !operating_system.empty?
         Autoproj::OSDependencies.operating_system = operating_system
         puts "Custom setting of operating system to: #{operating_system}"
+        if preferred_ruby_version
+            Autoproj::OSDependencies.alias(preferred_ruby_version,"ruby")
+            puts "Setting preferred ruby version: #{preferred_ruby_version}"
+        end
     end
 end
 
