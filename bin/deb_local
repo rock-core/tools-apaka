@@ -34,10 +34,17 @@ def build_and_install_locally(packager, pkg_name, options)
         arguments +=  "--package-version #{options[:package_version]}"
         arguments += " "
     end
+    distribution = packager.target_platform.distribution_release_name
+    architecture = packager.target_platform.architecture
+
+    arguments += "--distributions #{distribution}"
+    arguments += " "
+    arguments += "--architectures #{architecture}"
+    arguments += " "
     arguments +="#{pkg_name}"
 
     puts "Debian packaging: '#{pkg_name}' with arguments #{arguments}"
-    debian_package_dir = File.join(packager.build_dir, options[:debian_package_name])
+    debian_package_dir = packager.packaging_dir(options[:debian_package_name])
     deb_files = Dir.glob(File.join(debian_package_dir,"*.deb"))
     if options[:rebuild] || deb_files.empty?
         puts "############### package #{pkg_name} ###################"
@@ -53,14 +60,14 @@ def build_and_install_locally(packager, pkg_name, options)
 
         options[:result_dir] ||= debian_package_dir
         Autoproj::Packaging::Installer.build_package_from_dsc(dsc_file,
-                                         packager.target_platform.distribution_release_name,
-                                         packager.target_platform.architecture,
+                                         distribution,
+                                         architecture,
                                          options[:release_name],
                                          options)
 
         packager.register_debian_package(options[:debian_package_name],
                                          options[:release_name],
-                                         packager.target_platform.distribution_release_name)
+                                         distribution)
     end
 
     if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform

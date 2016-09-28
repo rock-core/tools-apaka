@@ -192,7 +192,11 @@ module Autoproj
             end
 
             def packaging_dir(pkg)
-                File.join(@build_dir, debian_name(pkg))
+                pkg_name = pkg
+                if !pkg.kind_of?(String)
+                    pkg_name = debian_name(pkg)
+                end
+                File.join(@build_dir, pkg_name, target_platform.to_s.gsub("/","-"))
             end
 
             def rock_install_directory
@@ -393,6 +397,7 @@ module Autoproj
                     gem_versions[name] << version
                 end
 
+                # Add the ruby requirements for the current rock selection
                 all_packages.each do |pkg|
                     pkg = findPackageByName(pkg.name)
                     deps = dependencies(pkg, with_rock_release_prefix)
@@ -668,7 +673,7 @@ module Autoproj
                     :architecture => nil
 
                 if options[:force_update]
-                    dirname = File.join(build_dir, debian_name(pkg))
+                    dirname = packaging_dir(pkg)
                     if File.directory?(dirname)
                         Packager.info "Debian: rebuild requested -- removing #{dirname}"
                         FileUtils.rm_rf(dirname)
@@ -677,6 +682,7 @@ module Autoproj
 
                 options[:distribution] ||= target_platform.distribution_release_name
                 options[:architecture] ||= target_platform.architecture
+                options[:packaging_dir] = packaging_dir(pkg)
 
                 prepare_source_dir(pkg, options)
 
@@ -1029,14 +1035,15 @@ module Autoproj
             # Install package
             def install(pkg_name, options)
                 begin
-                    pkg_build_dir = File.join(build_dir, pkg_name)
+                    pkg_build_dir = packaging_dir(pkg_name)
                     filepath = Dir.glob("#{pkg_build_dir}/*.deb")
                     if filepath.size < 1
-                        raise RuntimeError, "No debian file found for #{pkg_name}"
+                        raise RuntimeError, "No debian file found for #{pkg_name} in #{pkg_build_dir}: #{filepath}"
                     elsif filepath.size > 1
                         raise RuntimeError, "More than one debian file available in #{pkg_build_dir}: #{filepath}"
                     else
                         filepath = filepath.first
+                        Packager.info "Found package: #{filepath}"
                     end
                     install_debfile(filepath)
                 rescue Exception => e
@@ -1148,22 +1155,23 @@ module Autoproj
                 gems.each do |gem_name, version|
                     gem_dir_name = debian_ruby_name(gem_name)
 
+                    packaging_dirname = packaging_dir(gem_dir_name)
                     if options[:force_update]
-                        dirname = File.join(build_dir, gem_dir_name)
-                        if File.directory?(dirname)
-                            Packager.info "Debian Gem: rebuild requested -- removing #{dirname}"
-                            FileUtils.rm_rf(dirname)
+                        if File.directory?(packaging_dirname)
+                            Packager.info "Debian Gem: rebuild requested -- removing #{packaging_dirname}"
+                            FileUtils.rm_rf(packaging_dirname)
                         end
                     end
 
                     # Assuming if the .gem file has been download we do not need to update
-                    if options[:force_update] or not Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").size > 0
+                    gem_globname = "#{packaging_dirname}/#{gem_name}*.gem"
+                    if options[:force_update] or Dir.glob(gem_globname).empty?
                         Packager.debug "Converting gem: '#{gem_name}' to debian source package"
-                        if not File.directory?(gem_dir_name)
-                            FileUtils.mkdir gem_dir_name
+                        if not File.directory?( packaging_dirname )
+                            FileUtils.mkdir_p packaging_dirname
                         end
 
-                        Dir.chdir(gem_dir_name) do
+                        Dir.chdir(packaging_dirname) do
                             gem_from_cache = false
                             if patch_dir = options[:patch_dir]
                                 gem_dir = File.join(patch_dir, "gems", gem_name)
@@ -1221,7 +1229,7 @@ module Autoproj
                                 end
                             end
                         end
-                        gem_file_name = Dir.glob("#{gem_dir_name}/#{gem_name}*.gem").first
+                        gem_file_name = Dir.glob(gem_globname).first
                         if !gem_file_name
                             raise ArgumentError, "Could not retrieve a gem for #{gem_name} #{version} and options #{options}"
                         end

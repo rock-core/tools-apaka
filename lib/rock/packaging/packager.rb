@@ -162,7 +162,13 @@ module Autoproj
 
             def prepare_source_dir(pkg, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
-                    :existing_source_dir => nil
+                    :existing_source_dir => nil,
+                    :packaging_dir => File.join(@build_dir, debian_name(pkg))
+
+                pkg_dir = options[:packaging_dir]
+                if not File.directory?(pkg_dir)
+                    FileUtils.mkdir_p pkg_dir
+                end
 
                 Packager.debug "Preparing source dir #{pkg.name}"
                 if existing_source_dir = options[:existing_source_dir] || !pkg.importer
@@ -171,10 +177,6 @@ module Autoproj
                     end
 
                     Packager.info "Preparing source dir #{pkg.name} from existing: '#{existing_source_dir}'"
-                    pkg_dir = File.join(@build_dir, debian_name(pkg))
-                    if not File.directory?(pkg_dir)
-                        FileUtils.mkdir_p pkg_dir
-                    end
 
                     target_dir = File.join(pkg_dir, dir_name(pkg, target_platform.distribution_release_name))
                     FileUtils.cp_r existing_source_dir, target_dir
@@ -199,7 +201,7 @@ module Autoproj
                         end
                         pkg.importer.repository = pkg.srcdir
                     end
-                    pkg_target_importdir = File.join(@build_dir, debian_name(pkg), plain_dir_name(pkg, target_platform.distribution_release_name))
+                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkg, target_platform.distribution_release_name))
 
                     # Some packages, e.g. mars use a single git repository a split it artificially
                     # if this is the case, try to copy the content instead of doing a proper checkout
