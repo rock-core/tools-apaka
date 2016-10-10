@@ -1,9 +1,12 @@
+require 'rock/packaging/packager'
+
 module Autoproj
     module Packaging
         class TargetPlatform
             attr_reader :distribution_release_name
             attr_reader :architecture
 
+            # Initialize the target platform
             def initialize(distribution_release_name, architecture)
                 if distribution_release_name
                     @distribution_release_name = distribution_release_name.downcase
@@ -33,10 +36,12 @@ module Autoproj
                 "#{distribution_release_name}/#{architecture}"
             end
 
+            # Autodetect the currently active architecture using 'dpkg'
             def self.autodetect_dpkg_architecture
                 "#{`dpkg --print-architecture`}".strip
             end
 
+            # Autodetect the target platform (distribution release and architecture)
             def self.autodetect_target_platform
                 TargetPlatform.new(autodetect_linux_distribution_release, 
                                    autodetect_dpkg_architecture)
@@ -163,10 +168,16 @@ module Autoproj
                 errorfile = nil
                 result = true
 
+                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
+                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                end
+
                 urls.each do |url|
                     puts "URL: #{url}"
                     result = false
-                    outfile="/tmp/deb_package-availability-#{package}-in-#{release_name}-#{architecture}"
+                    # Store files in cache directory -- to better control
+                    # persistance
+                    outfile=File.join(Autoproj::Packaging::CACHE_DIR,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
                     errorfile="#{outfile}.error"
                     if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
                         # query already done sometime before

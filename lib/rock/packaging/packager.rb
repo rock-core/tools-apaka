@@ -11,6 +11,7 @@ module Autoproj
         WWW_ROOT = File.join("/var/www")
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
         TEMPLATES_DIR=File.expand_path("templates")
+        CACHE_DIR=File.join(BUILD_DIR,"cache")
 
         EXCLUDED_DIRS_PREFIX = [".git",".travis","build","tmp","debian",".autobuild",".orogen"]
         EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
