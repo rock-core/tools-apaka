@@ -627,7 +627,7 @@ Dir.chdir(packager.build_dir) do
                 packager.install debian_name, :distributions => o_distributions, :verbose => Autobuild.verbose
             end
         rescue Exception => e
-            Autoproj.warn "Local install failed: #{e}"
+            puts "Local install failed: #{e}"
             exit 20
         end
     end
