@@ -36,6 +36,7 @@ module Autoproj
                 conf_dir = File.join(deb_repository, release_prefix, "conf")
                 if File.exist? conf_dir
                     Packager.info "Reprepo repository exists: #{conf_dir}"
+                else
                     Packager.info "Initializing reprepo repository in #{conf_dir}"
                     `sudo mkdir -p #{conf_dir}`
 
@@ -88,10 +89,12 @@ module Autoproj
             # Register the debian package for the given package and codename
             # (=distribution)
             # using reprepro
-            def register_debian_package(debian_pkg_name, release_name, codename)
+            def register_debian_package(debian_pkg_file, release_name, codename)
                 reprepro_dir = File.join(deb_repository, release_name)
 
-                debian_package_dir = File.join(build_dir, debian_pkg_name)
+                debian_package_dir = File.dirname(debian_pkg_file)
+                # get the basename, e.g., from rock-local-base-cmake_0.20160928-1~xenial_amd64.deb
+                debian_pkg_name = File.basename(debian_pkg_file).split("_").first
                 logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
                 cmd = "#{reprepro_bin} -V -b #{reprepro_dir} remove #{codename} #{debian_pkg_name} >> #{logfile} 2> #{logfile}"

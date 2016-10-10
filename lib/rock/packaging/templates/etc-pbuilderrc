@@ -29,9 +29,9 @@ if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] ||
         # The default mirror site only provides i386 and
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
-    #DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}"
-    #        "--keyring=/usr/share/keyrings/ubuntu-archive-keyring.gpg")
-    #EXTRA_PACKAGES+="ruby-all-dev,"
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
+    EXTRA_PACKAGES+="ruby-all-dev,"
+
 elif [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "sid" ] || [ "$DIST" == "strech" ]; then
     echo "Identified Debian Distribution"
     echo " -- you have to make sure that 'debian-archive-keyring' is installed"
@@ -47,17 +47,19 @@ elif [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "sid" ] 
         OTHERMIRROR="$OTHERMIRROR | deb $MIRRORSITE $DIST-backports $COMPONENTS"
     fi
 
-    COMPONENTS="main contrib non-free"
     # Update keyring
     for((i=0; i < ${#DEBOOTSTRAPOPTS[@]}; i++))
     do
         DEBOOTSTRAPOPTS[$i]=`echo ${DEBOOTSTRAPOPTS[$i]} | sed 's#keyring=[^ ]\+#keyring=/usr/share/keyrings/debian-archive-keyring.gpg#g'`
     done
+
+    COMPONENTS="main contrib non-free"
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,contrib,nonfree)
 fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
-# apt-utils: for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
-EXTRA_PACKAGES+="apt,apt-utils,rake,gem2deb,cmake,cdbs,dh-autoreconf,dh-autoreconf,fakeroot,lintian,libgl1-mesa-dev,libboost-dev"
+# apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
+EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
 echo "COMPONENTS: $COMPONENTS"

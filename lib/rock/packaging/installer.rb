@@ -102,6 +102,14 @@ module Autoproj
                     gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
                     image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
                 end
+                ['gem2deb','cdbs','lintian','fakeroot'].each do |extra_pkg|
+                    image_install_pkg(distribution, architecture, extra_pkg)
+                end
+            end
+
+            def self.image_install_pkg(distribution, architecture, pkg)
+                basepath = image_basepath(distribution, architecture)
+                chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
             # Get the base path to an image, e.g.
@@ -141,6 +149,22 @@ module Autoproj
                 else
                     Installer.info "Successfully update base-image: #{basepath}"
                 end
+
+                # Set default ruby version
+                if ["trusty"].include?(distribution)
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/gem.divert /usr/bin/gem")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/ruby2.0 1")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/gem2.0 1")
+                end
+            end
+
+            # Execute a command in the given chroot 
+            def self.chroot_cmd(basepath, cmd)
+                if !system("sudo chroot #{basepath} /bin/bash -c \"#{cmd}\"")
+                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed for basepath: #{basepath}"
+                end
             end
 
             # Update the gem2deb version if a patched version is available
@@ -168,10 +192,9 @@ module Autoproj
                 if !system(cmd)
                     raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
                 end
-                cmd = "sudo chroot #{basepath} /bin/bash -c \"dpkg -i /#{mountbase}/#{debfile}\""
-                if !system(cmd)
-                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
-                end
+
+                chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{debfile}")
+
                 cmd = "sudo umount #{mountdir}"
                 if !system(cmd)
                     raise RuntimeError, "#{self} -- Execution: #{cmd} failed"

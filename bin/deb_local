@@ -65,9 +65,15 @@ def build_and_install_locally(packager, pkg_name, options)
                                          options[:release_name],
                                          options)
 
-        packager.register_debian_package(options[:debian_package_name],
-                                         options[:release_name],
-                                         distribution)
+        deb_file = Dir.glob(File.join(debian_package_dir,"*.deb"))
+        if deb_file.empty?
+            raise RuntimeError, "Building package failed"
+        end
+        deb_file = deb_file.first
+        puts "Registering debian package: #{deb_file}"
+        packager.register_debian_package(deb_file,
+                                        options[:release_name],
+                                        distribution)
     end
 
     if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform
