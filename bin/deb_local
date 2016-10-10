@@ -31,7 +31,7 @@ def build_and_install_locally(packager, pkg_name, options)
         arguments += " "
     end
     if options[:package_version]
-        arguments +=  "--package-version #{options[:package_version]}"
+        arguments +=  "--package-version '#{options[:package_version]}'"
         arguments += " "
     end
     distribution = packager.target_platform.distribution_release_name
@@ -202,17 +202,19 @@ is_gem = selected_rock_packages.empty? && !o_selected_packages.empty?
 if !is_gem
     selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
     selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
-
-    # Compute dependencies
-    rock_packages = packager.all_required_packages selection
-    rock_packages = rock_packages[:packages]
 end
 
-if !packager.ruby_gems || packager.ruby_gems.empty?
+# Compute dependencies for a given selection
+all_rock_packages = packager.all_required_packages selection
+rock_packages = all_rock_packages[:packages]
+required_gems = all_rock_packages[:gems]
+required_gems_versions = all_rock_packages[:gem_versions]
+
+if !required_gems || required_gems.empty?
     puts "# No Gems to be packaged"
 else
-    puts "# Packaging Gems ---- #{packager.ruby_gems}"
-    packager.ruby_gems.each do |pkg, version|
+    puts "# Packaging Gems ---- #{required_gems}"
+    required_gems.each do |pkg|
         is_osdeps = false
         native_name, is_osdeps = packager.native_dependency_name(pkg)
         if is_osdeps
@@ -222,7 +224,7 @@ else
 
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
-        if version
+        if version = required_gems_versions[pkg]
             pkg_build_options[:package_version] = version
         end
         if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
