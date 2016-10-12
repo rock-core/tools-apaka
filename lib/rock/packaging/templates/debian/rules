@@ -13,7 +13,7 @@ export DEB_BUILD_OPTIONS=nocheck
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
 extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
-DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch)
+DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_install_dir)/lib:$(rock_install_dir)/$(arch)
 
 pre-build::
 	echo "Detected:"
