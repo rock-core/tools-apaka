@@ -1648,7 +1648,7 @@ module Autoproj
                     pkgconfig_env += "#{File.join(install_dir,"lib/pkgconfig")}:"
                     pkgconfig_env += "#{File.join(install_dir,"lib/$(arch)/pkgconfig")}:"
                     rock_dir_env += "#{File.join(install_dir,"share/rock/cmake")}:"
-                    ld_library_path_env += "#{File.join(install_dir,"lib")}:"
+                    ld_library_path_env += "#{File.join(install_dir,"lib")}:#{File.join(install_dir,"lib/$(arch)")}:"
                     cmake_prefix_path += "#{install_dir}:"
                     orogen_plugin_path += "#{File.join(install_dir,"share/orogen/plugins")}:"
                 end
