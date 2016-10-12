@@ -56,7 +56,8 @@ def build_and_install_locally(packager, pkg_name, options)
         end
         puts "############### build #{pkg_name} #####################"
         dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
-        puts "Building package from #{dsc_file}"
+        options[:log_file] ||= File.join(packager.log_dir, "#{options[:debian_package_name]}-deb_local-build.log")
+        puts "Building package from #{dsc_file} -- see log (#{options[:log_file]})"
 
         options[:result_dir] ||= debian_package_dir
         Autoproj::Packaging::Installer.build_package_from_dsc(dsc_file,

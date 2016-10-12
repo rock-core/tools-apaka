@@ -236,7 +236,8 @@ module Autoproj
             #
             def self.build_package_from_dsc(dsc_file, distribution, architecture, release_prefix, options)
                 build_options, unknown_build_options = Kernel.filter_options options,
-                    :result_dir => Dir.pwd
+                    :result_dir => Dir.pwd,
+                    :log_file => nil
 
                 image_setup(distribution, architecture, release_prefix, options)
 
@@ -247,6 +248,9 @@ module Autoproj
                 cmd += "--debbuildopts -sa "
                 cmd += "--bindmounts #{File.join(DEB_REPOSITORY, release_prefix)} "
                 cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)}"
+                if build_options[:log_file]
+                    cmd += " > #{build_options[:log_file]} 2> #{build_options[:log_file]}"
+                end
 
                 if !system(cmd)
                     Installer.warn "Failed to build package for #{dsc_file} using: #{cmd}"
