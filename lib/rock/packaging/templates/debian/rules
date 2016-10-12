@@ -65,7 +65,7 @@ include /usr/share/cdbs/1/class/cmake.mk
 #
 <% elsif package.class == Autobuild::Autotools %>
 DEB_CONFIGURE_PREFIX= $(rock_install_dir)
-DEB_MAKE_EXTRA_FLAGS = <%= package.configureflags.join(" ") %>
+DEB_CONFIGURE_EXTRA_FLAGS = <%= extra_configure_flags(package).join(" ") %>
 
 # use autoreconf: check with external/libply
 # use autogen: check with drivers/araviz

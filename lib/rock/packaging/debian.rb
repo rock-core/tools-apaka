@@ -1584,6 +1584,31 @@ module Autoproj
                 ruby_versions
             end
 
+            def extra_configure_flags(package)
+                flags = []
+                key_value_regexp = Regexp.new(/([^=]+)=([^=]+)/)
+                package.configureflags.each do |flag|
+                    if match_data = key_value_regexp.match(flag)
+                        key = match_data[1]
+                        value = match_data[2]
+                        # Skip keys that start with --arguments
+                        # and assume defines starting with UpperCase
+                        # letter, e.g., CFLAGS='...'
+                        if key =~ /^[A-Z]/
+                            if value !~ /^["]/ && value !~ /^[']/
+                                value = "'#{match_data[2]}'"
+                            end
+                        end
+                        flags << "#{key}=#{value}"
+                    else
+                        flags << flag
+                    end
+                end
+                Packager.info "Using extra configure flags: #{flags}"
+                flags
+            end
+
+
             def ruby_arch_setup
                 Packager.info "Creating ruby env setup"
                 setup = "arch=$(shell gcc -print-multiarch)\n"
