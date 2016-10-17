@@ -7,7 +7,7 @@ module Autoproj
         class Installer
             extend Logger::Root("Installer", Logger::INFO)
 
-            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","debian-archive-keyring","pbuilder"]
+            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder"]
             WEBSERVER_DEBS=["apache2"]
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
@@ -50,10 +50,10 @@ module Autoproj
             end
 
             def self.install_all_requirements
+                install_pbuilder_conf
+
                 install_package_list BUILDER_DEBS
                 install_package_list WEBSERVER_DEBS
-
-                install_pbuilder_conf
             end
 
             def self.install_package_list(list = Array.new)
