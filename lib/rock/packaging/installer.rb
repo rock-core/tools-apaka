@@ -249,7 +249,7 @@ module Autoproj
                 cmd += "--bindmounts #{File.join(DEB_REPOSITORY, release_prefix)} "
                 cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)}"
                 if build_options[:log_file]
-                    cmd += " > #{build_options[:log_file]} 2> #{build_options[:log_file]}"
+                    cmd += " 2>&1 > #{build_options[:log_file]}"
                 end
 
                 if !system(cmd)
