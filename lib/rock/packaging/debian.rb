@@ -1029,7 +1029,11 @@ module Autoproj
                 cmd = "sudo dpkg -i #{deb_filename}"
                 Packager.info "Installing package via: '#{cmd}'"
                 if !system(cmd)
-                    raise RuntimeError, "Executing '#{cmd}' failed"
+                    Packager.warn "Executing '#{cmd}' failed -- trying to fix installation"
+                    cmd = "sudo apt-get install -y -f"
+                    if !system(cmd)
+                        raise RuntimeError, "Executing '#{cmd}' failed"
+                    end
                 end
             end
 
