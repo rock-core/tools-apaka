@@ -441,6 +441,7 @@ module Autoproj
             # Compute dependencies of this package
             # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
+                pkg = findPackageByName(pkg.name)
 
                 pkg.resolve_optional_dependencies
                 this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
