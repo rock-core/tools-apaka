@@ -1613,6 +1613,25 @@ module Autoproj
                 flags
             end
 
+            def sort_by_package_sets(packages, pkg_set_order)
+                priority_lists = Array.new
+                (0..pkg_set_order.size).each do |i|
+                    priority_lists << Array.new
+                end
+
+                packages.each do |package|
+                    pkg = Autoproj.manifest.package(package.name)
+                    pkg_set_name = pkg.package_set.name
+
+                    if index = pkg_set_order.index(pkg_set_name)
+                        priority_lists[index] << package
+                    else
+                        priority_lists.last << package
+                    end
+                end
+
+                priority_lists.flatten
+            end
 
             def ruby_arch_setup
                 Packager.info "Creating ruby env setup"

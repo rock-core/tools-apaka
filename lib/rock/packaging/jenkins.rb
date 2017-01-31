@@ -132,7 +132,8 @@ module Autoproj
             def create_flow_job(name, selection, release_name, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :parallel => false,
-                    :force => false
+                    :force => false,
+                    :package_set_order => ['orocos.toolchain','rock.core','rock']
 
                 if !release_name
                     raise ArgumentError, "Jenkins.create_flow_job requires a release_name -- given: #{release_name}"
@@ -141,6 +142,7 @@ module Autoproj
                 end
 
                 flow = debian_packager.all_required_packages(selection)
+                flow[:packages] = debian_packager.sort_by_package_sets(flow[:packages], options[:package_set_order])
                 flow[:gems].each do |name|
                     if !flow[:gem_versions].has_key?(name)
                         flow[:gem_versions][name] = "noversion"
