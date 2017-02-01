@@ -67,7 +67,7 @@ module Autoproj
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
 
-                rock_release_name = Time.now.strftime("%Y%m%d")
+                rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
 
                 if not File.exists?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir
