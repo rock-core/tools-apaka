@@ -102,7 +102,7 @@ module Autoproj
                     do_select
                 end
                 if versioned_gems.empty?
-                    raise RuntimeError, "GemDependencies::resolve_by_name failed to find a (locally installed) gem that satisfies the version requirements: #{version_requirements}"
+                    raise RuntimeError, "GemDependencies::resolve_by_name failed to find a (locally installed) gem '#{gem_name}' that satisfies the version requirements: #{version_requirements}"
                 else
                     versioned_gems.last
                 end
