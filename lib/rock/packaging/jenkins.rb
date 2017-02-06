@@ -267,42 +267,50 @@ module Autoproj
             # there is no need to repackage the ruby package 'bundler' if it already
             # exists in a specific release of Ubuntu or Debian
             def combination_filter(architectures, distributions, package_name, isGem, options = Hash.new)
-                Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
-                package: '#{package_name}', isGem: #{isGem}"
-                whitelist = []
-                Packaging::Config.architectures.each do |requested_architecture, allowed_distributions|
-                    allowed_distributions.each do |release|
-                        if not distributions.include?(release)
-                            next
-                        end
-                        target_platform = TargetPlatform.new(release, requested_architecture)
+                operating_system = Autoproj::OSDependencies.operating_system
 
-                        if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(release)
-                            Autoproj::OSDependencies.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
-                        else
-                            raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
-                        end
+                begin
+                    Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
+                    package: '#{package_name}', isGem: #{isGem}"
+                    whitelist = []
+                    Packaging::Config.architectures.each do |requested_architecture, allowed_distributions|
+                        allowed_distributions.each do |release|
+                            if not distributions.include?(release)
+                                next
+                            end
+                            target_platform = TargetPlatform.new(release, requested_architecture)
 
-                        resolved_osdeps = nil
-                        if options[:package_name] && package_resolver = Autoproj.osdeps.resolve_package(options[:package_name])
-                            begin
-                                if package_resolver.first[0].kind_of?(Autoproj::PackageManagers::AptDpkgManager)
-                                    resolved_osdeps = package_resolver.first[2]
+                            if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(release)
+                                Autoproj::OSDependencies.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
+                            else
+                                raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
+                            end
+
+                            resolved_osdeps = nil
+                            if options[:package_name] && package_resolver = Autoproj.osdeps.resolve_package(options[:package_name])
+                                begin
+                                    if package_resolver.first[0].kind_of?(Autoproj::PackageManagers::AptDpkgManager)
+                                        resolved_osdeps = package_resolver.first[2]
+                                    end
+                                rescue Exception => e
+                                    Packager.info "package: #{package_name} has no osdeps as replacement"
                                 end
-                            rescue Exception => e
-                                Packager.info "package: #{package_name} has no osdeps as replacement"
+                            end
+
+                            if resolved_osdeps && !resolved_osdeps.empty?
+                                Packager.info "package: '#{package_name}' is made available through osdeps #{resolved_osdeps} as part of #{release}"
+                            elsif  (isGem && target_platform.contains(debian_packager.debian_ruby_name(package_name,false))) ||
+                                    target_platform.contains(package_name)
+                                Packager.info "package: '#{package_name}' is part of the linux distribution release: '#{release}'"
+                            else
+                                whitelist << [release, requested_architecture]
                             end
                         end
-
-                        if resolved_osdeps && !resolved_osdeps.empty?
-                            Packager.info "package: '#{package_name}' is made available through osdeps #{resolved_osdeps} as part of #{release}"
-                        elsif  (isGem && target_platform.contains(debian_packager.debian_ruby_name(package_name,false))) ||
-                                target_platform.contains(package_name)
-                            Packager.info "package: '#{package_name}' is part of the linux distribution release: '#{release}'"
-                        else
-                            whitelist << [release, requested_architecture]
-                        end
                     end
+                rescue Exception => e
+                    raise
+                ensure
+                    Autoproj::OSDependencies.operating_system = operating_system
                 end
 
                 ret = ""
