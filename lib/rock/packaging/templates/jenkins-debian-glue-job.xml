@@ -73,6 +73,7 @@
   <builders>
     <hudson.tasks.Shell>
         <command>
+# Generated from <%= __FILE__ %>
 dest_dir=`pwd`
 build_dir=`echo <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/build/deb-packaging/$distribution-$architecture`
 
@@ -88,14 +89,9 @@ if [ "${status}" = "active" ]; then
     deb_package --distributions ${distribution} --architectures ${architecture} --patch-dir <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/deb_patches --dest-dir $dest_dir --build-dir $build_dir --rock-base-install-dir ${rock_base_install_dir} --release-name ${release} --rebuild --package-version ${package_version} --package <%= options[:package_name] %>
     cd -
     # Making sure that the artifact land in the workspace directory
-    # This is different for the gem, since it creates a directory ruby-my_gem
-    # in the workspace -- all files need to be in the workspace dir when
+    # all files need to be in the workspace dir when
     # calling build-and-provide-package -- so copy them there
-    <% if options[:type] == :gem %>
-    mv $dest_dir/<%= options[:dir_name] %>/* .
-    <% else %>
-    mv $build_dir/<%= options[:dir_name] %>/* .
-    <% end %>
+    mv $build_dir/<%= options[:dir_name] %>/$distribution-$architecture/* .
     echo "Step: 'debian source package creation' completed"
 elif [ "${status}" = "inactive" ]; then
     echo "Configuration: ${distribution} ${architecture} is not a requested configuration"
@@ -110,11 +106,13 @@ fi
 cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
 . <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/env.sh
 status=`deb_package --activation-status --distributions ${distribution} --architectures ${architecture} | tail -1`
+cd -
 if [ "${status}" = "active" ]; then
     export REMOVE_FROM_RELEASE=true
     export RELEASE_DISTRIBUTION=${distribution}
     /usr/bin/build-and-provide-package
 
+    cd <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}
     deb_package --distributions ${distribution} --architectures ${architecture} --release-name ${release} --update-list <%= File.dirname ENV['AUTOPROJ_CURRENT_ROOT'] %>/${release}/osdeps/rock-osdeps.osdeps-${release}-${architecture} <%= options[:package_name] %>
     echo "Step: 'build debian package' completed"
 elif [ "${status}" = "inactive" ]; then
