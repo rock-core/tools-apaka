@@ -244,6 +244,8 @@ end
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
 else
+    rock_packages = packager.sort_by_package_sets(rock_packages, ["orocos.toolchain","rock.core","rock"])
+
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
     rock_packages.each do |pkg|
