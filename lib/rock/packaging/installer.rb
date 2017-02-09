@@ -9,6 +9,7 @@ module Autoproj
 
             BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder"]
             WEBSERVER_DEBS=["apache2"]
+            CHROOT_EXTRA_DEBS=['gem2deb','cdbs','lintian','fakeroot','doxygen']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
             def self.create_webserver_config(document_root, packages_subfolder,
@@ -102,7 +103,7 @@ module Autoproj
                     gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
                     image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
                 end
-                ['gem2deb','cdbs','lintian','fakeroot'].each do |extra_pkg|
+                CHROOT_EXTRA_DEBS.each do |extra_pkg|
                     image_install_pkg(distribution, architecture, extra_pkg)
                 end
             end
