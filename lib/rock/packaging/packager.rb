@@ -33,7 +33,7 @@ module Autoproj
 
             # Initialize the reprepro repository
             #
-            def initialize_reprepro_repository(release_prefix)
+            def initialize_reprepro_conf_dir(release_prefix)
                 conf_dir = File.join(deb_repository, release_prefix, "conf")
                 if File.exist? conf_dir
                     Packager.info "Reprepo repository exists: #{conf_dir}"
@@ -44,21 +44,26 @@ module Autoproj
                     user = ENV['USER']
                     `sudo chown -R #{user} #{deb_repository}`
                     `sudo chmod -R 755 #{conf_dir}`
+                end
 
-                    distributions_file = File.join(conf_dir, "distributions")
-                    if !File.exists?(distributions_file)
-                        File.open(distributions_file,"w") do |f|
-                            Config.linux_distribution_releases.each do |release_name, release|
-                                f.write("Codename: #{release_name}\n")
-                                f.write("Architectures: #{Config.architectures.keys.join(" ")} source\n")
-                                f.write("Components: main\n")
-                                f.write("UDebComponents: main\n")
-                                f.write("Tracking: minimal\n")
-                                f.write("Contents:\n\n")
-                            end
+                distributions_file = File.join(conf_dir, "distributions")
+                if !File.exists?(distributions_file)
+                    File.open(distributions_file,"w") do |f|
+                        Config.linux_distribution_releases.each do |release_name, release|
+                            f.write("Codename: #{release_name}\n")
+                            f.write("Architectures: #{Config.architectures.keys.join(" ")} source\n")
+                            f.write("Components: main\n")
+                            f.write("UDebComponents: main\n")
+                            f.write("Tracking: minimal\n")
+                            f.write("Contents:\n\n")
                         end
                     end
                 end
+            end
+
+            def initialize_reprepro_repository(release_prefix)
+
+                initialize_reprepro_conf_dir(release_prefix)
 
                 # Check if Packages file exists: /var/www/rock-reprepro/local/dists/jessie/main/binary-amd64/Packages
                 # other initialize properly
@@ -72,6 +77,14 @@ module Autoproj
                     if !system(cmd)
                         Packager.info "Execution of #{cmd} failed -- see #{logfile}"
                     end
+                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} flood #{target_platform.distribution_release_name} #{target_platform.architecture} >"
+                    logfile = File.join(log_dir,"reprepro-flood.log")
+                    Packager.info "Flood #{target_platform.distribution_release_name} and #{target_platform.architecture} > #{logfile} 2> #{logfile}"
+                    if !system(cmd)
+                        Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                    end
+                else
+                    Packager.info "File: #{packages_file} exists"
                 end
             end
 
