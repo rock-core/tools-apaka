@@ -121,6 +121,21 @@ module Autoproj
                 end
             end
 
+            # Check if the given package in available in reprepro for the given
+            # architecture
+            def reprepro_has_package?(debian_pkg_name, release_name, codename, arch)
+                reprepro_dir = File.join(deb_repository, release_name)
+                cmd = "#{reprepro_bin} -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name} | grep #{arch}"
+                package_info = `#{cmd}`
+                if !package_info.empty?
+                    Packager.info "Reprepro: #{debian_pkg_name} available for #{codename} #{arch}"
+                    return true
+                else
+                    Packager.info "Reprepro: #{debian_pkg_name} not available for #{codename} #{arch}"
+                    return false
+                end
+            end
+
             def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_dirs.each do |excluded_dir|
