@@ -138,6 +138,36 @@ module Autoproj
                 end
                 return package_name.gsub(distribution_release_name, ancestor_release_name)
             end
+
+            def cacheFilename(package, release_name, architecture)
+                File.join(Autoproj::Packaging::CACHE_DIR,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
+            end
+
+            # Use dcontrol in order to check if the debian distribution contains
+            # a given package for this architecture
+            def debianContains(package, cache_results = true)
+                if !system("which dcontrol > /dev/null 2>&1")
+                    raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
+                end
+
+                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
+                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                end
+                outfile = cacheFilename(package, distribution_release_name, architecture)
+                if !File.exists?(outfile)
+                    cmd = "dcontrol #{package}@#{architecture}/#{distribution_release_name} > #{outfile} 2> #{outfile}"
+                    Packager.info "TargetPlatform::debianContains: #{cmd}"
+                    if !system(cmd)
+                        return false
+                    end
+                end
+
+                if system("grep -ir \"^Version:\" #{outfile} > /dev/null 2>&1")
+                    return true
+                end
+                return false
+            end
+
             # Check if the given release contains
             # a package of the given name
             #
@@ -157,7 +187,12 @@ module Autoproj
                     urls << File.join(ubuntu,release_name,architecture,package)
                     # Retrieve the latest status and check on "superseeded or deleted" vs. "published"
                 elsif TargetPlatform::isDebian(release_name)
-                    urls << File.join(debian,release_name,architecture,package,"download")
+                    begin
+                        return debianContains(package, true)
+                    rescue Exception => e
+                        Packager.warn "#{e} -- falling back to http query-based package verification"
+                        urls << File.join(debian,release_name,architecture,package,"download")
+                    end
                 elsif TargetPlatform::isRock(release_name)
                     urls << File.join(Packaging::Config.rock_releases[release_name][:url],"pool","main","r",package)
                 else
@@ -177,7 +212,7 @@ module Autoproj
                     result = false
                     # Store files in cache directory -- to better control
                     # persistance
-                    outfile=File.join(Autoproj::Packaging::CACHE_DIR,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
+                    outfile = cacheFilename(package, distribution_release_name, architecture)
                     errorfile="#{outfile}.error"
                     if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
                         # query already done sometime before
@@ -195,7 +230,9 @@ module Autoproj
                             result = true
                         end
                     elsif TargetPlatform::isDebian(release_name)
-                        if !system("grep -ir \"No such package\" #{outfile} > /dev/null 2>&1")
+                        # If file contains a response, then check for
+                        # 'No such package'
+                        if !system("grep -ir \"No such package\" #{outfile} > /dev/null 2>&1") && system("grep -ir [a-zA-z] #{outfile} > /dev/null 2>&1")
                             result = true
                         end
                     elsif TargetPlatform::isRock(release_name)
