@@ -248,15 +248,25 @@ else
 
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
+    index = 0
+    failed_builds = []
     rock_packages.each do |pkg|
-        if Autoproj.manifest.ignored?(pkg.name)
-            puts "    package is on the ignore list"
-            next
-        end
-        pkg_build_options = build_options.dup
-        pkg_build_options[:debian_package_name] = packager.debian_name(pkg,true)
-        if !o_no_deps || pkg.name =~ /#{o_selected_packages.first}/
-            build_locally(packager, pkg.name, pkg_build_options)
+        begin
+            if Autoproj.manifest.ignored?(pkg.name)
+                puts "    package is on the ignore list"
+                next
+            end
+            pkg_build_options = build_options.dup
+            pkg_build_options[:debian_package_name] = packager.debian_name(pkg,true)
+            if !o_no_deps || pkg.name =~ /#{o_selected_packages.first}/
+                index += 1
+                puts "    (#{index}) #{pkg.name}"
+                build_locally(packager, pkg.name, pkg_build_options)
+            end
+        rescue Exception => e
+            puts "    package: #{pkg.name} building failed"
+            failed_builds << [index, pkg.name]
         end
     end
+    puts "Building failed for: #{failed_builds}"
 end
