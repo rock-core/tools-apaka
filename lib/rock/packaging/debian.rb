@@ -2,6 +2,7 @@ require 'find'
 require 'tmpdir'
 require 'utilrb'
 require 'timeout'
+require 'time'
 
 module Autoproj
     module Packaging
@@ -155,12 +156,52 @@ module Autoproj
                            v = pkg.description.version
                         end
                     end
-                    @debian_version[pkg.name] = v + "." + Time.now.strftime("%Y%m%d") + "-" + revision
+                    @debian_version[pkg.name] = v + "." + latest_commit_time(pkg).strftime("%Y%m%d") + "-" + revision
                     if distribution
                         @debian_version[pkg.name] += '~' + distribution
                     end
                 end
+                binding.pry
                 @debian_version[pkg.name]
+            end
+
+            # extract the latest commit time for given importers
+            def latest_commit_time(pkg)
+                importer = pkg.importer
+                if importer.kind_of?(Autobuild::Git)
+                    git_version(pkg)
+                elsif importer.kind_of?(Autobuild::SVN)
+                    svn_version(pkg)
+                elsif importer.kind_of?(Autobuild::ArchiveImporter) || importer.kind_of?(Autobuild::ImporterPackage)
+                    archive_version(pkg)
+                else
+                    Packager.warn "No version extraction yet implemented for importer type: #{importer.class} -- using current time for version string"
+                    Time.now
+                end
+            end
+
+            def git_version(pkg)
+                time_of_last_commit=pkg.importer.run_git_bare(pkg, 'log', '--encoding=UTF-8','--date=iso',"--pretty=format:'%ad'","-1").first
+                Time.parse(time_of_last_commit.strip)
+            end
+
+            def svn_version(pkg)
+                #["------------------------------------------------------------------------",
+                # "r21 | anauthor | 2012-10-01 13:46:46 +0200 (Mo, 01. Okt 2012) | 1 Zeile",
+                #  "",
+                #   "some comment",
+                #    "------------------------------------------------------------------------"]
+                #
+                #
+                svn_log_string = pkg.importer.run_svn(pkg, 'log', "-l 1")[1]
+                r = Regexp.new(/\|.*\|(.*)\(/)
+                time_of_last_commit = r.match(svn_log_string)[1]
+                binding.pry
+                Time.parse(time_of_last_commit.strip)
+            end
+
+            def archive_version(pkg)
+                File.lstat(pkg.importer.cachefile).mtime
             end
 
             # Plain version is the version string without the revision
@@ -450,7 +491,7 @@ module Autoproj
                     this_rock_release.packageReleaseName(debian_name)
                 end.sort
 
-                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies} on '#{Autoproj::OSDependencies.operating_system}'"
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
