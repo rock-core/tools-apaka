@@ -850,8 +850,8 @@ module Autoproj
                     # Exclude hidden files
                     remove_excluded_files(pkg.srcdir, ["."])
 
-                    # Exclude directories that are known to create conflicts
-                    remove_excluded_dirs(pkg.srcdir, ["debian","build",".travis",".autobuild",".orogen"])
+                    # Exclude directories that are known to create conflicts, including hidden directories
+                    remove_excluded_dirs(pkg.srcdir, ["debian","build",".[a-zA-Z]"])
 
 
                     sources_name = plain_versioned_name(pkg, distribution)
