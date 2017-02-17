@@ -9,7 +9,7 @@ module Autoproj
 
             BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder"]
             WEBSERVER_DEBS=["apache2"]
-            CHROOT_EXTRA_DEBS=['gem2deb','cdbs','lintian','fakeroot','doxygen']
+            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
             def self.create_webserver_config(document_root, packages_subfolder,
