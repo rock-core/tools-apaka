@@ -95,6 +95,9 @@ module Autoproj
                 image_update(distribution, architecture)
                 image_prepare_hookdir(distribution, architecture, release_prefix)
 
+                CHROOT_EXTRA_DEBS.each do |extra_pkg|
+                    image_install_pkg(distribution, architecture, extra_pkg)
+                end
                 # If gem2deb_base_dir is given, then it will be tried to update
                 # (install a patched version of) gem2deb in the target chroot
                 # (if possible)
@@ -102,9 +105,6 @@ module Autoproj
                 if options[:patch_dir]
                     gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
                     image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
-                end
-                CHROOT_EXTRA_DEBS.each do |extra_pkg|
-                    image_install_pkg(distribution, architecture, extra_pkg)
                 end
             end
 
