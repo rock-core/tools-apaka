@@ -194,11 +194,16 @@ module Autoproj
                     raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
                 end
 
-                chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{debfile}")
-
-                cmd = "sudo umount #{mountdir}"
-                if !system(cmd)
-                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                begin
+                    if !gem2deb_test_runner_debfile.empty?
+                        chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{gem2deb_test_runner_debfile}")
+                    end
+                    chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{gem2deb_debfile}")
+                ensure
+                    cmd = "sudo umount #{mountdir}"
+                    if !system(cmd)
+                        raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                    end
                 end
             end
 
