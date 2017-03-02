@@ -3,6 +3,7 @@ require 'tmpdir'
 require 'utilrb'
 require 'timeout'
 require 'time'
+require_relative 'debiancontrol'
 
 module Autoproj
     module Packaging
@@ -1470,6 +1471,8 @@ module Autoproj
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
 
+                        debcontrol = DebianControl.parse(File.open("debian/control"))
+
                         # Filter ruby versions out -- we assume chroot has installed all
                         # ruby versions
                         all_deps = options[:deps][:osdeps].select do |name|
@@ -1500,24 +1503,76 @@ module Autoproj
 
                         if not deps.empty?
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
-                            `sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
+                            #`sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
+                        end
+                        # parse and filter dependencies
+                        debcontrol.packages.each do |pkg|
+                            if pkg.has_key?("Depends")
+                                depends = pkg["Depends"].split(/,\s*/).map { |e| e.strip }
+                                depends.each do |dep|
+                                    if dep =~ /^ruby-(\S+)/
+                                        pkg_name = $1
+                                        release_name, is_osdep = native_dependency_name(pkg_name)
+                                        Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
+                                        if is_osdep
+                                            dep.replace(release_name)
+                                        else
+                                            dep.replace(debian_ruby_name(pkg_name))
+                                        end
+                                    end
+                                end
+                            else
+                                depends = Array.new
+                            end
+                            depends.concat deps
+                            pkg["Depends"] = depends.uniq.join(", ") unless depends.empty?
+                        end
+
+                        # parse and filter build dependencies
+                        if debcontrol.source.has_key?("Build-Depends")
+                            build_depends = debcontrol.source["Build-Depends"].split(/,\s*/).map { |e| e.strip }
+                            build_depends.each do |bdep|
+                                if bdep =~ /^ruby-(\S+)/
+                                    pkg_name = $1
+                                    release_name, is_osdep = native_dependency_name(pkg_name)
+                                    Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
+                                    if is_osdep
+                                        bdep.replace(release_name)
+                                    else
+                                        bdep.replace(debian_ruby_name(pkg_name))
+                                    end
+                                end
+                            end
+                        else
+                            build_depends = Array.new
                         end
 
                         # Add dh-autoreconf to build dependency
                         deps << "dh-autoreconf"
-                        `sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")}#" debian/control`
+                        build_depends.concat(deps)
+                        #`sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
 
                         dpkg_commit_changes("deb_extra_dependencies")
 
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
                         # Relaxing the required gem2deb version to allow for for multiplatform support
-                        `sed -i "s#^\\(^Build-Depends: .*\\)gem2deb (>= [0-9\.~]\\+)\\(, .*\\)#\\1 gem2deb\\2#g" debian/control`
-                        `sed -i "s#^\\(^Build-Depends: .*\\)debhelper (>= [0-9\.~]\\+)\\(, .*\\)#\\1 debhelper\\2#g" debian/control`
+                        #`sed -i "s#^\\(^Build-Depends: .*\\)gem2deb (>= [0-9\.~]\\+)\\(, .*\\)#\\1 gem2deb\\2#g" debian/control`
+                        #`sed -i "s#^\\(^Build-Depends: .*\\)debhelper (>= [0-9\.~]\\+)\\(, .*\\)#\\1 debhelper\\2#g" debian/control`
+                        build_depends.each do |bdep|
+                            bdep.replace("gem2deb") if bdep =~ /gem2deb.+/
+                            bdep.replace("debhelper") if bdep =~ /debhelper.+/
+                        end
                         dpkg_commit_changes("relax_version_requirements")
 
                         Packager.info "Change to 'any' architecture"
-                        `sed -i "s#Architecture: all#Architecture: any#" debian/control`
+                        #`sed -i "s#Architecture: all#Architecture: any#" debian/control`
+                        debcontrol.packages.each do |pkg|
+                          pkg["Architecture"] = "any"
+                        end
                         dpkg_commit_changes("any-architecture")
+
+                        debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
+                        File.write("debian/control", DebianControl::generate(debcontrol))
 
                         #-- e.g. for overlays use the original name in the control file
                         # which will be overwritten here
