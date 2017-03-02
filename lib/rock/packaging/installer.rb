@@ -179,12 +179,17 @@ module Autoproj
                         "Debian package directory: #{gem2deb_debs_dir} does not exist"
                 end
 
-                debfile = Dir.glob(File.join(gem2deb_debs_dir,"*.deb"))
-                if debfile.empty?
+                gem2deb_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb_*.deb"))
+                if gem2deb_debfile.empty?
                     raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
                         "Debian package directory: #{gem2deb_debs_dir} does not contain a deb file"
                 else
-                    debfile = File.basename(debfile.first)
+                    gem2deb_debfile = File.basename(gem2deb_debfile.first)
+                end
+
+                gem2deb_test_runner_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb-test-runner_*.deb"))
+                if !gem2deb_test_runner_debfile.empty?
+                    gem2deb_test_runner_debfile = File.basename(gem2deb_test_runner_debfile.first)
                 end
 
                 mountbase = "mnt"
