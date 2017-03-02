@@ -538,10 +538,23 @@ module Autoproj
                 @ruby_gems.uniq!
 
                 if target_platform.distribution_release_name
-                    # CASTXML vs. GCCXML
-                    if pkg.name =~ /typelib/ && !["xenial"].include?(target_platform.distribution_release_name)
-                        # remove the optional dependency on the rock-package of for all other except for xenial
-                        deps_rock_packages.delete(rock_release_prefix + "castxml")
+                    # CASTXML vs. GCCXML in typelib
+                    if pkg.name =~ /typelib/
+                        # add/remove the optional dependencies on the
+                        # rock-package depending on the target platform
+                        # there are typelib versions with and without the
+                        # optional depends. we know which platform requires
+                        # a particular dependency.
+                        if ["xenial"].include?(target_platform.distribution_release_name)
+                            deps_rock_packages.delete(rock_release_prefix + "castxml")
+                            deps_rock_packages.delete(rock_release_prefix + "gccxml")
+                            deps_osdeps_packages.push("castxml")
+                        else
+                            #todo: these need to checked on the other platforms
+                            deps_rock_packages.delete(rock_release_prefix + "castxml")
+                            deps_rock_packages.delete(rock_release_prefix + "gccxml")
+                            deps_osdeps_packages.push("gccxml")
+                        end
                     end
                     Packager.info "'#{pkg.name}' with (available) rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
 
