@@ -113,6 +113,17 @@ module Autoproj
                 chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
+            def self.image_install_debfile(distribution, architecture, debfile)
+                basepath = image_basepath(distribution, architecture)
+                begin
+                    chroot_cmd(basepath, "dpkg -i #{debfile}")
+                rescue
+                    #try again, fixing the dependencies beforehand.
+                    chroot_cmd(basepath, "apt-get -f install -y")
+                    chroot_cmd(basepath, "dpkg -i #{debfile}")
+                end
+            end
+
             # Get the base path to an image, e.g.
             #  base-trusty-amd64.cow
             def self.image_basepath(distribution, architecture)
@@ -201,9 +212,9 @@ module Autoproj
 
                 begin
                     if !gem2deb_test_runner_debfile.empty?
-                        chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{gem2deb_test_runner_debfile}")
+                        image_install_debfile(distribution, architecture, "/#{mountbase}/#{gem2deb_test_runner_debfile}")
                     end
-                    chroot_cmd(basepath,"dpkg -i /#{mountbase}/#{gem2deb_debfile}")
+                    image_install_debfile(distribution, architecture, "/#{mountbase}/#{gem2deb_debfile}")
                 ensure
                     cmd = "sudo umount #{mountdir}"
                     if !system(cmd)
