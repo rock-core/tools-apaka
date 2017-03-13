@@ -21,6 +21,7 @@ module Autoproj
         # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
+            DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
 
             # Package like tools/rtt etc. require a custom naming schema, i.e. the base name rtt should be used for tools/rtt
             attr_reader :package_aliases
@@ -1518,6 +1519,26 @@ module Autoproj
                             Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
                             #`sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
                         end
+
+                        if options.has_key?(:package_name)
+                            all_required_pkgs = all_required_packages([options[:package_name]])
+                            all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
+                            all_required_pkgs[:packages].each do |p|
+                                pdep = dependencies(p)
+                                pdep.keys.each do |k|
+                                    all_recursive_deps[k].concat pdep[k]
+                                end
+                            end
+                            all_recursive_deps.each_value { |a| a.uniq! }
+
+                            if !all_recursive_deps[:nonnative].empty?
+                                all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative])
+                            end
+                            recursive_deps = all_recursive_deps.values.flatten.uniq
+                        else
+                            recursive_deps = nil
+                        end
+
                         # parse and filter dependencies
                         debcontrol.packages.each do |pkg|
                             if pkg.has_key?("Depends")
@@ -1531,6 +1552,13 @@ module Autoproj
                                             dep.replace(release_name)
                                         else
                                             dep.replace(debian_ruby_name(pkg_name))
+                                        end
+                                    end
+                                    if !recursive_deps.nil?
+                                        dep =~ /^(\S+)/
+                                        t = $1
+                                        if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
+                                            Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
                                         end
                                     end
                                 end
@@ -1555,6 +1583,13 @@ module Autoproj
                                         bdep.replace(debian_ruby_name(pkg_name))
                                     end
                                 end
+                                if !recursive_deps.nil?
+                                    bdep =~ /^(\S+)/
+                                    t = $1
+                                    if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
+                                        Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
+                                    end
+                                end
                             end
                         else
                             build_depends = Array.new
@@ -1565,6 +1600,8 @@ module Autoproj
                         build_depends.concat(deps)
                         #`sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
 
+                        debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
+                        File.write("debian/control", DebianControl::generate(debcontrol))
                         dpkg_commit_changes("deb_extra_dependencies")
 
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
@@ -1575,6 +1612,8 @@ module Autoproj
                             bdep.replace("gem2deb") if bdep =~ /gem2deb.+/
                             bdep.replace("debhelper") if bdep =~ /debhelper.+/
                         end
+                        debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
+                        File.write("debian/control", DebianControl::generate(debcontrol))
                         dpkg_commit_changes("relax_version_requirements")
 
                         Packager.info "Change to 'any' architecture"
@@ -1582,10 +1621,8 @@ module Autoproj
                         debcontrol.packages.each do |pkg|
                           pkg["Architecture"] = "any"
                         end
-                        dpkg_commit_changes("any-architecture")
-
-                        debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
                         File.write("debian/control", DebianControl::generate(debcontrol))
+                        dpkg_commit_changes("any-architecture")
 
                         #-- e.g. for overlays use the original name in the control file
                         # which will be overwritten here
