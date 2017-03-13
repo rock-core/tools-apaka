@@ -12,6 +12,14 @@ module Autoproj
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
+            class ChrootCmdError < StandardError
+                attr_reader :status
+
+                def initialize(status)
+                    @status = status
+                end
+            end
+
             def self.create_webserver_config(document_root, packages_subfolder,
                                              release_prefix, target_path)
 
@@ -117,10 +125,14 @@ module Autoproj
                 basepath = image_basepath(distribution, architecture)
                 begin
                     chroot_cmd(basepath, "dpkg -i #{debfile}")
-                rescue
-                    #try again, fixing the dependencies beforehand.
-                    chroot_cmd(basepath, "apt-get -f install -y")
-                    chroot_cmd(basepath, "dpkg -i #{debfile}")
+                rescue ChrootCmdError => e
+                    if e.status.exited? && e.status.exitstatus == 1
+                        #try again, fixing the dependencies beforehand.
+                        chroot_cmd(basepath, "apt-get -f install -y")
+                        chroot_cmd(basepath, "dpkg -i #{debfile}")
+                    else
+                        raise
+                    end
                 end
             end
 
@@ -174,8 +186,14 @@ module Autoproj
 
             # Execute a command in the given chroot 
             def self.chroot_cmd(basepath, cmd)
-                if !system("sudo chroot #{basepath} /bin/bash -c \"#{cmd}\"")
-                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed for basepath: #{basepath}"
+                if !system("sudo chroot #{basepath} /bin/bash -c '#{cmd}'")
+                    # No need to do any extra processing on $?, sudo tries
+                    # hard to be transparent to the exit status, even
+                    # resignalling itself as needed.
+                    # The only non-transparent behaviour is when the execution
+                    # is not permitted(exitstatus is 1) or sudo encounters
+                    # an internal problem(exitstatus is 2)
+                    raise ChrootCmdError.new($?), "#{self} -- Execution: #{cmd} failed for basepath: #{basepath}"
                 end
             end
 
