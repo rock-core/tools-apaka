@@ -474,10 +474,12 @@ module Autoproj
                 end
             end
 
-            # Get all required rubygem including the dependencies of ruby gems
+            # Get all required packages that come with a given selection of packages
+            # including the dependencies of ruby gems
             #
             # This requires the current installation to be complete since
             # `gem dependency <gem-name>` has been selected to provide the information
+            # of ruby dependencies
             def all_required_packages(selection, with_rock_release_prefix = false)
                 all_packages = all_required_rock_packages(selection)
                 rock_packages = all_packages.map{ |pkg| debian_name(pkg, with_rock_release_prefix) }
@@ -531,6 +533,26 @@ module Autoproj
                     end
                 end
                 {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
+            end
+
+            # Compute all recursive dependencies for a given package
+            #
+            # return the complete list of dependencies required for a package with the given name
+            def recursive_dependencies(pkg_name)
+                all_required_pkgs = all_required_packages([pkg_name])
+                all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
+                all_required_pkgs[:packages].each do |p|
+                    pdep = dependencies(p)
+                    pdep.keys.each do |k|
+                        all_recursive_deps[k].concat pdep[k]
+                    end
+                end
+                all_recursive_deps.each_value { |a| a.uniq! }
+
+                if !all_recursive_deps[:nonnative].empty?
+                    all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative])
+                end
+                recursive_deps = all_recursive_deps.values.flatten.uniq
             end
 
             # Compute dependencies of this package
@@ -1573,20 +1595,7 @@ module Autoproj
                         end
 
                         if options.has_key?(:package_name)
-                            all_required_pkgs = all_required_packages([options[:package_name]])
-                            all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
-                            all_required_pkgs[:packages].each do |p|
-                                pdep = dependencies(p)
-                                pdep.keys.each do |k|
-                                    all_recursive_deps[k].concat pdep[k]
-                                end
-                            end
-                            all_recursive_deps.each_value { |a| a.uniq! }
-
-                            if !all_recursive_deps[:nonnative].empty?
-                                all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative])
-                            end
-                            recursive_deps = all_recursive_deps.values.flatten.uniq
+                            recursive_deps = recursive_dependencies(options[:package_name])
                         else
                             recursive_deps = nil
                         end
