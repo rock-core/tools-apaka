@@ -168,7 +168,6 @@ module Autoproj
                         @debian_version[pkg.name] += '~' + distribution
                     end
                 end
-                binding.pry
                 @debian_version[pkg.name]
             end
 
@@ -203,7 +202,6 @@ module Autoproj
                 svn_log_string = pkg.importer.run_svn(pkg, 'log', "-l 1")[1]
                 r = Regexp.new(/\|.*\|(.*)\(/)
                 time_of_last_commit = r.match(svn_log_string)[1]
-                binding.pry
                 Time.parse(time_of_last_commit.strip)
             end
 
