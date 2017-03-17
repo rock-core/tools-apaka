@@ -1851,7 +1851,7 @@ module Autoproj
                 # this assumes a proper setup of /usr/bin/ruby
                 setup +="ruby_ver=$(shell ruby --version)\n"
                 setup += "ruby_arch_dir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['archdir']\")\n"
-                setup += "ruby_libdir =$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['rubylibdir']\")\n"
+                setup += "ruby_libdir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['rubylibdir']\")\n"
 
                 setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
                 setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
