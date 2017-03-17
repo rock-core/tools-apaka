@@ -50,6 +50,8 @@ module Autoproj
             attr_reader :rock_release_platform
             attr_reader :rock_release_hierarchy
 
+            attr_accessor :package_set_order
+
             def initialize(options = Hash.new)
                 super()
 
@@ -69,6 +71,9 @@ module Autoproj
                 @gem_clean_alternatives = ['clean','dist:clean','clobber']
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
+
+                # Package set order
+                @package_set_order = []
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
 
@@ -263,12 +268,11 @@ module Autoproj
                 end
             end
 
-            # Compute all required packages from a given selection
-            # including the dependencies
-            #
-            # The order of the resulting package list is sorted
-            # accounting for interdependencies among packages
-            def all_required_rock_packages(selection)
+
+            # Compute all packages that are require and their corresponding
+            # reverse dependencies
+            # return [Hash<package_name, reverse_dependencies>]
+            def reverse_dependencies(selection)
                 Packager.info ("#{selection.size} packages selected")
                 Packager.debug "Selection: #{selection}}"
                 orig_selection = selection.clone
@@ -283,7 +287,12 @@ module Autoproj
                             pkg_name = @package_aliases[pkg_name]
                         end
 
-                        pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
+                        begin
+                            pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
+                        rescue Exception => e
+                            raise RuntimeError, "Autoproj::Packaging::Debian: failed to load manifest for '#{pkg_name}' -- #{e}"
+                        end
+
                         pkg = pkg_manifest.package
 
                         pkg.resolve_optional_dependencies
@@ -302,36 +311,81 @@ module Autoproj
                 Packager.info "all packages: #{all_packages.to_a}"
                 Packager.info "reverse deps: #{reverse_dependencies}"
 
+                reverse_dependencies
+            end
+
+            # Compute all required packages from a given selection
+            # including the dependencies
+            #
+            # The selection is a list of package names
+            #
+            # The order of the resulting package list is sorted
+            # accounting for interdependencies among packages
+            def all_required_rock_packages(selection)
+                reverse_dependencies = reverse_dependencies(selection)
+                sort_packages(reverse_dependencies)
+            end
+
+            def sort_packages(reverse_dependencies_hash)
+                # input is a hash, but we require a sorted list
+                # to deal with package set order, so we convert
+
+                reverse_dependencies = Array.new
+                if !package_set_order.empty?
+                    sorted_dependencies = Array.new
+                    sorted_pkgs = sort_by_package_sets(reverse_dependencies_hash.keys, package_set_order)
+                    sorted_pkgs.each do |pkg_name|
+                       pkg_dependencies = reverse_dependencies_hash[pkg_name]
+                       sorted_pkg_dependencies = sort_by_package_sets(pkg_dependencies, package_set_order)
+                       sorted_dependencies << [ pkg_name, sorted_pkg_dependencies ]
+                    end
+                    reverse_dependencies = sorted_dependencies
+                else
+                    reverse_dependencies_hash.each do |k,v|
+                        reverse_dependencies << [k,v]
+                    end
+                end
+
                 all_required_packages = Array.new
+                resolve_packages = []
                 while true
-                    if reverse_dependencies.empty?
-                        break
+                    if resolve_packages.empty?
+                        if reverse_dependencies.empty?
+                            break
+                        else
+                            # Pick the entries name
+                            resolve_packages = [ reverse_dependencies.first.first ]
+                        end
                     end
 
+                    # Contains the name of all handled packages
                     handled_packages = Array.new
-                    reverse_dependencies.each do |pkg_name,dependencies|
+                    resolve_packages.each do |pkg_name|
+                        name, dependencies = reverse_dependencies.find { |p| p.first == pkg_name }
                         if dependencies.empty?
                             handled_packages << pkg_name
                             pkg = Autoproj.manifest.package(pkg_name).autobuild
                             all_required_packages << pkg
+                        else
+                            resolve_packages += dependencies
+                            resolve_packages.uniq!
                         end
                     end
 
-                    handled_packages.each do |pkg|
-                        reverse_dependencies.delete(pkg)
+                    handled_packages.each do |pkg_name|
+                        resolve_packages.delete(pkg_name)
+                        reverse_dependencies.delete_if { |dep_name, _| dep_name == pkg_name }
                     end
 
-                    reverse_dependencies_refreshed = Hash.new
-                    reverse_dependencies.each do |pkg,dependencies|
+                    reverse_dependencies.map! do |pkg,dependencies|
                         dependencies.reject! { |x| handled_packages.include? x }
-                        reverse_dependencies_refreshed[pkg] = dependencies
+                        [pkg, dependencies]
                     end
-                    reverse_dependencies = reverse_dependencies_refreshed
 
                     Packager.debug "Handled: #{handled_packages}"
                     Packager.debug "Remaining: #{reverse_dependencies}"
-                    if handled_packages.empty? && !reverse_dependencies.empty?
-                        Packager.warn "Unhandled dependencies: #{reverse_dependencies}"
+                    if handled_packages.empty? && !resolve_packages
+                        Packager.warn "Unhandled dependencies: #{resolve_packages}"
                     end
                 end
 
@@ -1759,6 +1813,7 @@ module Autoproj
                 flags
             end
 
+            # Sort by package set order
             def sort_by_package_sets(packages, pkg_set_order)
                 priority_lists = Array.new
                 (0..pkg_set_order.size).each do |i|
@@ -1766,7 +1821,10 @@ module Autoproj
                 end
 
                 packages.each do |package|
-                    pkg = Autoproj.manifest.package(package.name)
+                    if !package.kind_of?(String)
+                        package = package.name
+                    end
+                    pkg = Autoproj.manifest.package(package)
                     pkg_set_name = pkg.package_set.name
 
                     if index = pkg_set_order.index(pkg_set_name)

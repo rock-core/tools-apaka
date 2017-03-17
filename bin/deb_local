@@ -213,6 +213,7 @@ if !is_gem
 end
 
 # Compute dependencies for a given selection
+packager.package_set_order = ["orocos.toolchain","rock.core","rock"]
 all_rock_packages = packager.all_required_packages selection
 rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
@@ -244,8 +245,6 @@ end
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
 else
-    rock_packages = packager.sort_by_package_sets(rock_packages, ["orocos.toolchain","rock.core","rock"])
-
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
     index = 0
