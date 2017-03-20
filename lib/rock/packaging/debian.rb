@@ -114,7 +114,7 @@ module Autoproj
             #
             def debian_name(pkg, with_rock_release_prefix = true)
                 if pkg.kind_of?(String)
-                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
+                    pkg = package_by_name(pkg)
                 end
                 name = pkg.name
 
