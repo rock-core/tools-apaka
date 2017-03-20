@@ -192,7 +192,13 @@ module Autoproj
                 distribution
             end
 
-            def prepare_source_dir(pkg, options = Hash.new)
+            # Prepare source directory and provide and pkg with update importer
+            # information
+            # return Autobuild package with update importer definition
+            # reflecting the local checkout
+            def prepare_source_dir(orig_pkg, options = Hash.new)
+                pkg = orig_pkg.dup
+
                 options, unknown_options = Kernel.filter_options options,
                     :existing_source_dir => nil,
                     :packaging_dir => File.join(@build_dir, debian_name(pkg))
@@ -267,6 +273,7 @@ module Autoproj
                         end
                     end
                 end
+                pkg
             end
 
             def self.obs_package_name(pkg)
