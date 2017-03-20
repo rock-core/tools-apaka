@@ -114,7 +114,7 @@ module Autoproj
             #
             def debian_name(pkg, with_rock_release_prefix = true)
                 if pkg.kind_of?(String)
-                    pkg = package_by_name(pkg)
+                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
                 end
                 name = pkg.name
 
@@ -815,7 +815,7 @@ module Autoproj
                 options[:architecture] ||= target_platform.architecture
                 options[:packaging_dir] = packaging_dir(pkg)
 
-                prepare_source_dir(pkg, options)
+                pkg = prepare_source_dir(pkg, options)
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
                     package_deb(pkg, options)
