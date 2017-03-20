@@ -171,7 +171,8 @@ module Autoproj
                 @debian_version[pkg.name]
             end
 
-            # extract the latest commit time for given importers
+            # Extract the latest commit time for given importers
+            # return a Time object
             def latest_commit_time(pkg)
                 importer = pkg.importer
                 if importer.kind_of?(Autobuild::Git)
@@ -1343,13 +1344,13 @@ module Autoproj
                                     end
                                     begin
                                         Timeout.timeout(60) do
-                                            puts 'waiting for gem fetch to end'
+                                            Packager.info 'waiting for gem fetch to end'
                                             Process.wait(pid)
-                                            puts 'gem fetch seems successful'
+                                            Packager.info 'gem fetch seems successful'
                                             error = false
                                         end
                                     rescue Timeout::Error
-                                        puts 'gem fetch not finished in time, killing it'
+                                        Packager.warn 'gem fetch not finished in time, killing it'
                                         Process.kill('TERM', pid)
                                         error = true
                                     end
