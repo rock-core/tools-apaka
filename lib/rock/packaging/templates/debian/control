@@ -8,7 +8,7 @@ Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
 %     build_dependencies << "cmake"
 % elsif package.class == Autobuild::Orogen
 %     build_dependencies << "cmake"
-%     build_dependencies << debian_name( findPackageByName("orogen") )
+%     build_dependencies << debian_name( package_by_name("orogen") )
 % elsif package.class == Autobuild::Autotools
 %     if package.using[:libtool]
 %         build_dependencies << "libtool"

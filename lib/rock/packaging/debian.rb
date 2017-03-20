@@ -249,7 +249,7 @@ module Autoproj
                 File.join(rock_base_install_directory, rock_release_name)
             end
 
-            def findPackageByName(package_name)
+            def package_by_name(package_name)
                 Autoproj.manifest.package(package_name).autobuild
             end
 
@@ -496,7 +496,7 @@ module Autoproj
 
                 # Add the ruby requirements for the current rock selection
                 all_packages.each do |pkg|
-                    pkg = findPackageByName(pkg.name)
+                    pkg = package_by_name(pkg.name)
                     deps = dependencies(pkg, with_rock_release_prefix)
                     deps[:nonnative].each do |dep, version|
                         gem_versions[dep] ||= Array.new
@@ -558,12 +558,12 @@ module Autoproj
             # Compute dependencies of this package
             # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
-                pkg = findPackageByName(pkg.name)
+                pkg = package_by_name(pkg.name)
 
                 pkg.resolve_optional_dependencies
                 this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
                 deps_rock_packages = pkg.dependencies.map do |dep_name|
-                    debian_name = debian_name( findPackageByName(dep_name), with_rock_release_prefix)
+                    debian_name = debian_name( package_by_name(dep_name), with_rock_release_prefix)
                     this_rock_release.packageReleaseName(debian_name)
                 end.sort
 
