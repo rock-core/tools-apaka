@@ -799,7 +799,6 @@ module Autoproj
                     :force_update => false,
                     :existing_source_dir => nil,
                     :patch_dir => nil,
-                    :package_set_dir => nil,
                     :distribution => nil, # allow to override global settings
                     :architecture => nil
 
@@ -825,11 +824,6 @@ module Autoproj
                     package_importer(pkg, options)
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
-                end
-                if !options[:package_set_dir].nil?
-                    osdeps_file = YAML.load_file(options[:package_set_dir] + "rock-osdeps.osdeps")
-                    osdeps_file[pkg.name] = {'debian,ubuntu' => debian_name(pkg)}
-                    File.open(options[:package_set_dir] + "rock-osdeps.osdeps", 'w+') {|f| f.write(osdeps_file.to_yaml) }
                 end
             end
 
