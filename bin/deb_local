@@ -219,36 +219,45 @@ rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
+failed_gem_builds = []
 if !required_gems || required_gems.empty?
     puts "# No Gems to be packaged"
 else
     puts "# Packaging Gems ---- #{required_gems}"
+    index = 0
     required_gems.each do |pkg|
-        is_osdeps = false
-        native_name, is_osdeps = packager.native_dependency_name(pkg)
-        if is_osdeps
-            Autoproj.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
-            next
-        end
+        begin
+            is_osdeps = false
+            native_name, is_osdeps = packager.native_dependency_name(pkg)
+            if is_osdeps
+                Autoproj.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
+                next
+            end
 
-        pkg_build_options = build_options.dup
-        pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
-        if version = required_gems_versions[pkg]
-            pkg_build_options[:package_version] = version
-        end
-        if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
-            build_locally(packager, pkg, pkg_build_options)
+            pkg_build_options = build_options.dup
+            pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
+            if version = required_gems_versions[pkg]
+                pkg_build_options[:package_version] = version
+            end
+            if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
+                index += 1
+                puts "    (#{index}) #{pkg}"
+                build_locally(packager, pkg, pkg_build_options)
+            end
+        rescue Exception => e
+            puts "    package: #{pkg} building failed"
+            failed_gem_builds << [index, pkg]
         end
     end
 end
 
+failed_pkg_builds = []
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
 else
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
     index = 0
-    failed_builds = []
     rock_packages.each do |pkg|
         begin
             if Autoproj.manifest.ignored?(pkg.name)
@@ -264,8 +273,10 @@ else
             end
         rescue Exception => e
             puts "    package: #{pkg.name} building failed"
-            failed_builds << [index, pkg.name]
+            failed_pkg_builds << [index, pkg.name]
         end
     end
-    puts "Building failed for: #{failed_builds}"
 end
+
+puts "Gem building failed for: #{failed_gem_builds}"
+puts "Pkg building failed for: #{failed_pkg_builds}"
