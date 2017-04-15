@@ -146,6 +146,9 @@ module Autoproj
             # Use dcontrol in order to check if the debian distribution contains
             # a given package for this architecture
             def debianContains(package, cache_results = true)
+                if ["armhf"].include?(architecture)
+                    raise RuntimeError, "TargetPlatfrom::debianContains: dcontrol does not support architecture: #{architecture}"
+                end
                 if !system("which dcontrol > /dev/null 2>&1")
                     raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
                 end
