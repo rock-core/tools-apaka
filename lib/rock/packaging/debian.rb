@@ -761,7 +761,7 @@ module Autoproj
             # same checksums on the same day when file content does not change
             #
             # Required to package orig.tar.gz
-            def tar_gzip(archive, tarfile, distribution = nil)
+            def tar_gzip(archive, tarfile, pkg_time, distribution = nil)
 
                 # Make sure no distribution information leaks into the package
                 if distribution and archive =~ /~#{distribution}/
@@ -773,12 +773,12 @@ module Autoproj
 
 
                 Packager.info "Tar archive: #{archive_plain_name} into #{tarfile}"
-                # Make sure that the tar files checksum remains the same, even when modification timestamp changes,
-                # i.e. use gzip --no-name and set the initial date to the current day
+                # Make sure that the tar files checksum remains the same by
+                # overriding the modification timestamps in the tarball with
+                # some external source timestamp and using gzip --no-name
                 #
-                # NOTE: What if building over midnight -- single point of failure
                 # exclude hidden files an directories
-                mtime=`date +#{Packaging::Config.timestamp_format}`
+                mtime = pkg_time.iso8601()
                 cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.*' --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
                 if system(cmd_tar)
@@ -815,21 +815,22 @@ module Autoproj
                 options[:architecture] ||= target_platform.architecture
                 options[:packaging_dir] = packaging_dir(pkg)
 
+                pkg_commit_time = latest_commit_time(pkg);
                 pkg = prepare_source_dir(pkg, options)
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
-                    package_deb(pkg, options)
+                    package_deb(pkg, pkg_commit_time, options)
                 elsif pkg.kind_of?(Autobuild::Ruby)
-                    package_ruby(pkg, options)
+                    package_ruby(pkg, pkg_commit_time, options)
                 elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) || pkg.kind_of?(Autobuild::ImporterPackage)
-                    package_importer(pkg, options)
+                    package_importer(pkg, pkg_commit_time, options)
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
                 end
             end
 
             # Create an deb package of an existing ruby package
-            def package_ruby(pkg, options)
+            def package_ruby(pkg, pkg_commit_time, options)
                 Packager.info "Package Ruby: '#{pkg.name}' with options: #{options}"
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
@@ -898,7 +899,7 @@ module Autoproj
                         options[:deps] = deps
                         options[:local_pkg] = true
                         options[:package_name] = pkg.name
-                        convert_gem(gem_final_path, options)
+                        convert_gem(gem_final_path, pkg_commit_time, options)
                         # register gem with the correct naming schema
                         # to make sure dependency naming and gem naming are consistent
                         @ruby_rock_gems << debian_name(pkg)
@@ -920,7 +921,7 @@ module Autoproj
                 end
             end
 
-            def package_deb(pkg, options)
+            def package_deb(pkg, pkg_commit_time, options)
                 Packager.info "Package Deb: '#{pkg.name}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
@@ -954,7 +955,7 @@ module Autoproj
                     if package_updated?(pkg)
 
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
-                        if !tar_gzip(File.basename(pkg.srcdir), tarball, distribution)
+                        if !tar_gzip(File.basename(pkg.srcdir), tarball, pkg_commit_time, distribution)
                             raise RuntimeError, "Debian: #{pkg.name} failed to create archive"
                         end
 
@@ -979,7 +980,7 @@ module Autoproj
                 end
             end
 
-            def package_importer(pkg, options)
+            def package_importer(pkg, pkg_commit_time, options)
                 Packager.info "Using package_importer for #{pkg.name}"
                 options, unknown_options = Kernel.filter_options options,
                     :distribution => nil,
@@ -1010,7 +1011,7 @@ module Autoproj
                         Packager.warn "Package: #{pkg.name} requires update #{pkg.srcdir}"
 
                         source_package_dir = File.basename(pkg.srcdir)
-                        if !tar_gzip(source_package_dir, tarball)
+                        if !tar_gzip(source_package_dir, tarball, pkg_commit_time)
                             raise RuntimeError, "Package: failed to tar directory #{source_package_dir}"
                         end
 
@@ -1363,7 +1364,7 @@ module Autoproj
                         if !gem_file_name
                             raise ArgumentError, "Could not retrieve a gem for #{gem_name} #{version} and options #{options}"
                         end
-                        convert_gem(gem_file_name, options)
+                        convert_gem(gem_file_name, nil, options)
                     else
                         Packager.info "gem: #{gem_name} up to date"
                     end
@@ -1401,7 +1402,7 @@ module Autoproj
             #        :architecture => nil
             #        :local_package => false
             #
-            def convert_gem(gem_path, options = Hash.new)
+            def convert_gem(gem_path, pkg_commit_time, options = Hash.new)
                 Packager.info "Convert gem: '#{gem_path}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
@@ -1478,9 +1479,24 @@ module Autoproj
                             Packager.info "Pre-packaging cleannup: no #{checksums_file} found"
                         end
 
+                        if not pkg_commit_time.nil?
+                            tgz_date = pkg_commit_time
+                        else
+                            files = Dir.glob("#{gem_versioned_name}/*.gemspec")
+                            if not files.empty?
+                                spec = Gem::Specification::load(files.first)
+                            end
+                            #todo: not reliable. need sth better.
+                            if not spec.nil? and not spec.date.nil?
+                                tgz_date = spec.date
+                            else
+                                tgz_date = Time.now
+                            end
+                        end
+
                         # Repackage
                         source_dir = gem_versioned_name
-                        if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz")
+                        if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz", tgz_date)
                             raise RuntimeError, "Failed to reformat original #{gem_versioned_name}.tar.gz for gem"
                         end
                         FileUtils.rm_rf source_dir
