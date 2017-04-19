@@ -56,7 +56,7 @@ DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
 # Disable ROCK Testing -- since running test on the OBS would require proper setting of path, etc. (see. data_processing/type_to_vector)
 DEB_CMAKE_EXTRA_FLAGS += -DROCK_TEST_ENABLED=OFF
 # Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
-DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=#{v}" unless "#{k}" == "RUBY_EXECUTABLE" }.join(" ") %>
+DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=\"#{v}\"" unless "#{k}" == "RUBY_EXECUTABLE" }.join(" ") %>
 include /usr/share/cdbs/1/class/cmake.mk
 
 # END CMAKE
