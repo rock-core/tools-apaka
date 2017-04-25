@@ -226,7 +226,7 @@ module Autoproj
 
             # Check is the given name refers to an existing gem
             # uses 'gem fetch' for testing
-            def self.isGem(gem_name)
+            def self.is_gem?(gem_name)
                 if gem_name =~ /\//
                     Autoproj.info "GemDependencies: invalid name -- cannot be a gem"
                     return false

@@ -193,7 +193,7 @@ selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
         Autoproj.debug "Package: #{name} is a known rock package"
         true
-    elsif Autoproj::Packaging::GemDependencies::isGem(name)
+    elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj.debug "Package: #{name} is a gem"
         packager.ruby_gems << [name, nil]
         false
