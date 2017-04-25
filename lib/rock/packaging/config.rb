@@ -63,7 +63,6 @@ module Autoproj
         #        tools/utilrb-ext: utilrb-ext
         #    optional: llvm,clang
         #    enforce_build: rgl
-        #    timestamp_format: '%Y-%m-%d'
         #rock_releases:
         #    master:
         #        url: http://rimres-gcs2-u/rock-releases/master-16.06
@@ -86,7 +85,6 @@ module Autoproj
             attr_reader :packages_aliases
             attr_reader :packages_optional
             attr_reader :packages_enforce_build
-            attr_reader :timestamp_format
 
 
             def reload_config(file)
@@ -136,7 +134,6 @@ module Autoproj
                 if @packages_enforce_build
                     @packages_enforce_build = @packages_enforce_build.split(",")
                 end
-                @timestamp_format = configuration["packages"]["timestamp_format"] || '%Y-%m-%d'
 
 
                 configuration["rock_releases"].each do |key, values|
@@ -193,10 +190,6 @@ module Autoproj
 
             def self.packages_enforce_build
                 instance.packages_enforce_build
-            end
-
-            def self.timestamp_format
-                instance.timestamp_format
             end
 
             def self.active_distributions
@@ -262,7 +255,6 @@ module Autoproj
                 packages_enforce_build.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end
-                s += "    timestamp format: #{timestamp_format}\n"
 
                 s += "rock releases:\n"
                 rock_releases.each do |key, values|
