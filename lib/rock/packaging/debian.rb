@@ -1479,19 +1479,41 @@ module Autoproj
                             Packager.info "Pre-packaging cleannup: no #{checksums_file} found"
                         end
 
+
+                        tgz_date = nil
                         if not pkg_commit_time.nil?
                             tgz_date = pkg_commit_time
                         else
-                            files = Dir.glob("#{gem_versioned_name}/*.gemspec")
-                            if not files.empty?
-                                spec = Gem::Specification::load(files.first)
+                            ['*.gemspec','metadata.yml'].each do |file|
+                                files = Dir.glob("#{gem_versioned_name}/#{file}")
+                                if not files.empty?
+                                    if files.first =~ /yml/
+                                        spec = YAML.load_file(files.first)
+                                    else
+                                        spec = Gem::Specification::load(files.first)
+                                    end
+                                else
+                                    next
+                                end
+
+                                #todo: not reliable. need sth better.
+                                if spec
+                                    if spec.date
+                                        tgz_date = spec.date
+                                        Packager.info "#{file} has associated time: using #{tgz_date} as timestamp"
+                                    else
+                                        Packager.warn "#{file} has no associated time: using current time for packaging"
+                                    end
+                                else
+                                    Packager.warn "#{file} is not a spec file"
+                                end
                             end
-                            #todo: not reliable. need sth better.
-                            if not spec.nil? and not spec.date.nil?
-                                tgz_date = spec.date
-                            else
-                                tgz_date = Time.now
-                            end
+                        end
+                        if !tgz_date
+                            tgz_date = Time.now
+                            Packager.warn "Gem conversion: could not extract time for gem: using current time: #{tgz_date}"
+                        else
+                            Packager.info "Gem conversion: successfully extracted time for gem: using: #{tgz_date}"
                         end
 
                         # Repackage
