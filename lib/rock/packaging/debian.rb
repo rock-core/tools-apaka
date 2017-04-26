@@ -1487,7 +1487,8 @@ module Autoproj
                         if not pkg_commit_time.nil?
                             tgz_date = pkg_commit_time
                         else
-                            ['*.gemspec','metadata.yml'].each do |file|
+                            # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
+                            ['metadata.yml', '*.gemspec',].each do |file|
                                 files = Dir.glob("#{gem_versioned_name}/#{file}")
                                 if not files.empty?
                                     if files.first =~ /yml/
@@ -1504,6 +1505,7 @@ module Autoproj
                                     if spec.date
                                         tgz_date = spec.date
                                         Packager.info "#{file} has associated time: using #{tgz_date} as timestamp"
+                                        break
                                     else
                                         Packager.warn "#{file} has no associated time: using current time for packaging"
                                     end
