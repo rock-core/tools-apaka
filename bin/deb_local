@@ -102,6 +102,7 @@ o_prepare_local_build = false
 o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
 o_distribution = nil
 o_architecture = nil
+o_dry_run = false
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
@@ -144,6 +145,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--distribution NAME","Target distribution release to build for, e.g. trusty") do |dist|
         build_options[:distribution] = dist
+    end
+    opt.on("--dry-run", "Show the packages that will be build") do
+        o_dry_run = true
     end
 end
 
@@ -242,7 +246,9 @@ else
             if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
                 index += 1
                 puts "    (#{index}) #{pkg}"
-                build_locally(packager, pkg, pkg_build_options)
+                if !o_dry_run
+                    build_locally(packager, pkg, pkg_build_options)
+                end
             end
         rescue Exception => e
             puts "    package: #{pkg} building failed"
@@ -269,7 +275,9 @@ else
             if !o_no_deps || pkg.name =~ /#{o_selected_packages.first}/
                 index += 1
                 puts "    (#{index}) #{pkg.name}"
-                build_locally(packager, pkg.name, pkg_build_options)
+                if !o_dry_run
+                    build_locally(packager, pkg.name, pkg_build_options)
+                end
             end
         rescue Exception => e
             puts "    package: #{pkg.name} building failed"
