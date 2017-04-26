@@ -1365,7 +1365,7 @@ module Autoproj
                         end
                         gem_file_name = Dir.glob(gem_globname).first
                         if !gem_file_name
-                            raise ArgumentError, "Could not retrieve a gem for #{gem_name} #{version} and options #{options}"
+                            raise ArgumentError, "Could not retrieve a gem '#{gem_name}', version '#{version}' and options '#{options}'"
                         end
                         convert_gem(gem_file_name, nil, options)
                     else
