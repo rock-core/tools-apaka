@@ -1320,6 +1320,9 @@ module Autoproj
                                                     break
                                                 end
                                             end
+                                        else
+                                            selected_gem = gem.first
+                                            Packager.info "Using gem from cache: #{selected_gem} since no version requirement is given (available: #{gem})"
                                         end
                                         if !selected_gem
                                             Packager.warn "Gem(s) in cache does not match the expected version: #{version}"
