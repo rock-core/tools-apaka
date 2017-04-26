@@ -223,6 +223,7 @@ rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
+succeeded_gem_builds = []
 failed_gem_builds = []
 if !required_gems || required_gems.empty?
     puts "# No Gems to be packaged"
@@ -249,14 +250,16 @@ else
                 if !o_dry_run
                     build_locally(packager, pkg, pkg_build_options)
                 end
+                succeeded_gem_builds << [index, pkg, version]
             end
         rescue Exception => e
             puts "    package: #{pkg} building failed"
-            failed_gem_builds << [index, pkg]
+            failed_gem_builds << [index, pkg, version]
         end
     end
 end
 
+succeeded_pkg_builds = []
 failed_pkg_builds = []
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
@@ -278,6 +281,7 @@ else
                 if !o_dry_run
                     build_locally(packager, pkg.name, pkg_build_options)
                 end
+                succeeded_pkg_builds << [index, pkg.name]
             end
         rescue Exception => e
             puts "    package: #{pkg.name} building failed"
@@ -286,5 +290,8 @@ else
     end
 end
 
+puts "Gem building succeeded for: #{succeeded_gem_builds}"
+puts "Pkg building succeeded for: #{succeeded_pkg_builds}"
+puts ""
 puts "Gem building failed for: #{failed_gem_builds}"
 puts "Pkg building failed for: #{failed_pkg_builds}"
