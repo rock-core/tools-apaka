@@ -113,6 +113,45 @@ class TestDebian < Minitest::Test
         FileUtils.rm_rf packager.build_dir
     end
 
+    def test_orig_tgz
+        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermannwebsocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus',['grape','0.16.2'],'grape_logging']
+
+        require 'digest'
+
+        gems.each do |gem, version|
+            if gem =~ /concurrent/
+                # skip specially handled gems
+                next
+            end
+            if version
+                system("gem install #{gem} -v #{version}")
+            else
+                system("gem install #{gem}")
+            end
+
+            sha256 = nil
+            ['jessie','trusty','xenial'].each do |distribution|
+                packager.convert_gems([ [gem, version] ], {:distribution => distribution,
+                                                :patch_dir => File.join(Autoproj.root_dir, "deb_patches")
+                                               })
+
+                files = Dir.glob(File.join(packager.build_dir,'**','*.orig.tar.gz') )
+                if files.empty?
+                    raise RuntimeError, "Failed to generate orig.tar.gz"
+                end
+                current_sha256 = Digest::SHA256.file files.first
+                if !sha256
+                    sha256 = current_sha256
+                else
+                    assert(sha256 == current_sha256, "File for distribution: #{distribution} -- with sha256: #{sha256}")
+                end
+
+                # Cleanup file to avoid redunant information
+                FileUtils.rm_rf packager.build_dir
+            end
+        end
+    end
+
 end
 
 class TestTargetPlatform < Minitest::Test
