@@ -96,3 +96,9 @@ include /usr/share/cdbs/1/class/cmake.mk
 <% else 
 raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
 end %>
+
+# http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml see post-configure actions
+configure/<%=debian_name(package,true) %>::
+	echo "Adapt -I to -isystem in pkgconfig files:"
+	find . -name '[a-zA-Z]*.pc'
+	find . -name '[a-zA-Z]*.pc' -exec sed -i 's#-I#-isystem#g' {} \;
