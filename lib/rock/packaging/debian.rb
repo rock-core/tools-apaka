@@ -833,6 +833,7 @@ module Autoproj
             # Create an deb package of an existing ruby package
             def package_ruby(pkg, pkg_commit_time, options)
                 Packager.info "Package Ruby: '#{pkg.name}' with options: #{options}"
+
                 # update dependencies in any case, i.e. independant if package exists or not
                 deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
@@ -1292,7 +1293,7 @@ module Autoproj
                     gem_globname = "#{packaging_dirname}/#{gem_name}*.gem"
                     if options[:force_update] or Dir.glob(gem_globname).empty?
                         Packager.debug "Converting gem: '#{gem_name}' to debian source package"
-                        if not File.directory?( packaging_dirname )
+                        if !File.directory?( packaging_dirname )
                             FileUtils.mkdir_p packaging_dirname
                         end
 
@@ -1482,7 +1483,7 @@ module Autoproj
                             tgz_date = pkg_commit_time
                         else
                             # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
-                            ['metadata.yml', '*.gemspec',].each do |file|
+                            ['*.gemspec', 'metadata.yml'].each do |file|
                                 files = Dir.glob("#{gem_versioned_name}/#{file}")
                                 if not files.empty?
                                     if files.first =~ /yml/
@@ -1491,15 +1492,18 @@ module Autoproj
                                         spec = Gem::Specification::load(files.first)
                                     end
                                 else
+                                    Packager.info "Gem conversion: file #{file} does not exist"
                                     next
                                 end
 
                                 #todo: not reliable. need sth better.
                                 if spec
                                     if spec.date
-                                        tgz_date = spec.date
-                                        Packager.info "#{file} has associated time: using #{tgz_date} as timestamp"
-                                        break
+                                        if !tgz_date || spec.date < tgz_date
+                                            tgz_date = spec.date
+                                            Packager.info "#{file} has associated time: using #{tgz_date} as timestamp"
+                                        end
+                                        Packager.info "#{file} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
                                     else
                                         Packager.warn "#{file} has no associated time: using current time for packaging"
                                     end
@@ -1513,6 +1517,15 @@ module Autoproj
                             Packager.warn "Gem conversion: could not extract time for gem: using current time: #{tgz_date}"
                         else
                             Packager.info "Gem conversion: successfully extracted time for gem: using: #{tgz_date}"
+                            files = Dir.glob("#{gem_versioned_name}/metadata.yml")
+                            if not files.empty?
+                                spec = YAML.load_file(files.first)
+                                spec.date = tgz_date
+                                File.open(files.first, "w") do |file|
+                                    Packager.info "Gem conversion: updating metadata.yml timestamp"
+                                    file.write spec.to_yaml
+                                end
+                            end
                         end
 
                         # Repackage
