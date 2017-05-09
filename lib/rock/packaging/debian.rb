@@ -444,6 +444,14 @@ module Autoproj
                     dependency_name = debian_name(pkg)
                 end
 
+                if !reprepro_has_package?(dependency_name, rock_release_name,
+                                               selected_platform.distribution_release_name,
+                                               selected_platform.architecture)
+
+                    Packager.warn "Package #{dependency_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
+                    return
+                end
+
                 # Get the operating system label
                 types, labels = Config.linux_distribution_releases[selected_platform.distribution_release_name]
                 types_string = types.join(",")

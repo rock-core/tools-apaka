@@ -494,14 +494,9 @@ Dir.chdir(packager.build_dir) do
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
-        update_package_list = []
-        if o_selected_packages.empty?
-            selection.each do |pkg_name|
-                update_package_list << pkg_name
-            end
-        else
-            update_package_list = o_selected_packages
-        end
+        all_packages = packager.all_required_packages(selection)
+        packages = all_packages[:packages].map{ |pkg| pkg.name }
+        update_package_list =  packages + all_packages[:gems]
 
         update_package_list.each do |pkg_name|
             pkg = Autoproj.manifest.package(pkg_name)
