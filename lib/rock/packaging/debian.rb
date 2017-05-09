@@ -837,7 +837,7 @@ module Autoproj
                 deps = dependencies(pkg)
                 Dir.chdir(pkg.srcdir) do
                     begin
-                        logname = "obs-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
+                        logname = "package-ruby-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
                         gem = FileList["pkg/*.gem"].first
                         if not gem
                             Packager.info "Debian: preparing gem generation in #{Dir.pwd}"
@@ -891,7 +891,7 @@ module Autoproj
                             Packager.info "Debian: renaming #{gem} to #{gem_rename}"
                         end
 
-                        Packager.debug "Debian: copy #{gem} to #{packaging_dir(pkg)}"
+                        Packager.info "Debian: copy #{File.join(Dir.pwd, gem)} to #{packaging_dir(pkg)}"
                         gem_final_path = File.join(packaging_dir(pkg), File.basename(gem_rename))
                         FileUtils.cp gem, gem_final_path
 

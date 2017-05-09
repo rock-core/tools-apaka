@@ -43,10 +43,16 @@ def build_locally(packager, pkg_name, options)
     arguments += " "
     arguments +="#{pkg_name}"
 
+    # Create logging directory
+    log_dir = File.join(packager.log_dir,"#{distribution}-#{architecture}")
+    if !File.directory?(log_dir)
+        FileUtils.mkdir_p log_dir
+    end
+
     puts "Debian packaging: '#{pkg_name}' with arguments #{arguments}"
     if options[:rebuild] || !packager.reprepro_has_package?(options[:debian_package_name], options[:release_name], distribution, architecture)
         puts "############### package #{pkg_name} ###################"
-        rebuild_log = File.join(packager.log_dir, "#{options[:debian_package_name]}-deb_local-rebuild.log")
+        rebuild_log = File.join(log_dir, "#{options[:debian_package_name]}-deb_local-rebuild.log")
         cmd = "deb_package --package --rebuild #{arguments} > #{rebuild_log}"
         puts "Execution of: #{cmd}"
         if !system(cmd)
@@ -55,7 +61,7 @@ def build_locally(packager, pkg_name, options)
         puts "############### build #{pkg_name} #####################"
         debian_package_dir = packager.packaging_dir(options[:debian_package_name])
         dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
-        options[:log_file] ||= File.join(packager.log_dir, "#{options[:debian_package_name]}-deb_local-build.log")
+        options[:log_file] ||= File.join(log_dir, "#{options[:debian_package_name]}-deb_local-build.log")
         puts "Building package from #{dsc_file} -- see log (#{options[:log_file]})"
 
         options[:result_dir] ||= debian_package_dir
@@ -83,7 +89,7 @@ def build_locally(packager, pkg_name, options)
 
         if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform
             puts "############### install #{pkg_name} #####################"
-            install_log = File.join(packager.log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
+            install_log = File.join(log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
             cmd = "deb_package --install #{arguments} > #{install_log}"
             puts "Execution of: #{cmd}"
             if !system(cmd)
