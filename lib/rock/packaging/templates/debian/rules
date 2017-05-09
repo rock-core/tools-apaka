@@ -15,6 +15,8 @@ include /usr/share/cdbs/1/rules/debhelper.mk
 extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
 DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_install_dir)/lib:$(rock_install_dir)/$(arch)
 
+rock_doc_install_dir=$(rock_install_dir)/share/doc/<%= debian_name %>
+
 pre-build::
 	echo "Detected:"
 	echo "   ruby version: $(ruby_ver)"
@@ -102,3 +104,35 @@ configure/<%=debian_name(package,true) %>::
 	echo "Adapt -I to -isystem in pkgconfig files:"
 	find . -name '[a-zA-Z]*.pc'
 	find . -name '[a-zA-Z]*.pc' -exec sed -i 's#-I#-isystem#g' {} \;
+
+###########################################
+# DOCS
+
+<% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen || package.class == Autobuild::Autotools %>
+
+# Build docs
+# This checks for Doxyfile and runs doxygen with that.
+# Otherwise, it tries the "doc" target.
+# Since docs are not critical, ignore failures('-' on recipe line start).
+# The make call is supposed to be invoked even if -t or -n is selected,
+# with the appropriate flags('+' on recipe line start)
+
+common-build-arch common-build-indep:: debian/stamp-rock-doc
+debian/stamp-rock-doc:
+	-+$(DEB_MAKE_INVOKE) doc
+	touch $@
+
+common-install-arch common-install-indep:: common-install-rock-doc
+common-install-rock-doc::
+	mkdir -p $(DEB_DESTDIR)$(rock_doc_install_dir)
+	$(if $(wildcard $(DEB_SRCDIR)/doc/html),-cp -r "$(DEB_SRCDIR)/doc/html" "$(DEB_DESTDIR)$(rock_doc_install_dir)",$(if $(wildcard $(DEB_SRCDIR)/doc),-cp -r "$(DEB_SRCDIR)/doc" "$(DEB_DESTDIR)$(rock_doc_install_dir)"))
+	$(if $(wildcard $(DEB_BUILDDIR)/doc/html),-cp -r "$(DEB_BUILDDIR)/doc/html" "$(DEB_DESTDIR)$(rock_doc_install_dir)",$(if $(wildcard $(DEB_BUILDDIR)/doc),-cp -r "$(DEB_BUILDDIR)/doc" "$(DEB_DESTDIR)$(rock_doc_install_dir)"))
+
+clean::
+	rm -f debian/stamp-rock-doc
+	rm -f $(DEB_SRCDIR)/doc/html
+
+<% end %>
+
+# END DOCS
+###########################################
