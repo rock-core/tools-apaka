@@ -13,7 +13,7 @@ module Autoproj
         TEMPLATES_DIR=File.expand_path(File.dirname(__FILE__),"templates")
         CACHE_DIR=File.join(BUILD_DIR,"cache")
 
-        EXCLUDED_DIRS_PREFIX = [".git",".travis","build","tmp","debian",".autobuild",".orogen"]
+        EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
         EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
 
         class Packager

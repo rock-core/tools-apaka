@@ -779,7 +779,8 @@ module Autoproj
                 #
                 # exclude hidden files an directories
                 mtime = pkg_time.iso8601()
-                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.*' --exclude CVS --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
+                # Exclude hidden files and directories at top level
+                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.+' --exclude-backups --exclude-vcs --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
                 if system(cmd_tar)
                     Packager.info "Package: successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} -- #{Dir.glob("**")}"
@@ -932,13 +933,6 @@ module Autoproj
 
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    # Exclude hidden files
-                    remove_excluded_files(pkg.srcdir, ["."])
-
-                    # Exclude directories that are known to create conflicts, including hidden directories
-                    remove_excluded_dirs(pkg.srcdir, ["debian","build",".[a-zA-Z]"])
-
-
                     sources_name = plain_versioned_name(pkg, distribution)
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
