@@ -46,6 +46,8 @@ module Autoproj
             attr_accessor :gem_clean_alternatives
             # List of alternative rake target names to create a gem
             attr_accessor :gem_creation_alternatives
+            # List of alternative rake and rdoc commands to generate a gems docs
+            attr_accessor :gem_doc_alternatives
 
             attr_reader :target_platform
             attr_reader :rock_release_platform
@@ -71,6 +73,8 @@ module Autoproj
                 # gems
                 @gem_clean_alternatives = ['clean','dist:clean','clobber']
                 @gem_creation_alternatives = ['gem','dist:gem','build']
+                # Rake and rdoc commands to try to create documentation
+                @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rdoc']
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
 
                 # Package set order
@@ -1790,6 +1794,32 @@ module Autoproj
                                 dpkg_commit_changes("adapt_rock_install_dir")
                             end
                         end
+
+                        # Documentation generation
+                        #
+                        # by default dh_ruby only installs files it finds in
+                        # the source tar (bin/ and lib/), but we can add our
+                        # own through dh_ruby.rake or dh_ruby.mk
+                        # dh_ruby.rake / dh_ruby.mk called like this:
+                        # <cmd> clean                 # clean
+                        # <cmd>                       # build
+                        # <cmd> install DESTDIR=<dir> # install
+                        # This all is described in detail in "man dh_ruby"
+
+                        dh_ruby_mk = <<-END
+rock_doc_install_dir=#{rock_install_directory}/share/doc/#{debian_ruby_name}
+
+build:
+	-#{@gem_doc_alternatives.join(" || ")}
+
+clean:
+#	-rm -rf doc
+
+install:
+	mkdir -p $(DESTDIR)/$(rock_doc_install_dir)
+	-cp -r doc $(DESTDIR)/$(rock_doc_install_dir)
+END
+                        File.write("debian/dh_ruby.mk", dh_ruby_mk)
 
                         ###################
                         # debian/changelog
