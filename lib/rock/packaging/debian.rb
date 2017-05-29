@@ -113,7 +113,7 @@ module Autoproj
             # The debian name of a package -- either
             # rock[-<release-name>]-<canonized-package-name>
             # or for ruby packages
-            # ruby[-<release-name>]-<canonized-package-name>
+            # rock[-<release-name>]-ruby-<canonized-package-name>
             # and the release-name can be avoided by setting
             # with_rock_release_prefix to false
             #
