@@ -235,7 +235,7 @@ module Autoproj
                 Dir.chdir("/tmp") do
                     outfile = "/tmp/gem-fetch-#{gem_name}"
                     if not File.exists?(outfile)
-                        if !system("gem fetch #{gem_name} > #{outfile}")
+                        if !system("gem fetch #{gem_name} > #{outfile} 2>&1")
                             return false
                         end
                     end
