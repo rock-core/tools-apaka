@@ -16,7 +16,6 @@ o_skip = false
 o_build_dir = nil
 o_dest_dir = nil
 o_patch_dir = nil
-o_all_packages = true
 o_rebuild = false
 o_src_dir = nil
 o_ps_dir = nil
@@ -386,7 +385,7 @@ sync_packages = []
 
 Dir.chdir(packager.build_dir) do
 
-    if o_package && o_all_packages
+    if o_package
         Autobuild.do_update = true
 
         packager.ruby_gems.each do |pkg_name, version|
