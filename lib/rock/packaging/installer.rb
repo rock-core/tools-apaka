@@ -287,9 +287,12 @@ module Autoproj
                 cmd += "--buildresult #{build_options[:result_dir]} "
                 cmd += "--debbuildopts -sa "
                 cmd += "--bindmounts #{File.join(DEB_REPOSITORY, release_prefix)} "
-                cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)}"
-                if build_options[:log_file]
-                    cmd += " 2>&1 > #{build_options[:log_file]}"
+                cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)} "
+                if log_file = build_options[:log_file]
+                    # \z to match the end of the string (compared to $ end of line)
+                    pbuilder_log_file = log_file.sub(/\.[^.]+\z/, "-pbuilder.log")
+                    cmd += "--logfile #{pbuilder_log_file} "
+                    cmd += " 2>&1 > #{log_file} "
                 end
 
                 if !system(cmd)
