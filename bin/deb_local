@@ -300,6 +300,9 @@ else
                 end
                 succeeded_gem_builds << [index, pkg, version]
             end
+        rescue SignalException => e
+            puts "Package building aborted by user"
+            exit 0
         rescue Exception => e
             puts "    package: #{pkg} building failed"
             failed_gem_builds << [index, pkg, version]
@@ -331,6 +334,9 @@ else
                 end
                 succeeded_pkg_builds << [index, pkg.name]
             end
+        rescue SignalException => e
+            puts "Package building aborted by user"
+            exit 0
         rescue Exception => e
             puts "    package: #{pkg.name} building failed"
             failed_pkg_builds << [index, pkg.name]
