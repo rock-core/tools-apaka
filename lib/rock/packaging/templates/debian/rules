@@ -130,7 +130,7 @@ common-install-rock-doc::
 
 clean::
 	rm -f debian/stamp-rock-doc
-	rm -f $(DEB_SRCDIR)/doc/html
+	rm -rf $(DEB_SRCDIR)/doc/html
 
 <% end %>
 
