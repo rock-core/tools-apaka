@@ -100,10 +100,10 @@ module Autoproj
                 reprepro.strip
             end
 
-            # Register the debian package for the given package and codename
+            # Register the debian package for the given package and codename (= distribution)
             # (=distribution)
             # using reprepro
-            def register_debian_package(debian_pkg_file, release_name, codename)
+            def register_debian_package(debian_pkg_file, release_name, codename, force = false)
                 reprepro_dir = File.join(deb_repository, release_name)
 
                 debian_package_dir = File.dirname(debian_pkg_file)
@@ -111,10 +111,8 @@ module Autoproj
                 debian_pkg_name = File.basename(debian_pkg_file).split("_").first
                 logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
-                cmd = "#{reprepro_bin} -V -b #{reprepro_dir} remove #{codename} #{debian_pkg_name} >> #{logfile} 2> #{logfile}"
-                Packager.info "Remove existing package '#{debian_pkg_name}': #{cmd}"
-                if !system(cmd)
-                    Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                if force
+                    deregister_debian_package(debian_pkg_name, release_name, codename, true)
                 end
 
                 Dir.chdir(debian_package_dir) do
@@ -131,6 +129,27 @@ module Autoproj
                     if !system(cmd)
                         raise RuntimeError, "Execution of #{cmd} failed -- see #{logfile}"
                     end
+                end
+            end
+
+            # Register a debian package
+            def deregister_debian_package(pkg_name_expression, release_name, codename, exactmatch = false)
+                reprepro_dir = File.join(deb_repository, release_name)
+                logfile = File.join(log_dir,"deregistration-reprepro-#{release_name}-#{codename}.log")
+
+                if exactmatch
+                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} remove #{codename} '#{pkg_name_expression}' >> #{logfile} 2>> #{logfile}"
+                else
+                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} removematched #{codename} '#{pkg_name_expression}' >> #{logfile} 2>> #{logfile}"
+                end
+                system("echo #{cmd} >> #{logfile}")
+                Packager.info "Remove existing package matching '#{pkg_name_expression}': #{cmd}"
+                if !system(cmd)
+                    Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                else
+                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} deleteunreferenced >> #{logfile} 2>> #{logfile}"
+                    system("echo #{cmd} >> #{logfile}")
+                    system(cmd)
                 end
             end
 

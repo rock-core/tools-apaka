@@ -109,6 +109,8 @@ o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
 o_distribution = nil
 o_architecture = nil
 o_dry_run = false
+o_register = false
+o_deregister = false
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
@@ -155,6 +157,12 @@ options = OptionParser.new do |opt|
     opt.on("--dry-run", "Show the packages that will be build") do
         o_dry_run = true
     end
+    opt.on("--register", "Register a package") do
+        o_register = true
+    end
+    opt.on("--deregister", "Deregister/remove a package") do
+        o_deregister = true
+    end
 end
 
 o_selected_packages = options.parse(ARGV)
@@ -187,6 +195,40 @@ if o_prepare_local_build
     end
 
     puts "Preparation completed"
+    exit 0
+end
+
+if o_register
+    if !build_options[:distribution]
+        puts "Please provide the distribution for deregistration"
+        exit 0
+    end
+    if !build_options[:release_name]
+        puts "Please provide the release_name for deregistration"
+        exit 0
+    end
+    o_selected_packages.each do |pkg_name_expression|
+        packager.register_debian_package("#{pkg_name_expression}",
+                                           build_options[:release_name],
+                                           build_options[:distribution])
+    end
+    exit 0
+end
+
+if o_deregister
+    if !build_options[:distribution]
+        puts "Please provide the distribution for deregistration"
+        exit 0
+    end
+    if !build_options[:release_name]
+        puts "Please provide the release_name for deregistration"
+        exit 0
+    end
+    o_selected_packages.each do |pkg_name_expression|
+        packager.deregister_debian_package("#{pkg_name_expression}",
+                                           build_options[:release_name],
+                                           build_options[:distribution])
+    end
     exit 0
 end
 
