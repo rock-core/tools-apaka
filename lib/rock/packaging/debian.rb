@@ -1788,8 +1788,8 @@ module Autoproj
                         `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
                         envsh = Regexp.escape(env_setup())
                         `sed -i '1 a #{envsh}' debian/rules`
-                        ruby_arch_env = Regexp.escape(ruby_arch_setup())
-                        `sed -i '1 a #{ruby_arch_env}' debian/rules`
+                        ruby_arch_env = ruby_arch_setup(true)
+                        `sed -i "1 a #{ruby_arch_env}" debian/rules`
                         `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
                         `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
 
@@ -1947,17 +1947,33 @@ END
                 priority_lists.flatten
             end
 
-            def ruby_arch_setup
+            # Compute the ruby arch setup
+            # - for passing through sed escaping is required
+            # - for using with file rendering no escaping is required
+            def ruby_arch_setup(do_escape = false)
                 Packager.info "Creating ruby env setup"
-                setup = "arch=$(shell gcc -print-multiarch)\n"
-                # Extract the default ruby version to build for on that platform
-                # this assumes a proper setup of /usr/bin/ruby
-                setup +="ruby_ver=$(shell ruby --version)\n"
-                setup += "ruby_arch_dir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['archdir']\")\n"
-                setup += "ruby_libdir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG['rubylibdir']\")\n"
+                if do_escape
+                    setup = Regexp.escape("arch=$(shell gcc -print-multiarch)\n")
+                    # Extract the default ruby version to build for on that platform
+                    # this assumes a proper setup of /usr/bin/ruby
+                    setup += Regexp.escape("ruby_ver=$(shell ruby --version)\n")
+                    setup += Regexp.escape("ruby_arch_dir=$(shell ruby -r rbconfig -e ") + "\\\"print RbConfig::CONFIG[\'archdir\']\\\")" + Regexp.escape("\n")
+                    setup += Regexp.escape("ruby_libdir=$(shell ruby -r rbconfig -e ") + "\\\"print RbConfig::CONFIG[\'rubylibdir\']\\\")" + Regexp.escape("\n")
 
-                setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
-                setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
+                    setup += Regexp.escape("rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n")
+                    setup += Regexp.escape("rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n")
+                else
+                    setup = "arch=$(shell gcc -print-multiarch)\n"
+                    # Extract the default ruby version to build for on that platform
+                    # this assumes a proper setup of /usr/bin/ruby
+                    setup += "ruby_ver=$(shell ruby --version)\n"
+                    setup += "ruby_arch_dir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG[\'archdir\']\")\n"
+                    setup += "ruby_libdir=$(shell ruby -r rbconfig -e \"print RbConfig::CONFIG[\'rubylibdir\']\")\n"
+
+                    setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
+                    setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
+                end
+                Packager.info "Setup is: #{setup}"
                 setup
             end
 
