@@ -876,6 +876,10 @@ module Autoproj
 
                             Packager.info "Debian: creating gem from package #{pkg.name} [#{File.join(log_dir, logname)}]"
 
+                            if patch_pkg_dir(pkg.name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
+                                Packager.info "Patched build files for ruby package before gem building: #{pkg}"
+                            end
+
                             # Allowed gem creation alternatives
                             gem_creation_success = false
                             @gem_creation_alternatives.each do |target|
@@ -952,9 +956,9 @@ module Autoproj
                     tarball = "#{sources_name}.orig.tar.gz"
 
                     if options[:patch_dir] && File.exists?(options[:patch_dir])
-                        patch_dir = File.join(options[:patch_dir], pkg.name)
-                        if patch_directory(pkg.srcdir, patch_dir)
+                        if patch_pkg_dir(pkg.name, options[:patch_dir], nil, pkg.srcdir)
                             dpkg_commit_changes("deb_autopackaging_overlay")
+                            Packager.warn "Patch applied to #{pkg.name}"
                         end
                     end
 
@@ -1382,15 +1386,39 @@ module Autoproj
                 end
             end
 
-            def patch_directory(target_dir, patch_dir)
+            # Patch a package (in the current working directory) using overlays found in the global_patch_dir
+            # Patches are searched for by the package name and the gem name
+            # Returns true if patches have been applied
+            def patch_pkg_dir(package_name, global_patch_dir, whitelist = nil, pkg_dir = Dir.pwd)
+                if global_patch_dir
+                    pkg_patch_dir = File.join(global_patch_dir, package_name)
+                    if File.exists?(pkg_patch_dir)
+                        return patch_directory(pkg_dir, pkg_patch_dir, whitelist)
+                    end
+                end
+            end
+
+            # Patch a target directory with the content in patch_dir
+            # a whitelist allows to patch only particular files, but by default all files can be patched
+            def patch_directory(target_dir, patch_dir, whitelist = nil)
                  if File.directory?(patch_dir)
-                     Packager.warn "Applying overlay (patch) from: #{patch_dir} to #{target_dir}"
-                     FileUtils.cp_r("#{patch_dir}/.", "#{target_dir}/.")
+                     Packager.warn "Applying overlay (patch) from: #{patch_dir} to #{target_dir}, whitelist: #{whitelist}"
+                     if !whitelist
+                        FileUtils.cp_r("#{patch_dir}/.", "#{target_dir}/.")
+                     else
+                        whitelist.each do |f|
+                            files = Dir["#{patch_dir}/#{f}"]
+                            if files.size == 1 && File.exists?(files.first)
+                                FileUtils.cp_r(files.first, "#{target_dir}/.")
+                                Packager.warn "Patch target with #{files.first}"
+                            end
+                        end
+                     end
 
                      # We need to commit if original files have been modified
                      # so add a commit
                      orig_files = Dir["#{patch_dir}/**"].reject { |f| f["#{patch_dir}/debian/"] }
-                     return if orig_files.size > 0
+                     return orig_files.size > 0
                  else
                      Packager.warn "No patch dir: #{patch_dir}"
                      return false
@@ -1447,6 +1475,7 @@ module Autoproj
                     else
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
                     end
+
 
                     ############
                     # Step 1: calling gem2tgz
@@ -1576,21 +1605,11 @@ module Autoproj
                     # Check if patching is needed
                     # To allow patching we need to split `gem2deb -S #{gem_name}`
                     # into its substeps
+                    #
                     Dir.chdir(debian_ruby_name) do
-                        # Only if a patch directory is given then update
-                        if patch_dir = options[:patch_dir]
-                            gem_name = ""
-                            if gem_versioned_name =~ /(.*)[-_][0-9\.]*/
-                                gem_name = $1
-                            end
 
-                            gem_patch_dir = File.join(patch_dir, gem_name)
-                            if options[:package_name] && !File.exists?(gem_patch_dir)
-                                gem_patch_dir = File.join(patch_dir, options[:package_name])
-                            end
-                            if patch_directory(Dir.pwd, gem_patch_dir)
-                                dpkg_commit_changes("deb_autopackaging_overlay")
-                            end
+                        if patch_pkg_dir(options[:package_name], options[:patch_dir])
+                            dpkg_commit_changes("deb_autopackaging_overlay")
                         end
 
                         ################
