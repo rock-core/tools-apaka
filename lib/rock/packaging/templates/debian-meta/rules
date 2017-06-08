@@ -1,0 +1,6 @@
+#!/usr/bin/make -f
+
+#this is all that's needed if there is nothing to compile
+
+include /usr/share/cdbs/1/rules/debhelper.mk
+

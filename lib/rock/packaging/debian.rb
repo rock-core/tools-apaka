@@ -22,6 +22,7 @@ module Autoproj
         # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
+            TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), File.dirname(__FILE__))
             DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
 
             # Package like tools/rtt etc. require a custom naming schema, i.e. the base name rtt should be used for tools/rtt
@@ -135,6 +136,23 @@ module Autoproj
                     else
                         "rock-" + canonize(name)
                     end
+                end
+            end
+
+            # The debian name of a meta package --
+            # rock[-<release-name>]-<canonized-package-name>
+            # and the release-name can be avoided by setting
+            # with_rock_release_prefix to false
+            #
+            def debian_meta_name(name, with_rock_release_prefix = true)
+                if @package_aliases.has_key?(name)
+                    name = @package_aliases[name]
+                end
+
+                if with_rock_release_prefix
+                    rock_release_prefix + canonize(name)
+                else
+                    "rock-" + canonize(name)
                 end
             end
 
@@ -770,6 +788,56 @@ module Autoproj
                 end
             end
 
+            def generate_debian_dir_meta(name, depends, options)
+                options, unknown_options = Kernel.filter_options options,
+                    :distribution => nil
+
+                distribution = options[:distribution]
+
+                existing_debian_dir = File.join("#{name}-0.1","debian-meta")
+                template_dir =
+                    if File.directory?(existing_debian_dir)
+                        existing_debian_dir
+                    else
+                        TEMPLATES_META
+                    end
+
+                dir = File.join("#{name}-0.1", "debian")
+                FileUtils.mkdir_p dir
+                debian_name = debian_meta_name(name)
+                debian_version = "0.1"
+                if distribution
+                  debian_version += '~' + distribution
+                end
+#                versioned_name = versioned_name(pkg, distribution)
+
+                with_rock_prefix = true
+                deps_rock_packages = depends
+                deps_osdeps_packages = []
+                deps_nonnative_packages = []
+                package = nil
+
+                Packager.info "Required OS Deps: #{deps_osdeps_packages}"
+                Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
+
+                Find.find(template_dir) do |path|
+                    next if File.directory?(path)
+                    template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                    begin
+                        rendered = template.result(binding)
+                    rescue
+                        puts "Error in #{path}:"
+                        raise
+                    end
+
+                    target_path = File.join(dir, Pathname.new(path).relative_path_from(Pathname.new(template_dir)).to_s)
+                    FileUtils.mkdir_p File.dirname(target_path)
+                    File.open(target_path, "w") do |io|
+                        io.write(rendered)
+                    end
+                end
+            end
+
             # A tar gzip version that reproduces
             # same checksums on the same day when file content does not change
             #
@@ -841,6 +909,37 @@ module Autoproj
                 else
                     raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
                 end
+            end
+
+            # Package the given meta package
+            # if an existing source directory is given this will be used
+            # for packaging, otherwise the package will be bootstrapped
+            def package_meta(name, depend, options = Hash.new)
+                options, unknown_options = Kernel.filter_options options,
+                    :force_update => false,
+                    :distribution => nil, # allow to override global settings
+                    :architecture => nil
+
+                debian_pkg_name = debian_meta_name(name)
+
+                if options[:force_update]
+                    dirname = packaging_dir(debian_pkg_name)
+                    if File.directory?(dirname)
+                        Packager.info "Debian: rebuild requested -- removing #{dirname}"
+                        FileUtils.rm_rf(dirname)
+                    end
+                end
+
+                options[:distribution] ||= target_platform.distribution_release_name
+                options[:architecture] ||= target_platform.architecture
+                pkg_dir = packaging_dir(debian_pkg_name)
+                options[:packaging_dir] = pkg_dir
+
+                if not File.directory?(pkg_dir)
+                    FileUtils.mkdir_p pkg_dir
+                end
+
+                package_deb_meta(name, depend, options)
             end
 
             # Create an deb package of an existing ruby package
@@ -989,6 +1088,35 @@ module Autoproj
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                     FileUtils.rm_rf( File.basename(pkg.srcdir) )
+                end
+            end
+
+            def package_deb_meta(name, depend, options)
+                Packager.info "Package Deb meta: '#{name}' with options: #{options}"
+
+                options, unknown_options = Kernel.filter_options options,
+                    :patch_dir => nil,
+                    :distribution => nil,
+                    :architecture => nil,
+                    :packaging_dir => nil
+                distribution = options[:distribution]
+
+                Packager.info "Changing into packaging dir: #{options[:packaging_dir]}"
+                #todo: no pkg.
+                Dir.chdir(options[:packaging_dir]) do
+                    # Generate the debian directory as a subdirectory of meta
+
+                    generate_debian_dir_meta(name, depend, options)
+
+                    # Run dpkg-source
+                    # Use the new tar ball as source
+                    if !system("dpkg-source", "-I", "-b", "#{name}-0.1")
+                        Packager.warn "Package: #{name} failed to perform dpkg-source -- #{Dir.entries("meta")}"
+                        raise RuntimeError, "Debian: #{name} failed to perform dpkg-source in meta"
+                    end
+                    ["#{name}.debian.tar.gz",
+                     "#{name}.orig.tar.gz",
+                     "#{name}.dsc"]
                 end
             end
 

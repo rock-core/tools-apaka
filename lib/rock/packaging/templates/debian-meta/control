@@ -1,0 +1,21 @@
+Source: <%= debian_name %>
+Section: science
+Priority: extra
+Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
+% dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
+Build-Depends: 
+Standards-Version: 3.9.2
+Homepage: http://rock-robotics.org
+#Vcs-Git: git://git.debian.org/collab-maint/bla.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/bla.git;a=summary
+
+Package: <%= debian_name %>
+Architecture: any
+<% runtime_dependencies = dependencies.dup %>
+<% if runtime_dependencies.empty?  %>
+Depends: ${shlibs:Depends}
+<% else %>
+Depends: ${shlibs:Depends}, <%= runtime_dependencies.join(", ") %>
+<% end %>
+Description: Meta package for Rock
+

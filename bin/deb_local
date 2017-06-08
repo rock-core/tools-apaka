@@ -14,6 +14,7 @@ def build_locally(packager, pkg_name, options)
         :result_dir => nil,
         :package_version => nil,
         :debian_package_name => pkg_name.gsub("/",'-'),
+        :meta_depends => nil,
         :rebuild => false,
         :install => false
 
@@ -41,7 +42,13 @@ def build_locally(packager, pkg_name, options)
     arguments += " "
     arguments += "--architectures #{architecture}"
     arguments += " "
-    arguments +="#{pkg_name}"
+    if options[:meta_depends]
+        arguments += "--meta #{pkg_name}"
+        arguments += " "
+        arguments += options[:meta_depends].join(" ")
+    else
+        arguments +="#{pkg_name}"
+    end
 
     # Create logging directory
     log_dir = File.join(packager.log_dir,"#{distribution}-#{architecture}")
@@ -105,6 +112,9 @@ o_skip = false
 o_verbose = false
 o_no_deps = false
 o_prepare_local_build = false
+o_custom_meta = nil
+o_meta_only = false
+o_build_meta = false
 o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
 o_distribution = nil
 o_architecture = nil
@@ -141,6 +151,15 @@ options = OptionParser.new do |opt|
     end
     opt.on("--no-deps","Ignore building dependencies") do
         o_no_deps = true
+    end
+    opt.on("--custom-meta NAME", "Build a meta package for all packages on the command line") do |name|
+        o_custom_meta = name
+    end
+    opt.on("--build-meta", "Build meta packages from autoproj meta packages found on the command line") do
+        o_build_meta = true
+    end
+    opt.on("--meta-only", "Build only meta packages(from --custom-meta and --build-meta)") do
+        o_meta_only = true
     end
     opt.on("--prepare", "Prepare the local building of packages") do
         o_prepare_local_build = true
@@ -271,6 +290,20 @@ rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
+meta_packages = {}
+if o_custom_meta
+    meta_packages[o_custom_meta] = rock_packages.collect {|pkg| pkg.name } +
+                            required_gems
+end
+
+if o_build_meta
+    o_selected_packages.each do |sel|
+        if Autoproj.manifest.metapackages.has_key?(sel)
+            meta_packages[sel] = Autoproj.manifest.metapackages[sel].packages.collect { |pkg| pkg.name }
+        end
+    end
+end
+
 succeeded_gem_builds = []
 failed_gem_builds = []
 if !required_gems || required_gems.empty?
@@ -305,6 +338,8 @@ else
             exit 0
         rescue Exception => e
             puts "    package: #{pkg} building failed"
+            puts e.message
+            puts e.backtrace.join("\n")
             failed_gem_builds << [index, pkg, version]
         end
     end
@@ -314,6 +349,8 @@ succeeded_pkg_builds = []
 failed_pkg_builds = []
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
+elsif o_meta_only
+    puts "# Creating only the meta package requested"
 else
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
@@ -339,13 +376,39 @@ else
             exit 0
         rescue Exception => e
             puts "    package: #{pkg.name} building failed"
+            puts e.message
+            puts e.backtrace.join("\n")
             failed_pkg_builds << [index, pkg.name]
         end
     end
 end
 
+succeeded_meta_builds = []
+failed_meta_builds = []
+
+index = 0
+meta_packages.each do |pkg_name,depend_names|
+    puts "# Creating meta package #{pkg_name} --- #{depend_names}"
+
+    begin
+        pkg_build_options = build_options.dup
+        pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
+        pkg_build_options[:meta_depends] = depend_names
+        index += 1
+        puts "    (#{index}) #{pkg_name}"
+        build_locally(packager, pkg_name, pkg_build_options)
+    rescue Exception => e
+        puts "    package: #{pkg_name} building failed"
+        puts e.message
+        puts e.backtrace.join("\n")
+        failed_meta_builds << [index, pkg_name]
+    end
+end
+
 puts "Gem building succeeded for: #{succeeded_gem_builds}"
 puts "Pkg building succeeded for: #{succeeded_pkg_builds}"
+puts "Meta building succeeded for: #{succeeded_meta_builds}"
 puts ""
 puts "Gem building failed for: #{failed_gem_builds}"
 puts "Pkg building failed for: #{failed_pkg_builds}"
+puts "Meta building failed for: #{failed_meta_builds}"

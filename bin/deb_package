@@ -28,6 +28,7 @@ o_job_remove_all = false
 o_flow = nil
 o_ruby_job = nil
 o_package = false
+o_meta = nil
 o_overwrite = false
 o_osdeps_list_dir = nil
 o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
@@ -148,6 +149,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--package", "Create choosen packages") do
         o_package = true
+    end
+    opt.on("--meta NAME", "Create a meta package for the chosen packages") do |name|
+        o_meta = name
     end
     opt.on("--overwrite", "Overwrite existing Jenkins Jobs (History-loss!)") do
         o_overwrite = true
@@ -434,6 +438,59 @@ Dir.chdir(packager.build_dir) do
                 raise
             rescue Exception => e
                 puts "failed to package #{pkg.name}: #{e.message} #{e.backtrace}"
+                next
+            end
+        end
+    end
+
+    if o_meta
+        #get the package names
+        meta_depend_packages = []
+
+        packager.ruby_gems.each do |pkg_name, version|
+            debian_pkg_name = packager.debian_ruby_name(pkg_name)
+            puts "ruby gem: #{debian_pkg_name}"
+            meta_depend_packages << debian_pkg_name
+        end
+
+        selection.each_with_index do |pkg_name, i|
+            if pkg = Autoproj.manifest.package(pkg_name)
+                pkg = pkg.autobuild
+                Autoproj.warn "Package: #{pkg_name} is a known rock package"
+            else
+                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                next
+            end
+
+            debian_pkg_name = packager.debian_name(pkg)
+            meta_depend_packages << debian_pkg_name
+        end
+
+        #create the meta package
+        if meta_depend_packages.empty?
+            puts "Meta package #{o_meta} requested with no dependencies"
+        elsif pkg = Autoproj.manifest.package(o_meta)
+            puts "Meta package #{o_meta} is a known rock package"
+        else
+            #maybe let the packager handle the name conversion
+            debian_pkg_name = packager.debian_meta_name(o_meta)
+            puts "Meta package #{o_meta} is going to be called #{debian_pkg_name}"
+            puts "Package #{debian_pkg_name} depends on #{meta_depend_packages.join(", ")}"
+
+            #now create a source package with only the debian directory.
+            #we need to populate it with at least
+            #changelog, compat, control, copyright, rules
+
+            begin
+                packager.package_meta(o_meta, meta_depend_packages, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :package_set_dir => o_ps_dir})
+
+                sync_packages << debian_pkg_name
+            rescue Interrupt
+                raise
+            rescue Exception => e
+                puts "failed to package #{o_meta}:"
+                puts "#{e.message}"
+                e.backtrace.each { |b| puts b }
                 next
             end
         end
