@@ -1608,8 +1608,10 @@ module Autoproj
                     #
                     Dir.chdir(debian_ruby_name) do
 
-                        if patch_pkg_dir(options[:package_name], options[:patch_dir])
-                            dpkg_commit_changes("deb_autopackaging_overlay")
+                        if not options[:package_name].nil?
+                            if patch_pkg_dir(options[:package_name], options[:patch_dir])
+                                dpkg_commit_changes("deb_autopackaging_overlay")
+                            end
                         end
 
                         ################
