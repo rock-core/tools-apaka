@@ -974,8 +974,7 @@ module Autoproj
 
                     if options[:patch_dir] && File.exists?(options[:patch_dir])
                         if patch_pkg_dir(pkg.name, options[:patch_dir], nil, pkg.srcdir)
-                            dpkg_commit_changes("deb_autopackaging_overlay")
-                            Packager.warn "Patch applied to #{pkg.name}"
+                            Packager.warn "Overlay patch applied to #{pkg.name}"
                         end
                     end
 
