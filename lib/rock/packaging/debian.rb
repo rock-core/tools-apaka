@@ -1407,6 +1407,9 @@ module Autoproj
             # Returns true if patches have been applied
             def patch_pkg_dir(package_name, global_patch_dir, whitelist = nil, pkg_dir = Dir.pwd)
                 if global_patch_dir
+                    if !package_name
+                        raise ArgumentError, "DebianPackager::patch_pkg_dir: package name is required, but was nil"
+                    end
                     pkg_patch_dir = File.join(global_patch_dir, package_name)
                     if File.exists?(pkg_patch_dir)
                         return patch_directory(pkg_dir, pkg_patch_dir, whitelist)
@@ -1624,7 +1627,8 @@ module Autoproj
                     #
                     Dir.chdir(debian_ruby_name) do
 
-                        if patch_pkg_dir(options[:package_name], options[:patch_dir])
+                        package_name = options[:package_name] || gem_base_name
+                        if patch_pkg_dir(package_name, options[:patch_dir])
                             dpkg_commit_changes("deb_autopackaging_overlay")
                         end
 
