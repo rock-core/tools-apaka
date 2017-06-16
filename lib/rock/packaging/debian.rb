@@ -729,9 +729,28 @@ module Autoproj
 
             def generate_debian_dir(pkg, dir, options)
                 options, unknown_options = Kernel.filter_options options,
-                    :distribution => nil
+                    :distribution => nil,
+                    :override_existing => true
 
                 distribution = options[:distribution]
+                Dir.chdir(dir) do
+                    dirs = Dir.glob("**/debian")
+                    if options[:override_existing]
+                        dirs.each do |d|
+                            Packager.info "Removing existing debian directory: #{d} -- in #{Dir.pwd}"
+                            FileUtils.rm_rf d
+                        end
+                    end
+
+                    dirs = Dir.glob("**/.*")
+                    if options[:override_existing]
+                        dirs.each do |d|
+                            Packager.info "Removing existing hidden files: #{d} -- in #{Dir.pwd}"
+                            FileUtils.rm_rf d
+                        end
+                    end
+                end
+                dir = File.join(dir, "debian")
 
                 existing_debian_dir = File.join(pkg.srcdir,"debian")
                 template_dir =
@@ -741,7 +760,6 @@ module Autoproj
                         TEMPLATES
                     end
 
-                dir = File.join(dir, "debian")
                 FileUtils.mkdir_p dir
                 package = pkg
                 debian_name = debian_name(pkg)
@@ -793,7 +811,7 @@ module Autoproj
                 # exclude hidden files an directories
                 mtime = pkg_time.iso8601()
                 # Exclude hidden files and directories at top level
-                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.+' --exclude-backups --exclude-vcs --exclude debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
+                cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.+' --exclude-backups --exclude-vcs --exclude '**/debian' --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
                 if system(cmd_tar)
                     Packager.info "Package: successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} -- #{Dir.glob("**")}"
