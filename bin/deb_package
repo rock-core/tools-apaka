@@ -17,7 +17,7 @@ o_build_dir = nil
 o_dest_dir = nil
 o_patch_dir = nil
 o_rebuild = false
-o_src_dir = nil
+o_use_remote_repository = false
 o_ps_dir = nil
 o_job = false
 o_job_name = nil
@@ -82,12 +82,8 @@ options = OptionParser.new do |opt|
         o_rebuild = true
     end
 
-    opt.on("--src-dir DIR","don't import but use existing source directory") do |dir|
-        o_src_dir = dir
-        if !File.directory?(o_src_dir)
-            puts "Given source directory '#{o_src_dir}' does not exist"
-            exit -1
-        end
+    opt.on("--use-remote-repository","don't use local repository, but import from known remote") do
+        o_use_remote_repository = true
     end
     opt.on("--package-set-dir DIR", String, "Directory with the binary-package set to update") do |dir|
         o_ps_dir = dir
@@ -426,7 +422,11 @@ Dir.chdir(packager.build_dir) do
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir})
+                options = {:force_update => o_rebuild, :patch_dir => o_patch_dir, :package_set_dir => o_ps_dir}
+                if !o_use_remote_repository
+                    options[:existing_source_dir] = pkg.srcdir
+                end
+                packager.package(pkg, options)
 
                 debian_pkg_name = packager.debian_name(pkg)
                 sync_packages << debian_pkg_name

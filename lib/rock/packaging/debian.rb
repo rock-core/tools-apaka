@@ -812,7 +812,6 @@ module Autoproj
             def package(pkg, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :force_update => false,
-                    :existing_source_dir => nil,
                     :patch_dir => nil,
                     :distribution => nil, # allow to override global settings
                     :architecture => nil
@@ -830,7 +829,7 @@ module Autoproj
                 options[:packaging_dir] = packaging_dir(pkg)
 
                 pkg_commit_time = latest_commit_time(pkg);
-                pkg = prepare_source_dir(pkg, options)
+                pkg = prepare_source_dir(pkg, options.merge(unknown_options))
 
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
                     package_deb(pkg, pkg_commit_time, options)
