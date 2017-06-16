@@ -100,10 +100,13 @@ raise "debian/rules: cannot handle package type #{package.class} for #{package.n
 end %>
 
 # http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml see post-configure actions
+# replace all entries of -I with -I and -isystem in order to 
+#   (a) guarantee that pkgconfig can still knowns the include directory (-I)
+#   (b) the include directory is actually accounted for as system include directory (-isystem)
+# Account for the fact, that configure is called multiple times e.g. revert changes first, then reapply
 configure/<%=debian_name(package,true) %>::
 	echo "Adapt -I to -isystem in pkgconfig files:"
-	find . -name '[a-zA-Z]*.pc'
-	find . -name '[a-zA-Z]*.pc' -exec sed -i 's#-I#-isystem#g' {} \;
+	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Adapting {}; sed -i 's#-isystem[^ ]\+##g' {}; sed -i 's#-I\([^ ]\+\)#-I\1 -isystem\1#g' {}; sed -i 's#[ ]\+# #g' {}; cat {};" \;
 
 ###########################################
 # DOCS
