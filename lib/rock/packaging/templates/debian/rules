@@ -35,7 +35,7 @@ pre-build::
 <% if package.class == Autobuild::Orogen %>
 	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
-	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= pkg.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
+	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= package.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
 	#echo "Current directory including oroGen generated files"
 	#find . 
 <% end %>

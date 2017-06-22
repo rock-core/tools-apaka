@@ -152,7 +152,9 @@ module Autoproj
                     Installer.info "Image #{basepath} already exists"
                 else
                     cmd = "sudo DIST=#{distribution} ARCH=#{architecture} "
-                    cmd+= "cowbuilder --create --basepath #{basepath}"
+                    cmd+= "cowbuilder --create --basepath #{basepath} "
+                    cmd+= "--distribution #{distribution} "
+                    cmd+= "--architecture #{architecture}"
 
                     if !system(cmd)
                         raise RuntimeError, "#{self} failed to create base-image: #{basepath}"
@@ -176,6 +178,8 @@ module Autoproj
 
                 # Set default ruby version
                 if ["trusty"].include?(distribution)
+                    #make sure a usable ruby version is installed
+                    image_install_pkg(distribution, architecture, "ruby2.0")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/gem.divert /usr/bin/gem")

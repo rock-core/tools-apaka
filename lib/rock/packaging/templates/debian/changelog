@@ -2,18 +2,18 @@
 
   * Package automatically built using autoproj-package debian
 <%begin%>
-<%if pkg.importer.kind_of?(Autobuild::Git) %>
-<% status = pkg.importer.status(pkg) %>
-   * repository: <%= pkg.importer.repository_id %>
-   * branch: <%= pkg.importer.current_branch(pkg) %>
+<%if package.importer.kind_of?(Autobuild::Git) %>
+<% status = package.importer.status(package) %>
+   * repository: <%= package.importer.repository_id %>
+   * branch: <%= package.importer.current_branch(package) %>
    * commit: <%= status.common_commit %>
-   * tag: <%= pkg.importer.tag %>
-<%elsif pkg.importer.kind_of?(Autobuild::SVN) %>
-   * repository: <%= pkg.importer.repository_id %>
-   * revision: <%= pkg.importer.revision %>
-<%elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) %>
-    * url: <%= pkg.importer.url %>
-    * filename: <%= pkg.importer.filename %>
+   * tag: <%= package.importer.tag %>
+<%elsif package.importer.kind_of?(Autobuild::SVN) %>
+   * repository: <%= package.importer.repository_id %>
+   * revision: <%= package.importer.revision %>
+<%elsif package.importer.kind_of?(Autobuild::ArchiveImporter) %>
+    * url: <%= package.importer.url %>
+    * filename: <%= package.importer.filename %>
 <%end%>
 <%rescue Exception => e%>
     * the repository and commit information could not be extracted
