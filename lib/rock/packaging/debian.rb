@@ -433,6 +433,7 @@ module Autoproj
 
                 pkg_name = nil
                 dependency_name = nil
+                is_osdep = nil
                 if pkg.is_a? String
                     # Handling of ruby and other gems
                     pkg_name = pkg
@@ -449,12 +450,16 @@ module Autoproj
                     dependency_name = debian_name(pkg)
                 end
 
-                if !reprepro_has_package?(dependency_name, rock_release_name,
+                if !is_osdep
+                    if !reprepro_has_package?(dependency_name, rock_release_name,
                                                selected_platform.distribution_release_name,
                                                selected_platform.architecture)
 
-                    Packager.warn "Package #{dependency_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
-                    return
+                        Packager.warn "Package #{dependency_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
+                        return
+                    end
+                else
+                    Packager.info "Package #{dependency_name} will be provided through an osdep for #{selected_platform}"
                 end
 
                 # Get the operating system label
