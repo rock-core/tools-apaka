@@ -1,14 +1,15 @@
 #! /usr/bin/env ruby
+# coding: utf-8
 require 'rock/packaging'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
 lock_file = File.open("/tmp/deb_package.lock",File::CREAT)
-Autoproj.debug "deb_package: waiting for execution lock"
+Autoproj::Packaging.debug "deb_package: waiting for execution lock"
 lock_time = Time.now
 lock_file.flock(File::LOCK_EX)
 lock_wait_time_in_s = Time.now - lock_time
-Autoproj.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
+Autoproj::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
 
 o_architectures = []
 o_distributions = []
@@ -336,10 +337,10 @@ selection = Autoproj::CmdLine.initialize_and_load(nil)
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
-        Autoproj.warn "Package: #{name} is a known rock package"
+        Autoproj::Packaging.warn "Package: #{name} is a known rock package"
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
-        Autoproj.warn "Package: #{name} is a gem"
+        Autoproj::Packaging.warn "Package: #{name} is a gem"
         packager.ruby_gems << [name, o_package_version]
         false
     else
@@ -347,7 +348,7 @@ selected_rock_packages = o_selected_packages.select do |name|
     end
 end
 
-Autoproj.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+Autoproj::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
@@ -374,7 +375,7 @@ end
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
     if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
-        Autoproj.info "Package: #{pkg_name} is in selection"
+        Autoproj::Packaging.info "Package: #{pkg_name} is in selection"
         true
     else
         false
@@ -389,7 +390,7 @@ Dir.chdir(packager.build_dir) do
         Autobuild.do_update = true
 
         packager.ruby_gems.each do |pkg_name, version|
-            Autoproj.info "Converting ruby gem: '#{pkg_name}'"
+            Autoproj::Packaging.info "Converting ruby gem: '#{pkg_name}'"
             # Fails to be detected as normal package
             # so we assume it is a ruby gem
             packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir})
@@ -401,9 +402,9 @@ Dir.chdir(packager.build_dir) do
         selection.each_with_index do |pkg_name, i|
             if pkg = Autoproj.manifest.package(pkg_name)
                 pkg = pkg.autobuild
-                Autoproj.warn "Package: #{pkg_name} is a known rock package"
+                Autoproj::Packaging.warn "Package: #{pkg_name} is a known rock package"
             else
-                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
 
@@ -638,7 +639,7 @@ Dir.chdir(packager.build_dir) do
                 if pkg = Autoproj.manifest.package(pkg_name)
                     pkg = pkg.autobuild
                 else
-                    Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                    Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                     next
                 end
 
@@ -651,7 +652,7 @@ Dir.chdir(packager.build_dir) do
                 end
             end
         rescue Exception => e
-            Autoproj.warn "Local build failed: #{e}"
+            Autoproj::Packaging.warn "Local build failed: #{e}"
             exit 10
         end
     end
@@ -673,7 +674,7 @@ Dir.chdir(packager.build_dir) do
                 if pkg = Autoproj.manifest.package(pkg_name)
                     pkg = pkg.autobuild
                 else
-                    Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                    Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                     next
                 end
                 debian_name = packager.debian_name(pkg, true)

@@ -193,7 +193,7 @@ build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir
 else
-    Autoproj.warn "Patch directory: #{o_patch_dir} does not exist"
+    Autoproj::Packaging.warn "Patch directory: #{o_patch_dir} does not exist"
     exit 0
 end
 
@@ -265,13 +265,13 @@ puts "Building local package for: #{packager.target_platform}"
 
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
-        Autoproj.debug "Package: #{name} is a known rock package"
+        Autoproj::Packaging.debug "Package: #{name} is a known rock package"
         true
     elsif Autoproj.manifest.metapackages.has_key?(sel)
         Autoproj::Packaging.debug "Package: #{name} is a known rock meta package"
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
-        Autoproj.debug "Package: #{name} is a gem"
+        Autoproj::Packaging.debug "Package: #{name} is a gem"
         packager.ruby_gems << [name, nil]
         false
     else
@@ -279,7 +279,7 @@ selected_rock_packages = o_selected_packages.select do |name|
     end
 end
 
-Autoproj.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{packager.ruby_gems}"
+Autoproj::Packaging.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{packager.ruby_gems}"
 
 # When a ruby gem shall be packaged directly there are no selected rock
 # packages, but selected ony
@@ -341,7 +341,7 @@ else
             is_osdeps = false
             native_name, is_osdeps = packager.native_dependency_name(pkg)
             if is_osdeps
-                Autoproj.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
+                Autoproj::Packaging.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
                 next
             end
 
@@ -387,7 +387,7 @@ else
     index = 0
     rock_packages.each do |pkg|
         begin
-            if Autoproj.manifest.ignored?(pkg.name)
+            if Autoproj::Packaging.manifest.ignored?(pkg.name)
                 puts "    package is on the ignore list"
                 next
             end

@@ -1,6 +1,8 @@
 require 'autoproj'
 require 'autobuild'
 
+require 'utilrb/logger'
+
 module Autoproj
     module Packaging
         # Directory for temporary data to
@@ -15,6 +17,8 @@ module Autoproj
 
         EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
         EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
+
+        extend Logger::Root("Packaging", Logger::INFO)
 
         class Packager
             extend Logger::Root("Packager", Logger::INFO)

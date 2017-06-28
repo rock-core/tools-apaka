@@ -197,7 +197,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         # Opendeps to process and check whether they and their dependencies are
         # available
         openlist_osdeps = packager.osdeps
-        Autoproj.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
+        Autoproj::Packaging.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
 
         # List of which osdeps which already have dealt with
         blacklist_osdeps = []
@@ -231,7 +231,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             # Check if the osdeps package is already available, otherwise add it
             # to the current obs project
             if not available_packages.include?(osdeps_name)
-                Autoproj.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
+                Autoproj::Packaging.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
                 if !File.directory?(Autoproj::Packaging::OBS_BUILD_DIR)
                     FileUtils.mkdir(Autoproj::Packaging::OBS_BUILD_DIR)
                 end
@@ -244,7 +244,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                     if system("obs_ubuntu_universe_package #{osdeps_name}")
                         update_osdeps << osdeps_name
                     else 
-                        Autoproj.warn "OBS: universe package for osdeps '#{osdeps_name}' could not be found"
+                        Autoproj::Packaging.warn "OBS: universe package for osdeps '#{osdeps_name}' could not be found"
                     end
                     blacklist_osdeps << osdeps_name
                     add_osdeps = Autoproj::Packaging::OBS.resolve_dependencies(osdeps_name)
@@ -267,7 +267,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                     if File.directory?(name)
                         Autoproj::Packaging::OBS.update_dir(obs_configuration.osdeps_target_directory(o_obs_dir),Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
                     else
-                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
+                        Autoproj::Packaging.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
                     end
                 end
             end
