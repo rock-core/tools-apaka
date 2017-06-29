@@ -925,7 +925,13 @@ module Autoproj
                 if pkg.kind_of?(Autobuild::CMake) || pkg.kind_of?(Autobuild::Autotools)
                     package_deb(pkg, pkg_commit_time, options)
                 elsif pkg.kind_of?(Autobuild::Ruby)
-                    package_ruby(pkg, pkg_commit_time, options)
+                    # Import bundles since they do not need to be build and
+                    # they do not follow the typicall structure required for gem2deb
+                    if pkg.name =~ /bundles/
+                        package_importer(pkg, pkg_commit_time, options)
+                    else
+                        package_ruby(pkg, pkg_commit_time, options)
+                    end
                 elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter) || pkg.kind_of?(Autobuild::ImporterPackage)
                     package_importer(pkg, pkg_commit_time, options)
                 else
