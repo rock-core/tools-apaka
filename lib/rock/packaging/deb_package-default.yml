@@ -39,11 +39,10 @@ distributions:
         labels: 9.0,sid,default
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial
-    #amd64: trusty,vivid,xenial,jessie
-    #i386:  trusty,vivid,xenial,jessie
-    #armel: jessie
-    #armhf: jessie
+    amd64: trusty,xenial,jessie
+    i386:  trusty,xenial,jessie
+    armel: jessie
+    armhf: jessie
 packages:
     aliases:
         tools/rtt: rtt
