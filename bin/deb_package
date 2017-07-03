@@ -2,6 +2,7 @@
 # coding: utf-8
 require 'rock/packaging'
 require 'rock/packaging/packager'
+require 'rock/packaging/packageinfoask'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
@@ -330,6 +331,7 @@ if !o_architectures.empty?
     options[:architecture] = o_architectures.first
 end
 packager = Autoproj::Packaging::Debian.new(options)
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 
 # First load autoproj so that we can query what is a in rock defined
 # package and what is not

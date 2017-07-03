@@ -1,5 +1,6 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
+require 'rock/packaging/packageinfoask'
 
 o_skip_existing = false
 o_obs_dir = nil
@@ -143,6 +144,7 @@ selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
 
 packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 
 packager.prepare
 

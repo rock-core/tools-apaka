@@ -4,6 +4,7 @@ require 'optparse'
 require 'autoproj'
 require 'autobuild'
 require 'rock/packaging'
+require 'rock/packaging/packageinfoask'
 require 'tempfile'
 require 'yaml'
 
@@ -200,6 +201,8 @@ else
 end
 
 packager = Autoproj::Packaging::Debian.new(build_options)
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+
 if o_prepare_local_build
     puts "Preparing local building of packages"
     Autoproj::Packaging::Installer.install_all_requirements
