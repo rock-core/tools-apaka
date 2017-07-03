@@ -125,7 +125,7 @@ module Autoproj
                     if platform.contains(package_name)
                         return ancestor_release_name
                     else
-                        Packager.info "#{self} ancestor #{platform} does not contain #{package_name}"
+                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{package_name}"
                     end
                 end
                 return ""
@@ -159,7 +159,7 @@ module Autoproj
                 outfile = cacheFilename(package, distribution_release_name, architecture)
                 if !File.exists?(outfile)
                     cmd = "dcontrol #{package}@#{architecture}/#{distribution_release_name} > #{outfile} 2> #{outfile}"
-                    Packager.info "TargetPlatform::debianContains: #{cmd}"
+                    Autoproj::Packaging.info "TargetPlatform::debianContains: #{cmd}"
                     if !system(cmd)
                         return false
                     end
@@ -179,7 +179,7 @@ module Autoproj
             def contains(package, cache_results = true)
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
-                    Packager.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
+                    Autoproj::Packaging.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
                     return false
                 end
                 release_name = distribution_release_name
@@ -193,7 +193,7 @@ module Autoproj
                     begin
                         return debianContains(package, true)
                     rescue Exception => e
-                        Packager.warn "#{e} -- falling back to http query-based package verification"
+                        Autoproj::Packaging.warn "#{e} -- falling back to http query-based package verification"
                         urls << File.join(debian,release_name,architecture,package,"download")
                     end
                 elsif TargetPlatform::isRock(release_name)
@@ -221,7 +221,7 @@ module Autoproj
                         # query already done sometime before
                     else
                         cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
-                        Packager.info "TargetPlatform::contains: query with #{cmd}"
+                        Autoproj::Packaging.info "TargetPlatform::contains: query with #{cmd}"
                         system(cmd)
                     end
 
@@ -259,16 +259,16 @@ module Autoproj
                                 # allow all users to read and write file
                                 FileUtils.chmod 0666, file
                             rescue
-                                Packager.info "TargetPlatform::contains could not change permissions for #{file}"
+                                Autoproj::Packaging.info "TargetPlatform::contains could not change permissions for #{file}"
                             end
                         end
                     end
                 end
 
                 if result
-                    Packager.info "TargetPlatform #{to_s} contains #{package}"
+                    Autoproj::Packaging.info "TargetPlatform #{to_s} contains #{package}"
                 else
-                    Packager.info "TargetPlatform #{to_s} does not contain #{package}"
+                    Autoproj::Packaging.info "TargetPlatform #{to_s} does not contain #{package}"
                 end
                 result
             end
