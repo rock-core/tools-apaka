@@ -140,7 +140,7 @@ module Autoproj
             end
 
             def cacheFilename(package, release_name, architecture)
-                File.join(Autoproj::Packaging::CACHE_DIR,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
+                File.join(Autoproj::Packaging.cache_dir,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
             end
 
             # Use dcontrol in order to check if the debian distribution contains
@@ -153,8 +153,8 @@ module Autoproj
                     raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
                 end
 
-                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
-                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                if !File.exist?(Autoproj::Packaging.cache_dir)
+                    FileUtils.mkdir_p Autoproj::Packaging.cache_dir
                 end
                 outfile = cacheFilename(package, distribution_release_name, architecture)
                 if !File.exists?(outfile)
@@ -206,8 +206,8 @@ module Autoproj
                 errorfile = nil
                 result = true
 
-                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
-                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                if !File.exist?(Autoproj::Packaging.cache_dir)
+                    FileUtils.mkdir_p Autoproj::Packaging.cache_dir
                 end
 
                 urls.each do |url|

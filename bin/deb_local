@@ -189,6 +189,8 @@ end
 
 o_selected_packages = options.parse(ARGV)
 
+Autoproj::Packaging.root_dir = Autoproj.root_dir
+
 build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir

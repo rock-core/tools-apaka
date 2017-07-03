@@ -7,31 +7,43 @@ module Autoproj
     module Packaging
         # Directory for temporary data to
         # validate obs_packages
-        BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
-        LOG_DIR=File.join(BUILD_DIR, "logs")
-        LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
         WWW_ROOT = File.join("/var/www")
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
         TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
-        CACHE_DIR=File.join(BUILD_DIR,"cache")
 
         EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
         EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
 
         extend Logger::Root("Packaging", Logger::INFO)
 
+        def self.root_dir= (dir)
+            @root_dir = dir
+        end
+
+        def self.root_dir
+            @root_dir
+        end
+
+        def self.build_dir
+            File.join(root_dir, "build", "rock-packager")
+        end
+        
+        def self.cache_dir
+            File.join(build_dir, "cache")
+        end
+        
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
-            attr_accessor :build_dir
-            attr_accessor :log_dir
-            attr_accessor :local_tmp_dir
-            attr_accessor :deb_repository
+            attr_reader :build_dir
+            attr_reader :log_dir
+            attr_reader :local_tmp_dir
+            attr_reader :deb_repository
 
             def initialize
-                @build_dir = BUILD_DIR
-                @log_dir = LOG_DIR
-                @local_tmp_dir = LOCAL_TMP
+                @build_dir = Autoproj::Packaging.build_dir
+                @log_dir = File.join(@build_dir, "logs")
+                @local_tmp_dir = File.join(@build_dir, ".rock_packager")
                 @deb_repository = DEB_REPOSITORY
             end
 

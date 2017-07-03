@@ -112,6 +112,8 @@ class OBSConfiguration
     end
 end
 
+Autoproj::Packaging.root_dir = Autoproj.root_dir
+
 obs_configuration = OBSConfiguration.new
 ################################################################################
 

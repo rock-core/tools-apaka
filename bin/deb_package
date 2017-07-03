@@ -1,6 +1,7 @@
 #! /usr/bin/env ruby
 # coding: utf-8
 require 'rock/packaging'
+require 'rock/packaging/packager'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
@@ -10,6 +11,8 @@ lock_time = Time.now
 lock_file.flock(File::LOCK_EX)
 lock_wait_time_in_s = Time.now - lock_time
 Autoproj::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
+
+Autoproj::Packaging.root_dir = Autoproj.root_dir
 
 o_architectures = []
 o_distributions = []
