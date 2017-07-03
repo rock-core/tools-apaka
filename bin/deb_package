@@ -337,6 +337,16 @@ Autoproj.silent = true
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
 
+#if the name matches a move target directory, convert to package name
+o_selected_packages = o_selected_packages.map do |name|
+    Autoproj.manifest.moved_packages.each do |pkg_name,target_dir|
+        if name == target_dir
+            name = pkg_name
+        end
+    end
+    name
+end
+
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
@@ -354,12 +364,6 @@ end
 Autoproj::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
 selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
-
-# Add all aliases, e.g. for tools/rtt --> rtt
-# basically for all packages that have been relocated using Autoproj's move_package command
-Autoproj::Packaging::Config.packages_aliases.each do |pkg_name, alias_name|
-    packager.add_package_alias pkg_name, alias_name
-end
 
 packager.prepare
 

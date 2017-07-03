@@ -25,9 +25,6 @@ module Autoproj
             TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), File.dirname(__FILE__))
             DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
 
-            # Package like tools/rtt etc. require a custom naming schema, i.e. the base name rtt should be used for tools/rtt
-            attr_reader :package_aliases
-
             attr_reader :existing_debian_directories
 
             # List of gems, which need to be converted to debian packages
@@ -66,7 +63,6 @@ module Autoproj
                 @ruby_gems = Array.new
                 @ruby_rock_gems = Array.new
                 @osdeps = Array.new
-                @package_aliases = Hash.new
                 @debian_version = Hash.new
                 @rock_base_install_directory = "/opt/rock"
 
@@ -106,11 +102,6 @@ module Autoproj
                 name
             end
 
-            # Add a package alias, e.g. for rtt --> tools/rtt
-            def add_package_alias(pkg_name, pkg_alias)
-                @package_aliases[pkg_name] = pkg_alias
-            end
-
             # The debian name of a package -- either
             # rock[-<release-name>]-<canonized-package-name>
             # or for ruby packages
@@ -123,10 +114,6 @@ module Autoproj
                     raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
                 end
                 name = pkg.name
-
-                if @package_aliases.has_key?(name)
-                    name = @package_aliases[name]
-                end
 
                 if pkg.kind_of?(Autobuild::Ruby)
                     debian_ruby_name(name, with_rock_release_prefix)
@@ -145,10 +132,6 @@ module Autoproj
             # with_rock_release_prefix to false
             #
             def debian_meta_name(name, with_rock_release_prefix = true)
-                if @package_aliases.has_key?(name)
-                    name = @package_aliases[name]
-                end
-
                 if with_rock_release_prefix
                     rock_release_prefix + canonize(name)
                 else
@@ -307,10 +290,6 @@ module Autoproj
                 while true
                     all_packages_refresh = all_packages.dup
                     all_packages.each do |pkg_name|
-                        if @package_aliases.has_key?(pkg_name)
-                            pkg_name = @package_aliases[pkg_name]
-                        end
-
                         begin
                             pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
                         rescue Exception => e

@@ -55,12 +55,6 @@ module Autoproj
         #    #armel: jessie
         #    #armhf: jessie
         #packages:
-        #    aliases:
-        #        tools/rtt: rtt
-        #        tools/rtt-typelib: rtt-typelib
-        #        tools/typelib: typelib
-        #        tools/utilrb: utilrb
-        #        tools/utilrb-ext: utilrb-ext
         #    optional: llvm,clang
         #    enforce_build: rgl
         #rock_releases:
@@ -82,7 +76,6 @@ module Autoproj
 
             attr_reader :architectures
 
-            attr_reader :packages_aliases
             attr_reader :packages_optional
             attr_reader :packages_enforce_build
 
@@ -125,7 +118,6 @@ module Autoproj
                 architectures.each do |arch,allowed_releases|
                     @architectures[arch] = allowed_releases.gsub(' ','').split(",")
                 end
-                @packages_aliases = configuration["packages"]["aliases"] || Hash.new
                 @packages_optional = configuration["packages"]["optional"] || ""
                 if @packages_optional
                     @packages_optional = @packages_optional.split(",")
@@ -178,10 +170,6 @@ module Autoproj
 
             def self.architectures
                 instance.architectures
-            end
-
-            def self.packages_aliases
-                instance.packages_aliases
             end
 
             def self.packages_optional
@@ -243,10 +231,6 @@ module Autoproj
                 end
                 s += "active linux distribution releases: #{active_distributions}\n"
                 s+= "packages:\n"
-                s += "    aliases:\n"
-                packages_aliases.each do |pkg_name, a|
-                    s += "        #{pkg_name} --> #{a}\n"
-                end
                 s += "    optional packages:\n"
                 packages_optional.each do |pkg_name|
                     s += "        #{pkg_name}\n"
