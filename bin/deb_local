@@ -389,7 +389,7 @@ else
     index = 0
     rock_packages.each do |pkg|
         begin
-            if Autoproj::Packaging.manifest.ignored?(pkg.name)
+            if Autoproj.manifest.ignored?(pkg.name)
                 puts "    package is on the ignore list"
                 next
             end
