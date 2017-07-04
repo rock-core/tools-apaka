@@ -425,7 +425,7 @@ module Autoproj
                 end
 
                 pkg_name = nil
-                dependency_name = nil
+                dependency_debian_name = nil
                 is_osdep = nil
                 if pkg.is_a? String
                     # Handling of ruby and other gems
@@ -433,26 +433,26 @@ module Autoproj
                     release_name, is_osdep = native_dependency_name(pkg_name, selected_platform)
                     Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
                     if is_osdep
-                        dependency_name = release_name
+                        dependency_debian_name = release_name
                     else
-                        dependency_name = debian_ruby_name(pkg_name)
+                        dependency_debian_name = debian_ruby_name(pkg_name)
                     end
                 else
                     pkg_name = pkg.name
                     # Handling of rock packages
-                    dependency_name = debian_name(pkg)
+                    dependency_debian_name = debian_name(pkg)
                 end
 
                 if !is_osdep
-                    if !reprepro_has_package?(dependency_name, rock_release_name,
-                                               selected_platform.distribution_release_name,
-                                               selected_platform.architecture)
+                    if !reprepro_has_package?(dependency_debian_name, rock_release_name,
+                                              selected_platform.distribution_release_name,
+                                              selected_platform.architecture)
 
-                        Packager.warn "Package #{dependency_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
+                        Packager.warn "Package #{dependency_debian_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
                         return
                     end
                 else
-                    Packager.info "Package #{dependency_name} will be provided through an osdep for #{selected_platform}"
+                    Packager.info "Package #{dependency_debian_name} will be provided through an osdep for #{selected_platform}"
                 end
 
                 # Get the operating system label
@@ -463,7 +463,7 @@ module Autoproj
                 Packager.debug "Existing definition: #{list[pkg_name]}"
                 pkg_definition = list[pkg_name] || Hash.new
                 distributions = pkg_definition[types_string] || Hash.new
-                distributions[labels_string] = dependency_name
+                distributions[labels_string] = dependency_debian_name
                 pkg_definition[types_string] = distributions
 
                 list[pkg_name] = pkg_definition
