@@ -1044,7 +1044,9 @@ module Autoproj
                         options[:deps] = deps
                         options[:local_pkg] = true
                         options[:package_name] = pkg.name
-                        convert_gem(gem_final_path, pkg_commit_time, options)
+                        options[:latest_commit_time] = pkg_commit_time
+                        options[:recursive_deps] = recursive_dependencies(pkg.name)
+                        convert_gem(gem_final_path, options)
                         # register gem with the correct naming schema
                         # to make sure dependency naming and gem naming are consistent
                         @ruby_rock_gems << debian_name(pkg)
@@ -1535,7 +1537,7 @@ module Autoproj
                         if !gem_file_name
                             raise ArgumentError, "Could not retrieve a gem '#{gem_name}', version '#{version}' and options '#{options}'"
                         end
-                        convert_gem(gem_file_name, nil, options)
+                        convert_gem(gem_file_name, options)
                     else
                         Packager.info "gem: #{gem_name} up to date"
                     end
@@ -1600,7 +1602,7 @@ module Autoproj
             #        :architecture => nil
             #        :local_package => false
             #
-            def convert_gem(gem_path, pkg_commit_time, options = Hash.new)
+            def convert_gem(gem_path, options = Hash.new)
                 Packager.info "Convert gem: '#{gem_path}' with options: #{options}"
 
                 options, unknown_options = Kernel.filter_options options,
@@ -1609,7 +1611,11 @@ module Autoproj
                     :distribution => target_platform.distribution_release_name,
                     :architecture => target_platform.architecture,
                     :local_pkg => false,
-                    :package_name => nil
+                    :package_name => nil,
+                    :recursive_deps => nil,
+                    :latest_commit_time => nil
+
+                pkg_commit_time = options[:latest_commit_time]
 
                 if !gem_path
                     raise ArgumentError, "Debian.convert_gem: no #{gem_path} given"
@@ -1689,7 +1695,8 @@ module Autoproj
 
 
                         tgz_date = nil
-                        if not pkg_commit_time.nil?
+
+                        if pkg_commit_time
                             tgz_date = pkg_commit_time
                         else
                             # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
@@ -1840,8 +1847,8 @@ module Autoproj
                             #`sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
                         end
 
-                        if options.has_key?(:package_name)
-                            recursive_deps = recursive_dependencies(options[:package_name])
+                        if options.has_key?(:recursive_deps)
+                            recursive_deps = options[:recursive_deps]
                         else
                             recursive_deps = nil
                         end
