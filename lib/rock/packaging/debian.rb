@@ -781,12 +781,60 @@ module Autoproj
                 debian_name = debian_name(pkg)
                 debian_version = debian_version(pkg, distribution)
                 versioned_name = versioned_name(pkg, distribution)
+                short_documentation = pkg.description.short_documentation
+                documentation = pkg.description.documentation
+                origin_information = Array.new()
+                begin
+                    if package.importer.kind_of?(Autobuild::Git)
+                        status = package.importer.status(package)
+                        origin_information << "repository: #{pkg.importer.repository_id}"
+                        origin_information << "branch: #{pkg.importer.current_branch(pkg)}"
+                        origin_information << "commit: #{status.common_commit}"
+                        origin_information << "tag: #{package.importer.tag}"
+                    elsif package.importer.kind_of?(Autobuild::SVN)
+                        origin_information << "repository: #{package.importer.repository_id}"
+                        origin_information << "revision: #{package.importer.revision}"
+                    elsif package.importer.kind_of?(Autobuild::ArchiveImporter)
+                        origin_information << "url: #{package.importer.url}"
+                        origin_information << "filename: #{package.importer.filename}"
+                    end
+                rescue Exception => e
+                    origin_information << "the repository and commit information could not be extracted"
+                    origin_information << "error at generation: #{e.to_s}"
+                end
 
-                with_rock_prefix = true
-                deps = filtered_dependencies(pkg, dependencies(pkg, with_rock_prefix))
+                deps = filtered_dependencies(pkg, dependencies(pkg))
                 deps_rock_packages = deps[:rock]
                 deps_osdeps_packages = deps[:osdeps]
                 deps_nonnative_packages = deps[:nonnative].to_a.flatten.compact
+
+                dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
+                build_dependencies = dependencies.dup
+                if pkg.class == Autobuild::CMake
+                    build_dependencies << "cmake"
+                elsif pkg.class == Autobuild::Orogen
+                    build_dependencies << "cmake"
+                    build_dependencies << debian_name( package_by_name("orogen") )
+                    orogen_command = "orogen #{Autobuild::Orogen.orogen_options.join(" ")} #{pkg.orogen_options.join(" ")} --corba --transports=corba,mqueue,typelib --type-export-policy=used #{pkg.orogen_file}"
+                elsif pkg.class == Autobuild::Autotools
+                    if pkg.using[:libtool]
+                        build_dependencies << "libtool"
+                    end
+                    build_dependencies << "autotools-dev" # as autotools seems to be virtual...
+                    build_dependencies << "autoconf"
+                    build_dependencies << "automake"
+                    build_dependencies << "dh-autoreconf"
+                elsif pkg.class == Autobuild::Ruby
+                    if package.name =~ /bundles/
+                        build_dependencies << "cmake"
+                    else
+                        raise "debian/control: cannot handle ruby package"
+                    end
+                elsif pkg.class == Autobuild::ArchiveImporter || pkg.class == Autobuild::ImporterPackage
+                    build_dependencies << "cmake"
+                else
+                    raise "debian/control: cannot handle package type #{pkg.class} for #{pkg.name}"
+                end
 
                 Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                 Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"

@@ -2,32 +2,6 @@ Source: <%= debian_name %>
 Section: science
 Priority: extra
 Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
-% dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
-% build_dependencies = dependencies.dup
-% if package.class == Autobuild::CMake
-%     build_dependencies << "cmake"
-% elsif package.class == Autobuild::Orogen
-%     build_dependencies << "cmake"
-%     build_dependencies << debian_name( package_by_name("orogen") )
-% elsif package.class == Autobuild::Autotools
-%     if package.using[:libtool]
-%         build_dependencies << "libtool"
-%     end
-%     build_dependencies << "autotools-dev" # as autotools seems to be virtual...
-%     build_dependencies << "autoconf"
-%     build_dependencies << "automake"
-%     build_dependencies << "dh-autoreconf"
-% elsif package.kind_of?(Autobuild::Ruby)
-%     if package.name =~ /bundles/
-%         build_dependencies << "cmake"
-%     else
-%         raise "debian/control: cannot handle ruby package"
-%     end
-% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage)
-%     build_dependencies << "cmake"
-% else
-%     raise "debian/control: cannot handle package type #{package.class} for #{package.name}"
-% end
 Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.uniq.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: http://rock-robotics.org
@@ -42,13 +16,13 @@ Depends: ${shlibs:Depends}
 <% else %>
 Depends: ${shlibs:Depends}, <%= runtime_dependencies.join(", ") %>
 <% end %>
-Description: <%= package.description.short_documentation.split("\n").join(" ").strip %>
-% documentation = package.description.documentation.split("\n").map do |l|
+Description: <%= short_documentation.split("\n").join(" ").strip %>
+% docs = documentation.split("\n").map do |l|
 %      l = l.strip
 %      if l.empty?
 %        l = "."
 %      end
 %      l
 %    end.join("\n  ")
- <%= documentation %>
+ <%= docs %>
 
