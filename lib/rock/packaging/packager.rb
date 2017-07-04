@@ -229,7 +229,7 @@ module Autoproj
 
             # Import from a local src directory into the packaging directory for the debian packaging
             def import_from_local_src_dir(pkg, local_src_dir, packaging_dir)
-                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkg, target_platform.distribution_release_name))
+                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkg))
                 Packager.info "Preparing source dir #{pkg.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
                 if !pkg.importer || !pkg.importer.kind_of?(Autobuild::Git)
                    Packager.info "Package importer requires coping into target directory"
@@ -344,7 +344,7 @@ module Autoproj
                         end
                         pkg.importer.repository = pkg.srcdir
                     end
-                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkg, target_platform.distribution_release_name))
+                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkg))
 
                     import_package(pkg, pkg_target_importdir)
                 end

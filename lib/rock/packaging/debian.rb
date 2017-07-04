@@ -159,22 +159,11 @@ module Autoproj
             end
 
             def debian_version(pkg, distribution, revision = "1")
-                if !@debian_version.has_key?(pkg.name)
-                    if pkg.description.nil?
-                       v = "0"
-                    else
-                        if !pkg.description.version
-                           v = "0"
-                        else
-                           v = pkg.description.version
-                        end
-                    end
-                    @debian_version[pkg.name] = v + "." + latest_commit_time(pkg).strftime("%Y%m%d") + "-" + revision
-                    if distribution
-                        @debian_version[pkg.name] += '~' + distribution
-                    end
+                res = debian_plain_version(pkg) + "-" + revision
+                if distribution
+                    res += '~' + distribution
                 end
-                @debian_version[pkg.name]
+                res
             end
 
             # Extract the latest commit time for given importers
@@ -219,31 +208,36 @@ module Autoproj
             end
 
             # Plain version is the version string without the revision
-            def debian_plain_version(pkg, distribution)
+            def debian_plain_version(pkg)
                 if !@debian_version.has_key?(pkg.name)
-                    # initialize version string
-                    debian_version(pkg, distribution)
+                    if pkg.description.nil?
+                       v = "0"
+                    else
+                        if !pkg.description.version
+                           v = "0"
+                        else
+                           v = pkg.description.version
+                        end
+                    end
+                    @debian_version[pkg.name] = v + "." + latest_commit_time(pkg).strftime("%Y%m%d")
                 end
-
-                # remove the revision and the distribution
-                # to get the plain version
-                @debian_version[pkg.name].gsub(/[-~].*/,"")
+                @debian_version[pkg.name]
             end
 
             def versioned_name(pkg, distribution)
                 debian_name(pkg) + "_" + debian_version(pkg, distribution)
             end
 
-            def plain_versioned_name(pkg, distribution)
-                debian_name(pkg) + "_" + debian_plain_version(pkg, distribution)
+            def plain_versioned_name(pkg)
+                debian_name(pkg) + "_" + debian_plain_version(pkg)
             end
 
             def dir_name(pkg, distribution)
                 versioned_name(pkg, distribution)
             end
 
-            def plain_dir_name(pkg, distribution)
-                plain_versioned_name(pkg, distribution)
+            def plain_dir_name(pkg)
+                plain_versioned_name(pkg)
             end
 
             def packaging_dir(pkg)
@@ -1079,7 +1073,7 @@ module Autoproj
 
                 Packager.info "Changing into packaging dir: #{packaging_dir(pkg)}"
                 Dir.chdir(packaging_dir(pkg)) do
-                    sources_name = plain_versioned_name(pkg, distribution)
+                    sources_name = plain_versioned_name(pkg)
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
@@ -1108,7 +1102,7 @@ module Autoproj
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
                         ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
-                         "#{plain_versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{plain_versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
@@ -1157,8 +1151,8 @@ module Autoproj
 
                 Dir.chdir(packaging_dir(pkg)) do
 
-                    dir_name = plain_versioned_name(pkg, distribution)
-                    plain_dir_name = plain_versioned_name(pkg, distribution)
+                    dir_name = plain_versioned_name(pkg)
+                    plain_dir_name = plain_versioned_name(pkg)
                     FileUtils.rm_rf File.join(pkg.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkg.srcdir, "build")
 
@@ -1169,7 +1163,7 @@ module Autoproj
                     cmake.close
 
                     # First, generate the source tarball
-                    sources_name = plain_versioned_name(pkg, distribution)
+                    sources_name = plain_versioned_name(pkg)
                     tarball = "#{plain_dir_name}.orig.tar.gz"
 
                     # Check first if actual source contains newer information than existing
@@ -1198,7 +1192,7 @@ module Autoproj
                             raise RuntimeError, "Debian: #{pkg.name} failed to perform dpkg-source in #{pkg.srcdir}"
                         end
                         ["#{versioned_name(pkg, distribution)}.debian.tar.gz",
-                         "#{plain_versioned_name(pkg, distribution)}.orig.tar.gz",
+                         "#{plain_versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
@@ -1232,9 +1226,8 @@ module Autoproj
 
             def build_local_package(pkg, options)
                 pkg_name = pkg.name
-                distribution = max_one_distribution(options[:distributions])
-                versioned_build_dir = plain_versioned_name(pkg, distribution)
-                deb_filename = "#{plain_versioned_name(pkg, FALSE)}_ARCHITECTURE.deb"
+                versioned_build_dir = plain_versioned_name(pkg)
+                deb_filename = "#{plain_versioned_name(pkg)}_ARCHITECTURE.deb"
 
                 options[:parallel_build_level] = pkg.parallel_build_level
                 build_local(pkg_name, debian_name(pkg), versioned_build_dir, deb_filename, options)
