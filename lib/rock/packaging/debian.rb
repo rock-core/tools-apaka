@@ -508,7 +508,7 @@ module Autoproj
                 # Add the ruby requirements for the current rock selection
                 all_packages.each do |pkg|
                     pkg = package_by_name(pkg.name)
-                    deps = dependencies(pkg, with_rock_release_prefix)
+                    deps = filtered_dependencies(pkg, dependencies(pkg, with_rock_release_prefix), with_rock_release_prefix)
                     deps[:nonnative].each do |dep, version|
                         gem_versions[dep] ||= Array.new
                         if version
@@ -565,7 +565,7 @@ module Autoproj
                 all_required_pkgs = filter_all_required_packages(all_required_packages([pkg_name]))
                 all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
                 all_required_pkgs[:packages].each do |p|
-                    pdep = dependencies(p)
+                    pdep = filtered_dependencies(p, dependencies(p))
                     pdep.keys.each do |k|
                         all_recursive_deps[k].concat pdep[k]
                     end
@@ -584,13 +584,9 @@ module Autoproj
                 pkg = package_by_name(pkg.name)
 
                 pkg.resolve_optional_dependencies
-                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
-                deps_rock_packages = pkg.dependencies.map do |dep_name|
-                    debian_name = debian_name( package_by_name(dep_name), with_rock_release_prefix)
-                    this_rock_release.packageReleaseName(debian_name)
-                end.sort
-
-                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies} on '#{Autoproj::OSDependencies.operating_system}'"
+                deps_rock_pkgs = pkg.dependencies.map do |dep_name|
+                    package_by_name(dep_name)
+                end
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
@@ -635,6 +631,17 @@ module Autoproj
                 @osdeps.uniq!
                 @ruby_gems.uniq!
 
+                # Return rock packages, osdeps and non native deps (here gems)
+                {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
+            end
+
+            def filtered_dependencies(pkg, dependencies, with_rock_release_prefix = true)
+                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
+
+                deps_rock_pkgs = dependencies[:rock_pkg].dup
+                deps_osdeps_packages = dependencies[:osdeps].dup
+                non_native_dependencies = dependencies[:nonnative].dup
+
                 if target_platform.distribution_release_name
                     # CASTXML vs. GCCXML in typelib
                     if pkg.name =~ /typelib/
@@ -643,18 +650,16 @@ module Autoproj
                         # there are typelib versions with and without the
                         # optional depends. we know which platform requires
                         # a particular dependency.
+                        deps_rock_pkgs.delete_if do |pkg|
+                            pkg.name == "castxml" || pkg.name == "gccxml"
+                        end
                         if ["xenial"].include?(target_platform.distribution_release_name)
-                            deps_rock_packages.delete(rock_release_prefix + "castxml")
-                            deps_rock_packages.delete(rock_release_prefix + "gccxml")
                             deps_osdeps_packages.push("castxml")
                         else
                             #todo: these need to checked on the other platforms
-                            deps_rock_packages.delete(rock_release_prefix + "castxml")
-                            deps_rock_packages.delete(rock_release_prefix + "gccxml")
                             deps_osdeps_packages.push("gccxml")
                         end
                     end
-                    Packager.info "'#{pkg.name}' with (available) rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
 
                     # Filter out optional packages, e.g. llvm and clang for all platforms where not explicitly available
                     deps_osdeps_packages = deps_osdeps_packages.select do |name|
@@ -667,7 +672,6 @@ module Autoproj
                         end
                         result
                     end
-                    Packager.info "'#{pkg.name}' with (available) osdeps dependencies: '#{deps_osdeps_packages}'"
 
                     # Filter ruby versions out -- we assume chroot has installed all
                     # ruby versions
@@ -698,6 +702,15 @@ module Autoproj
                         end
                     end.compact
                 end
+
+                deps_rock_packages = deps_rock_pkgs.map do |pkg|
+                    debian_name = debian_name( pkg, with_rock_release_prefix)
+                    this_rock_release.packageReleaseName(debian_name)
+                end.sort
+
+                Packager.info "'#{pkg.name}' with rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies} on '#{Autoproj::OSDependencies.operating_system}'"
+                Packager.info "'#{pkg.name}' with (available) osdeps dependencies: '#{deps_osdeps_packages}'"
+                Packager.info "'#{pkg.name}' with (available) rock package dependencies: '#{deps_rock_packages}' -- #{pkg.dependencies}"
 
                 # Return rock packages, osdeps and non native deps (here gems)
                 {:rock => deps_rock_packages, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
@@ -776,7 +789,7 @@ module Autoproj
                 versioned_name = versioned_name(pkg, distribution)
 
                 with_rock_prefix = true
-                deps = dependencies(pkg, with_rock_prefix)
+                deps = filtered_dependencies(pkg, dependencies(pkg, with_rock_prefix))
                 deps_rock_packages = deps[:rock]
                 deps_osdeps_packages = deps[:osdeps]
                 deps_nonnative_packages = deps[:nonnative].to_a.flatten.compact
@@ -961,7 +974,7 @@ module Autoproj
                 Packager.info "Package Ruby: '#{pkg.name}' with options: #{options}"
 
                 # update dependencies in any case, i.e. independant if package exists or not
-                deps = dependencies(pkg)
+                deps = filtered_dependencies(pkg, dependencies(pkg))
                 Dir.chdir(pkg.srcdir) do
                     begin
                         logname = "package-ruby-#{pkg.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
@@ -1097,7 +1110,7 @@ module Autoproj
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
-                        dependencies(pkg)
+                        filtered_dependencies(pkg, dependencies(pkg))
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                     FileUtils.rm_rf( File.basename(pkg.srcdir) )
@@ -1187,7 +1200,7 @@ module Autoproj
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
                         # just to update the required gem property
-                        dependencies(pkg)
+                        filtered_dependencies(pkg, dependencies(pkg))
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                 end

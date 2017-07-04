@@ -180,7 +180,7 @@ module Autoproj
             def create_package_job(pkg, options = Hash.new)
                 with_rock_release_prefix = false
 
-                all_deps = debian_packager.dependencies(pkg)
+                all_deps = debian_packager.filtered_dependencies(pkg, debian_packager.dependencies(pkg))
                 Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
 
                 # Prepare upstream dependencies
