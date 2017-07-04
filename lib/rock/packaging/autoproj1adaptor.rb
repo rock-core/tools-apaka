@@ -39,7 +39,7 @@ module Autoproj
                 elsif importer.kind_of?(Autobuild::ArchiveImporter) || importer.kind_of?(Autobuild::ImporterPackage)
                     archive_version(pkg)
                 else
-                    Packager.warn "No version extraction yet implemented for importer type: #{importer.class} -- using current time for version string"
+                    Packaging.warn "No version extraction yet implemented for importer type: #{importer.class} -- using current time for version string"
                     Time.now
                 end
             end
@@ -81,8 +81,8 @@ module Autoproj
             # reverse dependencies
             # return [Hash<package_name, reverse_dependencies>]
             def reverse_dependencies(selection)
-                Packager.info ("#{selection.size} packages selected")
-                Packager.debug "Selection: #{selection}}"
+                Packaging.info ("#{selection.size} packages selected")
+                Packaging.debug "Selection: #{selection}}"
                 orig_selection = selection.clone
                 reverse_dependencies = Hash.new
 
@@ -101,7 +101,7 @@ module Autoproj
 
                         pkg.resolve_optional_dependencies
                         reverse_dependencies[pkg.name] = pkg.dependencies.dup
-                        Packager.debug "deps: #{pkg.name} --> #{pkg.dependencies}"
+                        Packaging.debug "deps: #{pkg.name} --> #{pkg.dependencies}"
                         all_packages_refresh.merge(pkg.dependencies)
                     end
 
@@ -112,8 +112,8 @@ module Autoproj
                         all_packages = all_packages_refresh
                     end
                 end
-                Packager.info "all packages: #{all_packages.to_a}"
-                Packager.info "reverse deps: #{reverse_dependencies}"
+                Packaging.info "all packages: #{all_packages.to_a}"
+                Packaging.info "reverse deps: #{reverse_dependencies}"
 
                 reverse_dependencies
             end
@@ -186,10 +186,10 @@ module Autoproj
                         [pkg, dependencies]
                     end
 
-                    Packager.debug "Handled: #{handled_packages}"
-                    Packager.debug "Remaining: #{reverse_dependencies}"
+                    Packaging.debug "Handled: #{handled_packages}"
+                    Packaging.debug "Remaining: #{reverse_dependencies}"
                     if handled_packages.empty? && !resolve_packages
-                        Packager.warn "Unhandled dependencies: #{resolve_packages}"
+                        Packaging.warn "Unhandled dependencies: #{resolve_packages}"
                     end
                 end
 
@@ -278,7 +278,7 @@ module Autoproj
                 _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
+                Packaging.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
                     if handler != native_package_manager
@@ -299,7 +299,7 @@ module Autoproj
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
                     end
                 end
-                Packager.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
+                Packaging.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
 
                 # Return rock packages, osdeps and non native deps (here gems)
                 {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
@@ -325,7 +325,7 @@ module Autoproj
                         flags << flag
                     end
                 end
-                Packager.info "Using extra configure flags: #{flags}"
+                Packaging.info "Using extra configure flags: #{flags}"
                 flags
             end
 
@@ -358,7 +358,7 @@ module Autoproj
                 # Some packages, e.g. mars use a single git repository a split it artificially
                 # if this is the case, try to copy the content instead of doing a proper checkout
                 if pkg.srcdir != pkg.importdir
-                    Packager.debug "Importing repository from #{pkg.srcdir} to #{pkg_target_importdir}"
+                    Packaging.debug "Importing repository from #{pkg.srcdir} to #{pkg_target_importdir}"
                     FileUtils.mkdir_p pkg_target_importdir
                     FileUtils.cp_r File.join(pkg.srcdir,"/."), pkg_target_importdir
                     # Update resulting source directory
@@ -366,7 +366,7 @@ module Autoproj
                 else
                     pkg.srcdir = pkg_target_importdir
                     begin
-                        Packager.debug "Importing repository to #{pkg.srcdir}"
+                        Packaging.debug "Importing repository to #{pkg.srcdir}"
                         # Workaround for bug in autoproj:
                         # archive_dir should be set from pkg.srcdir, but is actually set from pkg.name
                         # see autobuild-1.9.3/lib/autobuild/import/archive.rb +406
@@ -378,7 +378,7 @@ module Autoproj
                         if not e.message =~ /failed in patch phase/
                             raise
                         else
-                            Packager.warn "Patching #{pkg.name} failed"
+                            Packaging.warn "Patching #{pkg.name} failed"
                         end
                     end
 
