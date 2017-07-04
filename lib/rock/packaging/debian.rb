@@ -392,12 +392,6 @@ module Autoproj
                     end
                 end
 
-                if rock_release_name
-                    all_required_packages = all_required_packages.select do |pkg|
-                        pkg_name = debian_name(pkg, true || with_prefix)
-                        !rock_release_platform.ancestorContains(pkg_name)
-                    end
-                end
                 all_required_packages
             end
 
@@ -500,7 +494,6 @@ module Autoproj
             # of ruby dependencies
             def all_required_packages(selection, with_rock_release_prefix = false)
                 all_packages = all_required_rock_packages(selection)
-                rock_packages = all_packages.map{ |pkg| debian_name(pkg, with_rock_release_prefix) }
 
                 gems = Array.new
                 gem_versions = Hash.new
@@ -537,8 +530,21 @@ module Autoproj
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
 
+                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
+            end
+
+            def filter_all_required_packages(packages)
+                all_packages = packages[:packages]
+                sorted_gem_list = packages[:gems]
+                exact_version_list = packages[:gem_versions]
+
                 # Filter all packages that are available
                 if rock_release_name
+                    all_packages = all_packages.select do |pkg|
+                        pkg_name = debian_name(pkg, true || with_prefix)
+                        !rock_release_platform.ancestorContains(pkg_name)
+                    end
+
                     sorted_gem_list = sorted_gem_list.select do |gem|
                         with_prefix = true
                         pkg_ruby_name = debian_ruby_name(gem, !with_prefix)
@@ -556,7 +562,7 @@ module Autoproj
             #
             # return the complete list of dependencies required for a package with the given name
             def recursive_dependencies(pkg_name)
-                all_required_pkgs = all_required_packages([pkg_name])
+                all_required_pkgs = filter_all_required_packages(all_required_packages([pkg_name]))
                 all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
                 all_required_pkgs[:packages].each do |p|
                     pdep = dependencies(p)

@@ -524,6 +524,13 @@ Dir.chdir(packager.build_dir) do
         jenkins = Autoproj::Packaging::Jenkins.new(packager)
 
         packages = packager.all_required_rock_packages(selection)
+        if packager.rock_release_name
+            packages = packages.select do |pkg|
+                pkg_name = packager.debian_name(pkg, true)
+                !packager.rock_release_platform.ancestorContains(pkg_name)
+            end
+        end
+
         if selection.size == 1
             pkg = packages.last
             puts "Creating Jenkins-job: #{pkg.name} -- #{pkg}"
@@ -562,7 +569,7 @@ Dir.chdir(packager.build_dir) do
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
-        all_packages = packager.all_required_packages(selection)
+        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection))
         packages = all_packages[:packages].map{ |pkg| pkg.name }
         update_package_list =  packages + all_packages[:gems]
 
@@ -592,7 +599,7 @@ Dir.chdir(packager.build_dir) do
         end
 
         i = 1
-        all_packages = packager.all_required_packages(selection)
+        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection))
         all_gems  = all_packages[:gems]
 
         jenkins = Autoproj::Packaging::Jenkins.new(packager)

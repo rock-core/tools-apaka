@@ -141,7 +141,7 @@ module Autoproj
                     debian_packager.rock_release_name = release_name
                 end
 
-                flow = debian_packager.all_required_packages(selection)
+                flow = debian_packager.filter_all_required_packages(debian_packager.all_required_packages(selection))
                 flow[:packages] = debian_packager.sort_by_package_sets(flow[:packages], options[:package_set_order])
                 flow[:gems].each do |name|
                     if !flow[:gem_versions].has_key?(name)

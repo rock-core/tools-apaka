@@ -293,7 +293,7 @@ end
 
 # Compute dependencies for a given selection
 packager.package_set_order = ["orocos.toolchain","rock.core","rock"]
-all_rock_packages = packager.all_required_packages selection
+all_rock_packages = packager.filter_all_required_packages packager.all_required_packages selection
 rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
