@@ -640,7 +640,12 @@ Dir.chdir(packager.build_dir) do
     if o_build_local
         begin
             packager.ruby_gems.each do |gem_name, gem_version|
-                filepath = packager.build_local_gem gem_name, :distributions => o_distributions, :verbose => Autobuild.verbose
+                pkg = Autoproj.manifest.packages[gem_name]
+                options =  {:distributions => o_distributions, :verbose => Autobuild.verbose}
+                if pkg && pkg.autobuild
+                    options[:parallel_build_level] = pkg.autobuild.parallel_build_level
+                end
+                filepath = packager.build_local_gem gem_name, options 
                 puts "Debian package created for gem '#{gem_name}': " + filepath
                 if o_dest_dir
                     puts "Copying debian package to destination folder: #{dest_dir}"

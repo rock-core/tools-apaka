@@ -1236,12 +1236,16 @@ module Autoproj
                 versioned_build_dir = plain_versioned_name(pkg, distribution)
                 deb_filename = "#{plain_versioned_name(pkg, FALSE)}_ARCHITECTURE.deb"
 
+                options[:parallel_build_level] = pkg.parallel_build_level
                 build_local(pkg_name, debian_name(pkg), versioned_build_dir, deb_filename, options)
             end
 
             # Build package locally
             # return path to locally build file
             def build_local(pkg_name, debian_pkg_name, versioned_build_dir, deb_filename, options)
+                options, unknown_options = Kernel.filter_options options,
+                    :distributions => nil,
+                    :parallel_build_level => nil
                 filepath = build_dir
                 distribution = max_one_distribution(options[:distributions])
                 # cd package_name
@@ -1294,10 +1298,9 @@ module Autoproj
 
                         FileUtils.mv 'debian', versioned_build_dir + '/'
                         FileUtils.chdir versioned_build_dir do
-                            pkg = Autoproj.manifest.packages[pkg_name]
                             cmd = "debuild -us -uc"
-                            if pkg && pkg.autobuild
-                                cmd += " -j#{pkg.autobuild.parallel_build_level}"
+                            if options[:parallel_build_level]
+                                cmd += " -j#{options[:parallel_build_level]}"
                             end
                             if !system(cmd)
                                 raise RuntimeError, "Packager: '#{cmd}' failed"
