@@ -221,13 +221,13 @@ module Autoproj
                 extra_osdeps = Array.new()
 
                 # Add the ruby requirements for the current rock selection
+                #todo: this used to work an all_packages without the already installed packages
                 all_packages.each do |pkg|
                     deps = dependencies(pkg, with_rock_release_prefix)
                     # Update global list
                     extra_osdeps.concat deps[:osdeps]
                     extra_gems.concat deps[:extra_gems]
 
-                    deps = filtered_dependencies(pkg, dependencies(pkg, with_rock_release_prefix), with_rock_release_prefix)
                     deps[:nonnative].each do |dep, version|
                         gem_versions[dep] ||= Array.new
                         if version
