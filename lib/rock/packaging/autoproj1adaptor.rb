@@ -24,6 +24,92 @@ module Autoproj
             def initialize(options)
                 # Package set order
                 @package_set_order = []
+
+                @pkginfo_cache = {}
+            end
+
+            def pkginfo_from_pkg(pkg)
+                if @pkginfo_cache.has_key?(pkg.name)
+                    return @pkginfo_cache[pkg.name]
+                end
+                pkg_commit_time = latest_commit_time(pkg);
+                pkginfo = PackageInfo.new
+                @pkginfo_cache[pkg.name] = pkginfo
+                pkginfo.latest_commit_time = pkg_commit_time
+                pkginfo.name = pkg.name
+                pkginfo.srcdir = pkg.srcdir
+
+                if pkg.kind_of?(Autobuild::Orogen)
+                    pkginfo.build_type = :orogen
+                    pkginfo.cmake_defines = pkg.defines
+                    pkginfo.orogen_command = "orogen #{Autobuild::Orogen.orogen_options.join(" ")} #{pkg.orogen_options.join(" ")} --corba --transports=corba,mqueue,typelib --type-export-policy=used #{pkg.orogen_file}"
+                elsif pkg.kind_of?(Autobuild::CMake)
+                    pkginfo.build_type = :cmake
+                    pkginfo.cmake_defines = pkg.defines
+                elsif  pkg.kind_of?(Autobuild::Autotools)
+                    pkginfo.build_type = :autotools
+                    pkginfo.extra_configure_flags = extra_configure_flags(pkg)
+                    pkginfo.using_libtool = pkg.using[:libtool]
+                    pkginfo.using_autogen = pkg.using[:autogen]
+                elsif  pkg.kind_of?(Autobuild::Ruby)
+                    pkginfo.build_type = :ruby
+                elsif  pkg.kind_of?(Autobuild::ArchiveImporter)
+                    pkginfo.build_type = :archive_importer
+                elsif  pkg.kind_of?(Autobuild::ImporterPackage)
+                    pkginfo.build_type = :importer_package
+                else
+                    raise ArgumentError, "Debian: Unsupported package type #{pkg.class} for #{pkg.name}"
+                end
+                if pkg.importer.kind_of?(Autobuild::Git)
+                    pkginfo.importer_type = :git
+                    pkginfo.importer_repository_id = pkg.importer.repository_id
+                    pkginfo.importer_current_branch = pkg.importer.current_branch(pkg)
+                    pkginfo.importer_common_commit = pkg.importer.status(pkg).common_commit
+                    pkginfo.importer_tag = pkg.importer.tag
+                elsif pkg.importer.kind_of?(Autobuild::SVN)
+                    pkginfo.importer_type = :svn
+                    pkginfo.importer_repository_id = pkg.importer.repository_id
+                    pkginfo.importer_revision = pkg.importer.revision
+                elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter)
+                    pkginfo.importer_type = :archive_importer
+                    pkginfo.importer_url = pkg.importer.url
+                    pkginfo.importer_filename = pkg.importer.filename
+                end
+                if pkg.description.nil?
+                    pkgi.description_version = "0"
+                else
+                    if !pkg.description.version
+                        pkginfo.description_version = "0"
+                    else
+                        pkginfo.description_version = pkg.description.version
+                    end
+                end
+
+                pkginfo.short_documentation = pkg.description.short_documentation
+                pkginfo.documentation = pkg.description.documentation
+                pkginfo.origin_information = Array.new()
+                begin
+                    if pkg.importer.kind_of?(Autobuild::Git)
+                        status = pkg.importer.status(pkg)
+                        pkginfo.origin_information << "repository: #{pkg.importer.repository_id}"
+                        pkginfo.origin_information << "branch: #{pkg.importer.current_branch(pkg)}"
+                        pkginfo.origin_information << "commit: #{status.common_commit}"
+                        pkginfo.origin_information << "tag: #{pkg.importer.tag}"
+                    elsif pkg.importer.kind_of?(Autobuild::SVN)
+                        pkginfo.origin_information << "repository: #{pkg.importer.repository_id}"
+                        pkginfo.origin_information << "revision: #{pkg.importer.revision}"
+                    elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter)
+                        pkginfo.origin_information << "url: #{pkg.importer.url}"
+                        pkginfo.origin_information << "filename: #{pkg.importer.filename}"
+                    end
+                rescue Exception => e
+                    pkginfo.origin_information << "the repository and commit information could not be extracted"
+                    origin_information << "error at generation: #{e.to_s}"
+                end
+
+                pkginfo.parallel_build_level = pkg.parallel_build_level
+
+                pkginfo
             end
 
             private
@@ -94,7 +180,7 @@ module Autoproj
                         begin
                             pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
                         rescue Exception => e
-                            raise RuntimeError, "Autoproj::Packaging::Debian: failed to load manifest for '#{pkg_name}' -- #{e}"
+                            raise RuntimeError, "Autoproj::Packaging::Autoproj1Adaptor: failed to load manifest for '#{pkg_name}' -- #{e}"
                         end
 
                         pkg = pkg_manifest.package
@@ -248,20 +334,23 @@ module Autoproj
                 end
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
+                all_pkginfos = all_packages.map do |pkg|
+                    pkginfo_from_pkg(pkg)
+                end
 
-                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }
+                {:pkginfos => all_pkginfos, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }
             end
 
             private
 
             # Compute dependencies of this package
-            # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
+            # Returns [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
                 pkg = package_by_name(pkg.name)
 
                 pkg.resolve_optional_dependencies
-                deps_rock_pkgs = pkg.dependencies.map do |dep_name|
-                    package_by_name(dep_name)
+                deps_rock_pkginfo = pkg.dependencies.map do |dep_name|
+                    pkginfo_from_pkg(package_by_name(dep_name))
                 end
 
                 pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
@@ -302,7 +391,7 @@ module Autoproj
                 Packaging.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
 
                 # Return rock packages, osdeps and non native deps (here gems)
-                {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
+                { :rock_pkginfo => deps_rock_pkginfo, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
             end
 
             def extra_configure_flags(package)
@@ -330,6 +419,9 @@ module Autoproj
             end
 
             # Sort by package set order
+            # can be used with any packages array of objects providing a name(),
+            # that is, works with both autobuild packages and PackageInfos
+            # returns a sorted array populated from elements of packages
             def sort_by_package_sets(packages, pkg_set_order)
                 priority_lists = Array.new
                 (0..pkg_set_order.size).each do |i|
@@ -337,10 +429,11 @@ module Autoproj
                 end
 
                 packages.each do |package|
+                    pkg_name = package
                     if !package.kind_of?(String)
-                        package = package.name
+                        pkg_name = package.name
                     end
-                    pkg = Autoproj.manifest.package(package)
+                    pkg = Autoproj.manifest.package(pkg_name)
                     pkg_set_name = pkg.package_set.name
 
                     if index = pkg_set_order.index(pkg_set_name)
@@ -388,6 +481,64 @@ module Autoproj
                 end
             end
 
+            class Autoproj1PackageInfo < PackageInfo
+                def initialize(pkg,pkginfoask)
+                    @pkg = pkg
+                    @pkginfoask = pkginfoask
+                end
+
+                # imports the package to the importdir
+                # generally, that is a copy if a different source dir exists, but
+                # it may be a source control checkout.
+                def import(pkg_target_importdir)
+                    pkg = @pkg.dup
+                    Autoproj.manifest.load_package_manifest(pkg.name)
+
+                    # Test whether there is a local
+                    # version of the package to use.
+                    # Only for Git-based repositories
+                    # If it is not available import package
+                    # from the original source
+                    if pkg.importer.kind_of?(Autobuild::Git)
+                        if not File.exists?(pkg.srcdir)
+                            Packaging.debug "Retrieving remote git repository of '#{pkg.name}'"
+                            pkg.importer.import(pkg)
+                        else
+                            Packaging.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
+                        end
+                        pkg.importer.repository = pkg.srcdir
+                        pkg.importer.commit = pkg.importer.current_remote_commit(pkg)
+
+                        Packaging.info "Using local (git) package: #{pkg.srcdir} and commit #{pkg.importer.commit}"
+                    end
+
+                    @srcdir = pkg_target_importdir
+                    @pkginfoask.send(:import_package, pkg, pkg_target_importdir)
+                end
+
+                # raw dependencies
+                # can be processed with filtered_dependencies to obtain old
+                # behaviour
+                # [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
+                def dependencies
+                    if !@dependencies
+                        @dependencies = @pkginfoask.send(:dependencies, @pkg)
+                    end
+                    @dependencies
+                end
+
+                def required_rock_packages
+                    if !@required_rock_packages
+                        @required_rock_packages =
+                            @pkginfoask.send(:all_required_rock_packages, [@pkg.name]).map do |pkg|
+                            @pkginfoask.pkginfo_from_pkg(pkg)
+                        end
+                    end
+                    @required_rock_packages
+                end
+
+            end #class PackageInfo
+            
         end #class Autoproj
     end #module Packaging
 end #module Autoproj
