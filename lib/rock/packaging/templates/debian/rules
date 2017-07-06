@@ -57,10 +57,10 @@ DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
-# Disable ROCK Testing -- since running test on the OBS would require proper setting of path, etc. (see. data_processing/type_to_vector)
-DEB_CMAKE_EXTRA_FLAGS += -DROCK_TEST_ENABLED=OFF
 # Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
-DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=\"#{v}\"" unless "#{k}" == "RUBY_EXECUTABLE" }.join(" ") %>
+DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=\"#{v}\"" unless "#{k}" == "RUBY_EXECUTABLE" || "#{k}" == "ROCK_TEST_ENABLED" || "#{k}" == "ROCK_TEST_LOG_DIR" }.join(" ") %>
+# Disable ROCK Testing -- since running test on the OBS would require proper setting of path, etc. (see. data_processing/type_to_vector)
+DEB_CMAKE_EXTRA_FLAGS += -DROCK_TEST_ENABLED=OFF -UROCK_TEST_LOG_DIR
 include /usr/share/cdbs/1/class/cmake.mk
 
 # END CMAKE
