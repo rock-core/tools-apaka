@@ -5,6 +5,7 @@ require 'autoproj'
 require 'autobuild'
 require 'rock/packaging'
 require 'tempfile'
+require 'yaml'
 
 def build_locally(packager, pkg_name, options)
     options, unknown_options = Kernel.filter_options options,
@@ -304,8 +305,17 @@ if o_build_meta
     end
 end
 
+# Create logging directory
+distribution = packager.target_platform.distribution_release_name
+architecture = packager.target_platform.architecture
+log_dir = File.join(packager.log_dir,"#{distribution}-#{architecture}")
+if !File.directory?(log_dir)
+    FileUtils.mkdir_p log_dir
+end
+
 succeeded_gem_builds = []
 failed_gem_builds = []
+status = {}
 if !required_gems || required_gems.empty?
     puts "# No Gems to be packaged"
 else
@@ -341,6 +351,11 @@ else
             puts e.message
             puts e.backtrace.join("\n")
             failed_gem_builds << [index, pkg, version]
+        ensure
+            status['gems'] = { "succeeded" => succeeded_gem_builds,
+                     "failed" => failed_gem_builds }
+
+            File.write(File.join(log_dir,'deb_local-build_results.yml'), status.to_yaml)
         end
     end
 end
@@ -379,6 +394,11 @@ else
             puts e.message
             puts e.backtrace.join("\n")
             failed_pkg_builds << [index, pkg.name]
+        ensure
+            status['packages'] = { :succeeded => succeeded_pkg_builds,
+                     :failed => failed_pkg_builds }
+
+            File.write(File.join(log_dir,'deb_local-build_results.yml'), status.to_yaml)
         end
     end
 end
