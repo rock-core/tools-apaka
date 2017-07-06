@@ -291,12 +291,16 @@ rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
+# create a custom meta package from the package that are listed on the
+# command line including they gem dependencies
 meta_packages = {}
 if o_custom_meta
     meta_packages[o_custom_meta] = rock_packages.collect {|pkg| pkg.name } +
                             required_gems
 end
 
+# check if the current collection in the manifest contains a
+# metapackage
 if o_build_meta
     o_selected_packages.each do |sel|
         if Autoproj.manifest.metapackages.has_key?(sel)
@@ -414,6 +418,7 @@ meta_packages.each do |pkg_name,depend_names|
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
         pkg_build_options[:meta_depends] = depend_names
+        pkg_build_options[:rebuild] = false
         index += 1
         puts "    (#{index}) #{pkg_name}"
         build_locally(packager, pkg_name, pkg_build_options)

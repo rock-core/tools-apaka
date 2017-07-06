@@ -482,7 +482,12 @@ Dir.chdir(packager.build_dir) do
             #changelog, compat, control, copyright, rules
 
             begin
-                packager.package_meta(o_meta, meta_depend_packages, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :package_set_dir => o_ps_dir})
+                # Only account for packages which are actually available
+                dependencies = meta_depend_packages.select do |pkg|
+                    packager.reprepro_has_package?(pkg, options[:release_name], distribution, architecture)
+                end
+
+                packager.package_meta(o_meta, dependencies, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :package_set_dir => o_ps_dir})
 
                 sync_packages << debian_pkg_name
             rescue Interrupt
