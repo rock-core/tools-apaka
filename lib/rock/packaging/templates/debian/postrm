@@ -1,0 +1,84 @@
+#!/usr/bin/perl
+
+# An identical script is used for postinst and postrm
+
+use strict;
+
+my $rock_install_dir = "<%= rock_install_directory %>";
+my $rock_doc_install_dir = "$rock_install_dir/share/doc";
+
+sub update_index_html() {
+    #collect candidate files
+    my @dirs = glob("$rock_doc_install_dir/*/");
+    my @indexes = map {
+	my $dir = $_;
+	$dir =~ m!/([^/]+)/+$!;
+	my $pkg = $1;
+	$dir =~ s!/+$!!;
+	my @candidates = sort {
+	    length($a) <=> length($b);
+	} glob("$dir/**/index.html $dir/**/index.htm");
+	my $idx = substr $candidates[0],length($dir);
+	$idx =~ s!^/+!!;
+	$idx ? ({ pkg => $pkg, index => $idx }) : ();
+    } @dirs;
+
+    #create html on the fly. we can only rely on perl core packages.
+    my $index;
+    open $index,">","$rock_doc_install_dir/index.html" or die "Could not create $rock_doc_install_dir/index.html";
+    print $index <<"[END]";
+<html>
+<head>
+<title>Rock package documentation index</title>
+</head>
+<body>
+<h1>Rock package documentation index</h1>
+<ul>
+[END]
+    foreach my $idx (@indexes) {
+	my ($pkg,$file) = ($idx->{pkg},$idx->{index});
+	print $index <<"[END]";
+<li> <a href="$pkg/$file">$pkg</a>
+[END]
+    }
+    print $index <<"[END]";
+</ul>
+</body>
+</html>
+[END]
+    close $index;
+}
+
+my $cmd = shift;
+
+if ($0 =~ /postinst$/) {
+    if ($cmd == "configure") {
+	#called when the package files have been installed during installation
+	#of the package
+	update_index_html();
+    } elsif ($cmd == "abort-upgrade") {
+	#called during package upgrade/install
+    } elsif ($cmd == "abort-remove") {
+	#called during package upgrade/install
+    } elsif ($cmd == "abort-deconfigure") {
+	#called during package upgrade/install
+    }
+} elsif ($0 =~ /postrm$/) {
+    if ($cmd == "remove") {
+	#called after removal of the packages files during removal of the
+	#package
+	update_index_html();
+    } elsif ($cmd == "purge") {
+	#called after "remove"
+    } elsif ($cmd == "upgrade") {
+	#called during package upgrade/install
+    } elsif ($cmd == "disappear") {
+	#called during package upgrade/install
+    } elsif ($cmd == "failed-upgrade") {
+	#called during package upgrade/install
+    } elsif ($cmd == "abort-install") {
+	#called during package upgrade/install
+    } elsif ($cmd == "abort-upgrade") {
+	#called during package upgrade/install
+    }
+}
