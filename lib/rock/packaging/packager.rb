@@ -227,7 +227,7 @@ module Autoproj
 
             # Import from a local src directory into the packaging directory for the debian packaging
             def import_from_local_src_dir(pkginfo, local_src_dir, packaging_dir)
-                pkg_target_importdir = File.join(packaging_dir, plain_dir_name_i(pkginfo))
+                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkginfo))
                 Packager.info "Preparing source dir #{pkginfo.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
                 if !pkginfo.importer_type || !pkginfo.importer_type == :git
                     Packager.info "Package importer requires copying into target directory"
@@ -248,7 +248,7 @@ module Autoproj
 
                 options, unknown_options = Kernel.filter_options options,
                     :existing_source_dir => nil,
-                    :packaging_dir => File.join(@build_dir, debian_name_i(pkginfo))
+                    :packaging_dir => File.join(@build_dir, debian_name(pkginfo))
 
                 pkg_dir = options[:packaging_dir]
                 if not File.directory?(pkg_dir)
@@ -271,7 +271,7 @@ module Autoproj
                 if support_local_import && existing_source_dir = options[:existing_source_dir]
                     import_from_local_src_dir(pkginfo, existing_source_dir, pkg_dir)
                 else
-                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name_i(pkginfo))
+                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
                     pkginfo.import(pkg_target_importdir)
                 end
                 pkginfo

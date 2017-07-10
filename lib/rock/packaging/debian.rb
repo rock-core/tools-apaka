@@ -97,9 +97,9 @@ module Autoproj
             # and the release-name can be avoided by setting
             # with_rock_release_prefix to false
             #
-            def debian_name_i(pkginfo, with_rock_release_prefix = true)
+            def debian_name(pkginfo, with_rock_release_prefix = true)
                 if pkginfo.kind_of?(String)
-                    raise ArgumentError, "method debian_name_i expects a PackageInfo as argument, got: #{pkginfo.class} '#{pkginfo}'"
+                    raise ArgumentError, "method debian_name expects a PackageInfo as argument, got: #{pkginfo.class} '#{pkginfo}'"
                 end
                 name = pkginfo.name
 
@@ -146,7 +146,7 @@ module Autoproj
                 end
             end
 
-            def debian_version_i(pkginfo, distribution, revision = "1")
+            def debian_version(pkginfo, distribution, revision = "1")
                 if !@debian_version.has_key?(pkginfo.name)
                     v = pkginfo.description_version
                     @debian_version[pkginfo.name] = v + "." + pkginfo.latest_commit_time.strftime("%Y%m%d") + "-" + revision
@@ -157,26 +157,26 @@ module Autoproj
                 @debian_version[pkginfo.name]
             end
 
-            def debian_plain_version_i(pkginfo)
+            def debian_plain_version(pkginfo)
                 pkginfo.description_version + "." + pkginfo.latest_commit_time.strftime("%Y%m%d")
             end
 
-            def versioned_name_i(pkginfo, distribution)
-                debian_name_i(pkginfo) + "_" + debian_version_i(pkginfo, distribution)
+            def versioned_name(pkginfo, distribution)
+                debian_name(pkginfo) + "_" + debian_version(pkginfo, distribution)
             end
 
-            def plain_versioned_name_i(pkginfo)
-                debian_name_i(pkginfo) + "_" + debian_plain_version_i(pkginfo)
+            def plain_versioned_name(pkginfo)
+                debian_name(pkginfo) + "_" + debian_plain_version(pkginfo)
             end
 
-            def plain_dir_name_i(pkginfo)
-                plain_versioned_name_i(pkginfo)
+            def plain_dir_name(pkginfo)
+                plain_versioned_name(pkginfo)
             end
 
-            def packaging_dir_i(pkginfo)
+            def packaging_dir(pkginfo)
                 pkg_name = pkginfo
                 if !pkginfo.kind_of?(String)
-                    pkg_name = debian_name_i(pkginfo)
+                    pkg_name = debian_name(pkginfo)
                 end
                 File.join(@build_dir, pkg_name, target_platform.to_s.gsub("/","-"))
             end
@@ -243,7 +243,7 @@ module Autoproj
                 else
                     pkg_name = pkginfo.name
                     # Handling of rock packages
-                    dependency_debian_name = debian_name_i(pkginfo)
+                    dependency_debian_name = debian_name(pkginfo)
                 end
 
                 if !is_osdep
@@ -297,7 +297,7 @@ module Autoproj
                 # Filter all packages that are available
                 if rock_release_name
                     all_pkginfos = all_pkginfos.select do |pkginfo|
-                        pkg_name = debian_name_i(pkginfo, true || with_prefix)
+                        pkg_name = debian_name(pkginfo, true || with_prefix)
                         !rock_release_platform.ancestorContains(pkg_name)
                     end
 
@@ -407,7 +407,7 @@ module Autoproj
                 end
 
                 deps_rock_packages = deps_rock_pkginfos.map do |pkginfo|
-                    debian_name = debian_name_i(pkginfo, with_rock_release_prefix)
+                    debian_name = debian_name(pkginfo, with_rock_release_prefix)
                     this_rock_release.packageReleaseName(debian_name)
                 end.sort
 
@@ -486,9 +486,9 @@ module Autoproj
 
                 FileUtils.mkdir_p dir
                 package_info = pkginfo
-                debian_name = debian_name_i(pkginfo)
-                debian_version = debian_version_i(pkginfo, distribution)
-                versioned_name = versioned_name_i(pkginfo, distribution)
+                debian_name = debian_name(pkginfo)
+                debian_version = debian_version(pkginfo, distribution)
+                versioned_name = versioned_name(pkginfo, distribution)
                 short_documentation = pkginfo.short_documentation
                 documentation = pkginfo.documentation
                 origin_information = pkginfo.origin_information
@@ -502,7 +502,7 @@ module Autoproj
                 dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
                 build_dependencies = dependencies.dup
                 @rock_autobuild_deps[pkginfo.build_type].each do |pkginfo|
-                    build_dependencies << debian_name_i( pkginfo )
+                    build_dependencies << debian_name( pkginfo )
                 end
                 if pkginfo.build_type == :cmake
                     build_dependencies << "cmake"
@@ -566,7 +566,7 @@ module Autoproj
                 if distribution
                   debian_version += '~' + distribution
                 end
-#                versioned_name = versioned_name_i(pkg, distribution)
+#                versioned_name = versioned_name(pkg, distribution)
 
                 with_rock_prefix = true
                 deps_rock_packages = depends
@@ -642,7 +642,7 @@ module Autoproj
                     :architecture => nil
 
                 if options[:force_update]
-                    dirname = packaging_dir_i(pkginfo)
+                    dirname = packaging_dir(pkginfo)
                     if File.directory?(dirname)
                         Packager.info "Debian: rebuild requested -- removing #{dirname}"
                         FileUtils.rm_rf(dirname)
@@ -651,7 +651,7 @@ module Autoproj
 
                 options[:distribution] ||= target_platform.distribution_release_name
                 options[:architecture] ||= target_platform.architecture
-                options[:packaging_dir] = packaging_dir_i(pkginfo)
+                options[:packaging_dir] = packaging_dir(pkginfo)
 
                 pkginfo = prepare_source_dir(pkginfo, options.merge(unknown_options))
 
@@ -684,7 +684,7 @@ module Autoproj
                 debian_pkg_name = debian_meta_name(name)
 
                 if options[:force_update]
-                    dirname = packaging_dir_i(debian_pkg_name)
+                    dirname = packaging_dir(debian_pkg_name)
                     if File.directory?(dirname)
                         Packager.info "Debian: rebuild requested -- removing #{dirname}"
                         FileUtils.rm_rf(dirname)
@@ -693,7 +693,7 @@ module Autoproj
 
                 options[:distribution] ||= target_platform.distribution_release_name
                 options[:architecture] ||= target_platform.architecture
-                pkg_dir = packaging_dir_i(debian_pkg_name)
+                pkg_dir = packaging_dir(debian_pkg_name)
                 options[:packaging_dir] = pkg_dir
 
                 if not File.directory?(pkg_dir)
@@ -769,8 +769,8 @@ module Autoproj
                             Packager.info "Debian: renaming #{gem} to #{gem_rename}"
                         end
 
-                        Packager.info "Debian: copy #{File.join(Dir.pwd, gem)} to #{packaging_dir_i(pkginfo)}"
-                        gem_final_path = File.join(packaging_dir_i(pkginfo), File.basename(gem_rename))
+                        Packager.info "Debian: copy #{File.join(Dir.pwd, gem)} to #{packaging_dir(pkginfo)}"
+                        gem_final_path = File.join(packaging_dir(pkginfo), File.basename(gem_rename))
                         FileUtils.cp gem, gem_final_path
 
                         # Prepare injection of dependencies through options
@@ -810,9 +810,9 @@ module Autoproj
 
                 distribution = options[:distribution]
 
-                Packager.info "Changing into packaging dir: #{packaging_dir_i(pkginfo)}"
-                Dir.chdir(packaging_dir_i(pkginfo)) do
-                    sources_name = plain_versioned_name_i(pkginfo)
+                Packager.info "Changing into packaging dir: #{packaging_dir(pkginfo)}"
+                Dir.chdir(packaging_dir(pkginfo)) do
+                    sources_name = plain_versioned_name(pkginfo)
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
@@ -841,9 +841,9 @@ module Autoproj
                             Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source -- #{Dir.entries(pkginfo.srcdir)}"
                             raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
                         end
-                        ["#{versioned_name_i(pkginfo, distribution)}.debian.tar.gz",
-                         "#{plain_versioned_name_i(pkginfo)}.orig.tar.gz",
-                         "#{versioned_name_i(pkginfo, distribution)}.dsc"]
+                        ["#{versioned_name(pkginfo, distribution)}.debian.tar.gz",
+                         "#{plain_versioned_name(pkginfo)}.orig.tar.gz",
+                         "#{versioned_name(pkginfo, distribution)}.dsc"]
                     else
                         Packager.info "Package: #{pkginfo.name} is up to date"
                     end
@@ -887,10 +887,10 @@ module Autoproj
                     :architecture => nil
                 distribution = options[:distribution]
 
-                Dir.chdir(packaging_dir_i(pkginfo)) do
+                Dir.chdir(packaging_dir(pkginfo)) do
 
-                    dir_name = plain_versioned_name_i(pkginfo)
-                    plain_dir_name = plain_versioned_name_i(pkginfo)
+                    dir_name = plain_versioned_name(pkginfo)
+                    plain_dir_name = plain_versioned_name(pkginfo)
                     FileUtils.rm_rf File.join(pkginfo.srcdir, "debian")
                     FileUtils.rm_rf File.join(pkginfo.srcdir, "build")
 
@@ -901,7 +901,7 @@ module Autoproj
                     cmake.close
 
                     # First, generate the source tarball
-                    sources_name = plain_versioned_name_i(pkginfo)
+                    sources_name = plain_versioned_name(pkginfo)
                     tarball = "#{plain_dir_name}.orig.tar.gz"
 
                     # Check first if actual source contains newer information than existing
@@ -929,9 +929,9 @@ module Autoproj
                             Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source: entries #{Dir.entries(pkginfo.srcdir)}"
                             raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
                         end
-                        ["#{versioned_name_i(pkginfo, distribution)}.debian.tar.gz",
-                         "#{plain_versioned_name_i(pkginfo)}.orig.tar.gz",
-                         "#{versioned_name_i(pkginfo, distribution)}.dsc"]
+                        ["#{versioned_name(pkginfo, distribution)}.debian.tar.gz",
+                         "#{plain_versioned_name(pkginfo)}.orig.tar.gz",
+                         "#{versioned_name(pkginfo, distribution)}.dsc"]
                     else
                         Packager.info "Package: #{pkginfo.name} is up to date"
                     end
@@ -963,11 +963,11 @@ module Autoproj
             def build_local_package(pkginfo, options)
                 #pkg_name is only used for progress messages
                 pkg_name = pkginfo.name
-                versioned_build_dir = plain_versioned_name_i(pkginfo)
-                deb_filename = "#{plain_versioned_name_i(pkginfo)}_ARCHITECTURE.deb"
+                versioned_build_dir = plain_versioned_name(pkginfo)
+                deb_filename = "#{plain_versioned_name(pkginfo)}_ARCHITECTURE.deb"
 
                 options[:parallel_build_level] = pkginfo.parallel_build_level
-                build_local(pkg_name, debian_name_i(pkginfo), versioned_build_dir, deb_filename, options)
+                build_local(pkg_name, debian_name(pkginfo), versioned_build_dir, deb_filename, options)
             end
 
             # Build package locally
@@ -1068,7 +1068,7 @@ module Autoproj
             # Install package
             def install(pkg_name, options)
                 begin
-                    pkg_build_dir = packaging_dir_i(pkg_name)
+                    pkg_build_dir = packaging_dir(pkg_name)
                     filepath = Dir.glob("#{pkg_build_dir}/*.deb")
                     if filepath.size < 1
                         raise RuntimeError, "No debian file found for #{pkg_name} in #{pkg_build_dir}: #{filepath}"
@@ -1107,12 +1107,12 @@ module Autoproj
             def package_updated?(pkginfo)
                 # Find an existing orig.tar.gz in the build directory
                 # ignoring the current version-timestamp
-                orig_file_name = Dir.glob("#{debian_name_i(pkginfo)}*.orig.tar.gz")
+                orig_file_name = Dir.glob("#{debian_name(pkginfo)}*.orig.tar.gz")
                 if orig_file_name.empty?
-                    Packager.info "No filename found for #{debian_name_i(pkginfo)} (existing files: #{Dir.entries('.')} -- package requires update (regeneration of orig.tar.gz)"
+                    Packager.info "No filename found for #{debian_name(pkginfo)} (existing files: #{Dir.entries('.')} -- package requires update (regeneration of orig.tar.gz)"
                     return true
                 elsif orig_file_name.size > 1
-                    Packager.warn "Multiple version of package #{debian_name_i(pkginfo)} in #{Dir.pwd} -- you have to fix this first"
+                    Packager.warn "Multiple version of package #{debian_name(pkginfo)} in #{Dir.pwd} -- you have to fix this first"
                 else
                     orig_file_name = orig_file_name.first
                 end
@@ -1186,7 +1186,7 @@ module Autoproj
                 gems.each do |gem_name, version|
                     gem_dir_name = debian_ruby_name(gem_name)
 
-                    packaging_dirname = packaging_dir_i(gem_dir_name)
+                    packaging_dirname = packaging_dir(gem_dir_name)
                     if options[:force_update]
                         if File.directory?(packaging_dirname)
                             Packager.info "Debian Gem: rebuild requested -- removing #{packaging_dirname}"
@@ -1551,7 +1551,7 @@ module Autoproj
                         end
 
                         options[:deps][:rock_pkginfo].each do |pkginfo|
-                            all_deps << debian_name_i(pkginfo)
+                            all_deps << debian_name(pkginfo)
                         end
 
                         # Add actual gem dependencies

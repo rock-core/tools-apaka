@@ -449,7 +449,7 @@ Dir.chdir(packager.build_dir) do
 
                 packager.package(pkginfo, options)
 
-                debian_pkg_name = packager.debian_name_i(pkginfo)
+                debian_pkg_name = packager.debian_name(pkginfo)
                 sync_packages << debian_pkg_name
             rescue Interrupt
                 raise
@@ -482,7 +482,7 @@ Dir.chdir(packager.build_dir) do
 
             pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
 
-            meta_depend_packages << packager.debian_name_i(pkginfo)
+            meta_depend_packages << packager.debian_name(pkginfo)
         end
 
         #create the meta package
@@ -539,7 +539,7 @@ Dir.chdir(packager.build_dir) do
         if packager.rock_release_name
             packages = packages.select do |pkg|
                 pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
-                pkg_name = packager.debian_name_i(pkginfo, true || with_prefix)
+                pkg_name = packager.debian_name(pkginfo, true || with_prefix)
                 !packager.rock_release_platform.ancestorContains(pkg_name)
             end
         end
@@ -722,7 +722,7 @@ Dir.chdir(packager.build_dir) do
                     next
                 end
                 pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
-                debian_name = packager.debian_name_i(pkginfo)
+                debian_name = packager.debian_name(pkginfo)
 
                 puts "Installing locally: '#{pkg.name}'"
                 packager.install debian_name, :distributions => o_distributions, :verbose => Autobuild.verbose
