@@ -33,7 +33,8 @@ module Autoproj
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
-            attr_reader :build_dir
+            # tests need to write this
+            attr_accessor :build_dir
             attr_reader :log_dir
             attr_reader :local_tmp_dir
             attr_reader :deb_repository
