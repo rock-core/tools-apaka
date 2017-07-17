@@ -1686,31 +1686,33 @@ module Autoproj
                         else
                             # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
                             ['*.gemspec', 'metadata.yml'].each do |file|
-                                files = Dir.glob("#{gem_versioned_name}/#{file}")
-                                if not files.empty?
-                                    if files.first =~ /yml/
-                                        spec = YAML.load_file(files.first)
-                                    else
-                                        spec = Gem::Specification::load(files.first)
-                                    end
-                                else
-                                    Packager.info "Gem conversion: file #{file} does not exist"
-                                    next
-                                end
-
-                                #todo: not reliable. need sth better.
-                                if spec
-                                    if spec.date
-                                        if !tgz_date || spec.date < tgz_date
-                                            tgz_date = spec.date
-                                            Packager.info "#{file} has associated time: using #{tgz_date} as timestamp"
+                                Dir.chdir(gem_versioned_name) do
+                                    files = Dir.glob("#{file}")
+                                    if not files.empty?
+                                        if files.first =~ /yml/
+                                            spec = YAML.load_file(files.first)
+                                        else
+                                            spec = Gem::Specification::load(files.first)
                                         end
-                                        Packager.info "#{file} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
                                     else
-                                        Packager.warn "#{file} has no associated time: using current time for packaging"
+                                        Packager.info "Gem conversion: file #{file} does not exist"
+                                        next
                                     end
-                                else
-                                    Packager.warn "#{file} is not a spec file"
+
+                                    #todo: not reliable. need sth better.
+                                    if spec
+                                        if spec.date
+                                            if !tgz_date || spec.date < tgz_date
+                                                tgz_date = spec.date
+                                                Packager.info "#{files.first} has associated time: using #{tgz_date} as timestamp"
+                                            end
+                                            Packager.info "#{files.first} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
+                                        else
+                                            Packager.warn "#{files.first} has no associated time: using current time for packaging"
+                                        end
+                                    else
+                                        Packager.warn "#{files.first} is not a spec file"
+                                    end
                                 end
                             end
                         end
