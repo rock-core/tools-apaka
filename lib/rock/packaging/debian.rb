@@ -1259,7 +1259,7 @@ module Autoproj
                     " options #{options}"
 
                 begin
-                    FileUtils.chdir File.join(build_dir, debian_pkg_name) do
+                    FileUtils.chdir File.join(build_dir, debian_pkg_name, target_platform.to_s.gsub("/","-")) do
                         if File.exists? "debian"
                             FileUtils.rm_rf "debian"
                         end
@@ -1269,6 +1269,7 @@ module Autoproj
                         FileUtils.mkdir versioned_build_dir
 
                         debian_tar_gz = Dir.glob("*.debian.tar.gz")
+                        debian_tar_gz.concat Dir.glob("*.debian.tar.xz")
                         if debian_tar_gz.empty?
                             raise RuntimeError, "#{self} could not find file: *.debian.tar.gz in #{Dir.pwd}"
                         else
@@ -1301,14 +1302,15 @@ module Autoproj
                                 raise RuntimeError, "Packager: '#{cmd}' failed"
                             end
                         end
-                    end
-                    filepath = Dir.glob("#{debian_pkg_name}/*.deb")
-                    if filepath.size < 1
-                        raise RuntimeError, "No debian file generated in #{Dir.pwd}"
-                    elsif filepath.size > 1
-                        raise RuntimeError, "More than one debian file available in #{Dir.pwd}: #{filepath}"
-                    else
-                        filepath = filepath.first
+
+                        filepath = Dir.glob("*.deb")
+                        if filepath.size < 1
+                            raise RuntimeError, "No debian file generated in #{Dir.pwd}"
+                        elsif filepath.size > 1
+                            raise RuntimeError, "More than one debian file available in #{Dir.pwd}: #{filepath}"
+                        else
+                            filepath = filepath.first
+                        end
                     end
                 rescue Exception => e
                     msg = "Package #{pkg_name} has not been packaged -- #{e}"
