@@ -285,7 +285,7 @@ module Autoproj
                     # take this approach to make it pass directly in an
                     # automated workflow
                     ENV['EDITOR'] = "/bin/true"
-                    `dpkg-source --commit . #{patch_name}`
+                    system("dpkg-source", "--commit", ".", patch_name, :close_others => true)
                 end
             end
 
@@ -719,7 +719,7 @@ module Autoproj
                             # Rake targets that should be tried for cleaning
                             gem_clean_success = false
                             @gem_clean_alternatives.each do |target|
-                                if !system(pkginfo.env, "rake #{target} > #{File.join(log_dir, logname)} 2> #{File.join(log_dir, logname)}")
+                                if !system(pkginfo.env, "rake", target, [ :out, :err ] => File.join(log_dir, logname), :close_others => true)
                                     Packager.info "Debian: failed to clean package '#{pkginfo.name}' using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to clean package '#{pkginfo.name}' using target '#{target}'"
@@ -743,7 +743,7 @@ module Autoproj
                             # Allowed gem creation alternatives
                             gem_creation_success = false
                             @gem_creation_alternatives.each do |target|
-                                if !system(pkginfo.env, "rake #{target} >> #{File.join(log_dir, logname)} 2>> #{File.join(log_dir, logname)}")
+                                if !system(pkginfo.env, "rake", target, [ :out, :err ] => [ File.join(log_dir, logname), "a"], :close_others => true)
                                     Packager.info "Debian: failed to create gem using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to create gem using target '#{target}'"
@@ -795,7 +795,7 @@ module Autoproj
                 end
                 Dir.glob("**/**") do |file|
                     if File.file?(file)
-                       `echo #{file} >> #{manifest_file}`
+                        IO::write(manifest_file, "#{file}\n", :mode => "a")
                     end
                 end
             end
@@ -837,7 +837,7 @@ module Autoproj
 
                         # Run dpkg-source
                         # Use the new tar ball as source
-                        if !system("dpkg-source", "-I", "-b", pkginfo.srcdir)
+                        if !system("dpkg-source", "-I", "-b", pkginfo.srcdir, :close_others => true)
                             Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source -- #{Dir.entries(pkginfo.srcdir)}"
                             raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
                         end
@@ -870,7 +870,7 @@ module Autoproj
 
                     # Run dpkg-source
                     # Use the new tar ball as source
-                    if !system("dpkg-source", "-I", "-b", "#{name}-0.1")
+                    if !system("dpkg-source", "-I", "-b", "#{name}-0.1", :close_others => true)
                         Packager.warn "Package: #{name} failed to perform dpkg-source -- #{Dir.entries("meta")}"
                         raise RuntimeError, "Debian: #{name} failed to perform dpkg-source in meta"
                     end
@@ -925,7 +925,7 @@ module Autoproj
                         # Run dpkg-source
                         # Use the new tar ball as source
                         Packager.info `dpkg-source -I -b #{pkginfo.srcdir}`
-                        if !system("dpkg-source", "-I", "-b", pkginfo.srcdir)
+                        if !system("dpkg-source", "-I", "-b", pkginfo.srcdir, :close_others => true)
                             Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source: entries #{Dir.entries(pkginfo.srcdir)}"
                             raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
                         end
@@ -1008,9 +1008,9 @@ module Autoproj
                             raise RuntimeError, "#{self} could not find file: *.debian.tar.gz in #{Dir.pwd}"
                         else
                             debian_tar_gz = debian_tar_gz.first
-                            cmd = "tar -xf #{debian_tar_gz}"
-                            if !system(cmd)
-                                 raise RuntimeError, "Packager: '#{cmd}' failed"
+                            cmd = ["tar", "-xf", debian_tar_gz]
+                            if !system(*cmd, :close_others => true)
+                                 raise RuntimeError, "Packager: '#{cmd.join(" ")}' failed"
                             end
                         end
 
@@ -1019,19 +1019,22 @@ module Autoproj
                             raise RuntimeError, "#{self} could not find file: *.orig.tar.gz in #{Dir.pwd}"
                         else
                             orig_tar_gz = orig_tar_gz.first
-                            cmd = "tar -x --strip-components=1 -C #{versioned_build_dir} -f #{orig_tar_gz}"
-                            if !system(cmd)
-                                 raise RuntimeError, "Packager: '#{cmd}' failed"
+                            cmd = ["tar"]
+                            cmd << "-x" << "--strip-components=1" <<
+                                "-C" << versioned_build_dir <<
+                                "-f" << orig_tar_gz
+                            if !system(*cmd, :close_others => true)
+                                 raise RuntimeError, "Packager: '#{cmd.join(" ")}' failed"
                             end
                         end
 
                         FileUtils.mv 'debian', versioned_build_dir + '/'
                         FileUtils.chdir versioned_build_dir do
-                            cmd = "debuild -us -uc"
+                            cmd = ["debuild",  "-us", "-uc"]
                             if options[:parallel_build_level]
-                                cmd += " -j#{options[:parallel_build_level]}"
+                                cmd << "-j#{options[:parallel_build_level]}"
                             end
-                            if !system(cmd)
+                            if !system(*cmd, :close_others => true)
                                 raise RuntimeError, "Packager: '#{cmd}' failed"
                             end
                         end
@@ -1054,13 +1057,13 @@ module Autoproj
             end
 
             def install_debfile(deb_filename)
-                cmd = "sudo dpkg -i #{deb_filename}"
-                Packager.info "Installing package via: '#{cmd}'"
-                if !system(cmd)
-                    Packager.warn "Executing '#{cmd}' failed -- trying to fix installation"
-                    cmd = "sudo apt-get install -y -f"
-                    if !system(cmd)
-                        raise RuntimeError, "Executing '#{cmd}' failed"
+                cmd = ["sudo", "dpkg", "-i", deb_filename]
+                Packager.info "Installing package via: '#{cmd.join(" ")}'"
+                if !system(*cmd, :close_others => true)
+                    Packager.warn "Executing '#{cmd.join(" ")}' failed -- trying to fix installation"
+                    cmd = ["sudo", "apt-get", "install", "-y", "-f"]
+                    if !system(*cmd, :close_others => true)
+                        raise RuntimeError, "Executing '#{cmd.join(" ")}' failed"
                     end
                 end
             end
@@ -1121,11 +1124,11 @@ module Autoproj
                 # and extract it there -- compare the actual source package
                 FileUtils.cp(orig_file_name, local_tmp_dir)
                 Dir.chdir(local_tmp_dir) do
-                    `tar xzf #{orig_file_name}`
+                    system("tar", "xzf", orig_file_name, :close_others => true)
                     base_name = orig_file_name.sub(".orig.tar.gz","")
                     Dir.chdir(base_name) do
                         diff_name = File.join(local_tmp_dir, "#{orig_file_name}.diff")
-                        `diff -urN --exclude .* --exclude CVS --exclude debian --exclude build #{pkginfo.srcdir} . > #{diff_name}`
+                        system("diff", "-urN", "--exclude", ".*", "--exclude", "CVS", "--exclude", "debian", "--exclude", "build", pkginfo.srcdir, ".", :out  => diff_name)
                         Packager.info "Package: '#{pkginfo.name}' checking diff file '#{diff_name}'"
                         if File.open(diff_name).lines.any?
                             return true
@@ -1240,10 +1243,10 @@ module Autoproj
                                 loop do
                                     Packager.warn "[#{retry_count}/#{max_retry}] Retrying gem fetch #{gem_name}" if retry_count > 1
                                     if version
-                                        pid = Process.spawn("gem fetch #{gem_name} --version '#{version}'")
+                                        pid = Process.spawn("gem", "fetch", gem_name, "--version", version, :close_others => true)
                                         #output = `gem fetch #{gem_name} --version '#{version}'`
                                     else
-                                        pid = Process.spawn("gem fetch #{gem_name}")
+                                        pid = Process.spawn("gem", "fetch", gem_name, :close_others => true)
                                         #output = `gem fetch #{gem_name}`
                                     end
                                     begin
@@ -1377,8 +1380,8 @@ module Autoproj
                     ############
                     Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                     # Convert .gem to .tar.gz
-                    cmd = "gem2tgz #{gem_file_name}"
-                    if not system(cmd)
+                    cmd = ["gem2tgz", gem_file_name]
+                    if not system(*cmd, :close_others => true)
                         raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
                     else
                         # Unpack and repack the orig.tar.gz to
@@ -1390,7 +1393,7 @@ module Autoproj
                         Packager.info "Successfully called: 'gem2tgz #{gem_file_name}' --> #{Dir.glob("**")}"
                         # Get the actual result of the conversion and unwrap
                         gem_tar_gz = Dir.glob("*.tar.gz").first
-                        `tar xzf #{gem_tar_gz}`
+                        system("tar", "xzf", gem_tar_gz, :close_others => true)
                         FileUtils.rm gem_tar_gz
 
                         # Check if we need to convert the name
@@ -1496,11 +1499,14 @@ module Autoproj
                     #
                     # By default generate for all ruby versions
                     # rename to the rock specific format: use option -p
-                    cmd = "dh-make-ruby --ruby-versions \"all\" #{gem_versioned_name}.tar.gz -p #{rock_ruby_release_prefix}#{gem_base_name}"
-                    Packager.info "calling: #{cmd}"
-                    if !system(cmd)
-                         Packager.warn "calling: dh-make-ruby #{gem_versioned_name}.tar.gz -p #{gem_base_name} failed"
-                         raise RuntimeError, "Failed to call dh-make-ruby for #{gem_versioned_name}"
+                    cmd = ["dh-make-ruby"]
+                    cmd << "--ruby-versions" << "all" <<
+                        "#{gem_versioned_name}.tar.gz" <<
+                        "-p" << "#{rock_ruby_release_prefix}#{gem_base_name}"
+                    Packager.info "calling: #{cmd.join(" ")}"
+                    if !system(*cmd, :close_others => true)
+                         Packager.warn "calling: #{cmd.join(" ")} failed"
+                         raise RuntimeError, "Failed to call #{cmd.join(" ")}"
                     end
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
@@ -1522,7 +1528,7 @@ module Autoproj
                         # debian/install
                         ################
                         if File.exists?("debian/install")
-                            `sed -i "s#/usr##{rock_install_directory}#g" debian/install`
+                            system("sed", "-i", "s#/usr##{rock_install_directory}#g", "debian/install")
                             dpkg_commit_changes("install_to_rock_specific_directory")
                         end
 
@@ -1680,9 +1686,9 @@ module Autoproj
                         release_name = debian_ruby_name(gem_base_name, true)
                         # Avoid replacing parts of the release name, when it is already adapted
                         # rock-master-ruby-facets with ruby-facets
-                        `sed -i "s##{release_name}##{original_name}#g" debian/*`
+                        system("sed", "-i", "s##{release_name}##{original_name}#g", "debian/*", :close_others => true)
                         # Inject the true name
-                        `sed -i "s##{original_name}##{release_name}#g" debian/*`
+                        system("sed", "-i", "s##{original_name}##{release_name}#g", "debian/*", :close_others => true)
                         dpkg_commit_changes("adapt_original_package_name")
 
                         ################
@@ -1696,13 +1702,13 @@ module Autoproj
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
-                        `sed -i '1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}' debian/rules`
+                        system("sed", "-i", "1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}", "debian/rules", :close_others => true)
                         envsh = Regexp.escape(env_setup())
-                        `sed -i '1 a #{envsh}' debian/rules`
+                        system("sed", "-i", "1 a #{envsh}", "debian/rules", :close_others => true)
                         ruby_arch_env = ruby_arch_setup(true)
-                        `sed -i "1 a #{ruby_arch_env}" debian/rules`
-                        `sed -i '1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}' debian/rules`
-                        `sed -i "s#\\(dh \\)#\\$(env_setup) \\1#" debian/rules`
+                        system("sed", "-i", "1 a #{ruby_arch_env}", "debian/rules", :close_others => true)
+                        system("sed", "-i", "1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}", "debian/rules", :close_others => true)
+                        system("sed", "-i", "s#\\(dh \\)#\\$(env_setup) \\1#", "debian/rules", :close_others => true)
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
                         # via:
@@ -1711,16 +1717,16 @@ module Autoproj
                         # Thus uncommented line of
                         # export DH_RUBY_IGNORE_TESTS=all
                         Packager.debug "Disabling tests including ruby test result evaluation"
-                        `sed -i 's/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/' debian/rules`
+                        system("sed", "-i", "s/#\\(export DH_RUBY_IGNORE_TESTS=all\\)/\\1/", "debian/rules", :close_others => true)
                         # Add DEB_BUILD_OPTIONS=nocheck
                         # https://www.debian.org/doc/debian-policy/ch-source.html
-                        `sed -i '1 a export DEB_BUILD_OPTIONS=nocheck' debian/rules`
+                        system("sed", "-i", "1 a export DEB_BUILD_OPTIONS=nocheck", "debian/rules", :close_others => true)
                         dpkg_commit_changes("disable_tests")
 
 
                         ["debian","pkgconfig"].each do |subdir|
                             Dir.glob("#{subdir}/*").each do |file|
-                                `sed -i "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g" #{file}`
+                                system("sed", "-i", "s#\@ROCK_INSTALL_DIR\@##{rock_install_directory}#g", file, :close_others => true)
                                 dpkg_commit_changes("adapt_rock_install_dir")
                             end
                         end
@@ -1799,7 +1805,7 @@ END
 
             def self.installable_ruby_versions
                 version_file = File.join(local_tmp_dir,"ruby_versions")
-                systems("apt-cache search ruby | grep -e '^ruby[0-9][0-9.]*-dev' | cut -d' ' -f1 > #{version_file}")
+                system("apt-cache search ruby | grep -e '^ruby[0-9][0-9.]*-dev' | cut -d' ' -f1 > #{version_file}", :close_others => true)
                 ruby_versions = []
                 File.open(version_file,"r") do |file|
                     ruby_versions = file.read.split("\n")

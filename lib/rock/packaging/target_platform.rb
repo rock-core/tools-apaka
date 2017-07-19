@@ -156,7 +156,7 @@ module Autoproj
                 if ["armhf"].include?(architecture)
                     raise RuntimeError, "TargetPlatfrom::debianContains: dcontrol does not support architecture: #{architecture}"
                 end
-                if !system("which dcontrol > /dev/null 2>&1")
+                if !system("which" "dcontrol", [ :out, :err]  => "/dev/null", :close_others => true)
                     raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
                 end
 
@@ -165,14 +165,15 @@ module Autoproj
                 end
                 outfile = cacheFilename(package, distribution_release_name, architecture)
                 if !File.exists?(outfile)
-                    cmd = "dcontrol #{package}@#{architecture}/#{distribution_release_name} > #{outfile} 2> #{outfile}"
-                    Autoproj::Packaging.info "TargetPlatform::debianContains: #{cmd}"
-                    if !system(cmd)
+                    cmd = ["dcontrol"]
+                    cmd << "#{package}@#{architecture}/#{distribution_release_name}"
+                    Autoproj::Packaging.info "TargetPlatform::debianContains: #{cmd.join(" ")} &> #{outfile}"
+                    if !system(*cmd, [:out, :err] => outfile, :close_others => true)
                         return false
                     end
                 end
 
-                if system("grep -ir \"^Version:\" #{outfile} > /dev/null 2>&1")
+                if system("grep", "-i", "^Version:", :in => outfile, [:out, :err] => "/dev/null", :close_others => true)
                     return true
                 end
                 return false
@@ -227,26 +228,27 @@ module Autoproj
                     if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
                         # query already done sometime before
                     else
-                        cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
-                        Autoproj::Packaging.info "TargetPlatform::contains: query with #{cmd}"
-                        system(cmd)
+                        cmd = ["wget"]
+                        cmd << "-O" << outfile << "-o" << errorfile << url
+                        Autoproj::Packaging.info "TargetPlatform::contains: query with #{cmd.join(" ")}"
+                        system(*cmd, :close_others => true)
                     end
 
                     if TargetPlatform::isUbuntu(release_name)
                         # -A1 -> 1 line after the match
                         # -m1 -> first match: we assume that the first date refers to the latest entry
                         # grep 'published': only published will be available otherwise there might be deleted,superseded
-                        if system("grep -ir -A1 -m1 -e '[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}' #{outfile} | grep -i 'published' > /dev/null 2>&1")
+                        if system("grep -i -A1 -m1 -e '[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}' #{outfile} | grep -i 'published' > /dev/null 2>&1", :close_others => true)
                             result = true
                         end
                     elsif TargetPlatform::isDebian(release_name)
                         # If file contains a response, then check for
                         # 'No such package'
-                        if !system("grep -ir \"No such package\" #{outfile} > /dev/null 2>&1") && system("grep -ir [a-zA-z] #{outfile} > /dev/null 2>&1")
+                        if !system("grep", "-i", "No such package", :in => outfile, [:out, :err] => "/dev/null", :close_others => true) && system("grep", "-i", "[a-zA-z]", :in => outfile, [:out, :err] => "/dev/null", :close_others => true)
                             result = true
                         end
                     elsif TargetPlatform::isRock(release_name)
-                        if !system("grep -ir \" 404\" #{errorfile} > /dev/null 2>&1")
+                        if !system("grep", "-i", " 404", :in => errorfile, [:out, :err] => "/dev/null", :close_others => true)
                             result = true
                         end
                     end

@@ -54,11 +54,11 @@ module Autoproj
                     Packager.info "Reprepo repository exists: #{conf_dir}"
                 else
                     Packager.info "Initializing reprepo repository in #{conf_dir}"
-                    `sudo mkdir -p #{conf_dir}`
+                    system("sudo", "mkdir", "-p", conf_dir, :close_others => true)
 
                     user = ENV['USER']
-                    `sudo chown -R #{user} #{deb_repository}`
-                    `sudo chmod -R 755 #{conf_dir}`
+                    system("sudo", "chown", "-R", user, deb_repository, :close_others => true)
+                    system("sudo", "chmod", "-R", "755", conf_dir, :close_others => true)
                 end
 
                 distributions_file = File.join(conf_dir, "distributions")
@@ -87,16 +87,21 @@ module Autoproj
                 if !File.exist?(packages_file)
                     reprepro_dir = File.join(deb_repository, release_prefix)
                     logfile = File.join(log_dir,"reprepro-init.log")
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} export #{target_platform.distribution_release_name} > #{logfile} 2> #{logfile}"
-                    Packager.info "Initialize distribution #{target_platform.distribution_release_name} : #{cmd}"
-                    if !system(cmd)
-                        Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                    cmd = [reprepro_bin]
+                    cmd << "-V" << "-b" << reprepro_dir <<
+                        "export" << target_platform.distribution_release_name
+                    Packager.info "Initialize distribution #{target_platform.distribution_release_name} : #{cmd.join(" ")} &> #{logfile}"
+                    if !system(*cmd, [:out, :err] => logfile, :close_others => true)
+                        Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                     end
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} flood #{target_platform.distribution_release_name} #{target_platform.architecture} >"
+                    cmd = [reprepro_bin]
+                    cmd << "-V" << "-b" << reprepro_dir <<
+                        "flood" << target_platform.distribution_release_name <<
+                        target_platform.architecture
                     logfile = File.join(log_dir,"reprepro-flood.log")
-                    Packager.info "Flood #{target_platform.distribution_release_name} and #{target_platform.architecture} > #{logfile} 2> #{logfile}"
-                    if !system(cmd)
-                        Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                    Packager.info "Flood #{target_platform.distribution_release_name} and #{target_platform.architecture}"
+                    if !system(*cmd, [:out, :err] => logfile, :close_others => true)
+                        Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                     end
                 else
                     Packager.info "File: #{packages_file} exists"
@@ -109,7 +114,7 @@ module Autoproj
                 reprepro = `which reprepro`
                 if $?.exitstatus != 0
                     Packager.warn "Autoinstalling 'reprepro' for managing the debian package repository"
-                   `sudo apt-get install reprepro`
+                   system("sudo", "apt-get", "install", "reprepro", :close_others => true)
                    reprepro = `which reprepro`
                 end
                 reprepro.strip
@@ -132,17 +137,22 @@ module Autoproj
 
                 Dir.chdir(debian_package_dir) do
                     debfile = Dir.glob("*.deb").first
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} includedeb #{codename} #{debfile} >> #{logfile} 2> #{logfile}"
-                    Packager.info "Register deb file: #{cmd}"
-                    if !system(cmd)
-                        raise RuntimeError, "Execution of #{cmd} failed -- see #{logfile}"
+                    cmd = [reprepro_bin]
+                    cmd << "-V" << "-b" << reprepro_dir <<
+                        "includedeb" << codename << debfile
+
+                    Packager.info "Register deb file: #{cmd.join(" ")} &>> #{logfile}"
+                    if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                        raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                     end
 
                     dscfile = Dir.glob("*.dsc").first
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} includedsc #{codename} #{dscfile} >> #{logfile} 2>> #{logfile}"
-                    Packager.info "Register dsc file: #{cmd}"
-                    if !system(cmd)
-                        raise RuntimeError, "Execution of #{cmd} failed -- see #{logfile}"
+                    cmd = [reprepro_bin]
+                    cmd << "-V" << "-b" << reprepro_dir <<
+                        "includedsc" << codename <<  dscfile
+                    Packager.info "Register dsc file: #{cmd.join(" ")} &>> #{logfile}"
+                    if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                        raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                     end
                 end
             end
@@ -152,19 +162,24 @@ module Autoproj
                 reprepro_dir = File.join(deb_repository, release_name)
                 logfile = File.join(log_dir,"deregistration-reprepro-#{release_name}-#{codename}.log")
 
+                cmd = [reprepro_bin]
+                cmd << "-V" << "-b" << reprepro_dir
+
                 if exactmatch
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} remove #{codename} '#{pkg_name_expression}' >> #{logfile} 2>> #{logfile}"
+                    cmd << "remove" << codename << pkg_name_expression
                 else
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} removematched #{codename} '#{pkg_name_expression}' >> #{logfile} 2>> #{logfile}"
+                    cmd << "removematched" << codename << pkg_name_expression
                 end
-                system("echo #{cmd} >> #{logfile}")
-                Packager.info "Remove existing package matching '#{pkg_name_expression}': #{cmd}"
-                if !system(cmd)
-                    Packager.info "Execution of #{cmd} failed -- see #{logfile}"
+                IO::write(logfile, "#{cmd}\n", :mode => "a")
+                Packager.info "Remove existing package matching '#{pkg_name_expression}': #{cmd.join(" ")} &>> #{logfile}"
+                if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                    Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                 else
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} deleteunreferenced >> #{logfile} 2>> #{logfile}"
-                    system("echo #{cmd} >> #{logfile}")
-                    system(cmd)
+                    cmd = [reprepro_bin]
+                    cmd << "-V" << "-b" << reprepro_dir
+                    cmd << "deleteunreferenced"
+                    IO::write(logfile, "#{cmd}\n", :mode => "a")
+                    system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
                 end
             end
 

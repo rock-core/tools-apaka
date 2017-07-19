@@ -236,11 +236,11 @@ module Autoproj
                 Dir.chdir("/tmp") do
                     outfile = "/tmp/gem-fetch-#{gem_name}"
                     if not File.exists?(outfile)
-                        if !system("gem fetch #{gem_name} > #{outfile} 2>&1")
+                        if !system("gem", "fetch", gem_name, [ :out, :err] => outfile)
                             return false
                         end
                     end
-                    if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
+                    if !system("grep", "-i", "ERROR", :in => outfile, [:out, :err] => "/dev/null")
                         Autoproj::Packaging.info "GemDependencies: #{gem_name} is a ruby gem"
                         return true
                     end
