@@ -82,7 +82,7 @@ class TestDebian < Minitest::Test
     end
 
     def test_recursive_dependencies
-        test_set = { "utilrb" => ["rake", "rubygems-integration", "bundler", "ruby-facets", "rake-compiler", "ruby-flexmock"],
+        test_set = { "utilrb" => ["rake", "rubygems-integration", "bundler", "ruby-facets"],
                      "rtt"  => ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
