@@ -1891,7 +1891,7 @@ END
                 if ["xenial"].include?(target_platform.distribution_release_name)
                     envsh += "export TYPELIB_CXX_LOADER=castxml\n"
                 end
-                envsh += "export DEB_CPPFLAGS_APPEND='-std=c++11'\n"
+                envsh += "export DEB_CPPFLAGS_APPEND=-std=c++11\n"
                 envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
             end
