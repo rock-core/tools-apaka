@@ -62,18 +62,10 @@ module Autoproj
                 end
                 if pkg.importer.kind_of?(Autobuild::Git)
                     pkginfo.importer_type = :git
-                    pkginfo.importer_repository_id = pkg.importer.repository_id
-                    pkginfo.importer_current_branch = pkg.importer.current_branch(pkg)
-                    pkginfo.importer_common_commit = pkg.importer.status(pkg).common_commit
-                    pkginfo.importer_tag = pkg.importer.tag
                 elsif pkg.importer.kind_of?(Autobuild::SVN)
                     pkginfo.importer_type = :svn
-                    pkginfo.importer_repository_id = pkg.importer.repository_id
-                    pkginfo.importer_revision = pkg.importer.revision
                 elsif pkg.importer.kind_of?(Autobuild::ArchiveImporter)
                     pkginfo.importer_type = :archive_importer
-                    pkginfo.importer_url = pkg.importer.url
-                    pkginfo.importer_filename = pkg.importer.filename
                 end
                 if pkg.description.nil?
                     pkgi.description_version = "0"

@@ -339,6 +339,8 @@ Autoproj.silent = true
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
 
+packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
+
 #if the name matches a move target directory, convert to package name
 o_selected_packages = o_selected_packages.map do |name|
     Autoproj.manifest.moved_packages.each do |pkg_name,target_dir|
@@ -417,8 +419,10 @@ Dir.chdir(packager.build_dir) do
                 next
             end
 
+            pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+
             if o_skip && o_obs_dir
-                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkg))
+                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkginfo))
                 if File.directory?(pkg_obs_dir)
                     puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
                     next
@@ -441,11 +445,11 @@ Dir.chdir(packager.build_dir) do
                     options[:existing_source_dir] = pkg.srcdir
                 end
                 # just to update the required gem property
-                deps = packager.dependencies(pkg)
-                selected_gems.concat deps[:extra_gems]
-                packager.package(pkg, options)
+                selected_gems.concat pkginfo.dependencies[:extra_gems]
 
-                debian_pkg_name = packager.debian_name(pkg)
+                packager.package(pkginfo, options)
+
+                debian_pkg_name = packager.debian_name_i(pkginfo)
                 sync_packages << debian_pkg_name
             rescue Interrupt
                 raise
@@ -476,7 +480,9 @@ Dir.chdir(packager.build_dir) do
                 next
             end
 
-            meta_depend_packages << packager.debian_name(pkg)
+            pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+
+            meta_depend_packages << packager.debian_name_i(pkginfo)
         end
 
         #create the meta package
@@ -527,16 +533,16 @@ Dir.chdir(packager.build_dir) do
         # allow general parametrization for jobs
         packager.rock_release_name = "$release"
 
-        jenkins = Autoproj::Packaging::Jenkins.new(packager)
+        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
 
-        packages = packager.all_required_rock_packages(selection)
+        packages = package_info_ask.all_required_rock_packages(selection, selected_gems)
         if packager.rock_release_name
             packages = packages.select do |pkg|
-                pkg_name = packager.debian_name(pkg, true)
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                pkg_name = packager.debian_name_i(pkginfo, true || with_prefix)
                 !packager.rock_release_platform.ancestorContains(pkg_name)
             end
         end
-
         if selection.size == 1
             pkg = packages.last
             puts "Creating Jenkins-job: #{pkg.name} -- #{pkg}"
@@ -556,7 +562,7 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_flow
-        jenkins = Autoproj::Packaging::Jenkins.new(packager)
+        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
 
         puts "Creating FLOW-Job"
         options = { :force => o_overwrite }
@@ -580,17 +586,19 @@ Dir.chdir(packager.build_dir) do
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
-        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection, selected_gems))
+        all_packages = packager.filter_all_required_packages(package_info_ask.all_required_packages(selection, selected_gems))
         selected_gems.concat all_packages[:extra_gems]
         selected_gems.uniq!
-        packages = all_packages[:packages].map{ |pkg| pkg.name }
-        update_package_list =  packages + all_packages[:gems]
 
-        update_package_list.each do |pkg_name|
+        all_packages[:pkginfos].each do |pkginfo|
+            packager.update_osdeps_lists(pkginfo, o_osdeps_list_dir)
+        end
+        all_packages[:gems].each do |pkg_name|
             pkg = Autoproj.manifest.package(pkg_name)
             if !pkg.nil?
                 pkg = pkg.autobuild
-                packager.update_osdeps_lists(pkg, o_osdeps_list_dir)
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                packager.update_osdeps_lists(pkginfo, o_osdeps_list_dir)
             else
                 packager.update_osdeps_lists(pkg_name, o_osdeps_list_dir)
             end
@@ -612,12 +620,12 @@ Dir.chdir(packager.build_dir) do
         end
 
         i = 1
-        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection, selected_gems))
+        all_packages = packager.filter_all_required_packages(package_info_ask.all_required_packages(selection, selected_gems))
         selected_gems.concat all_packages[:extra_gems]
         selected_gems.uniq!
         all_gems  = all_packages[:gems]
 
-        jenkins = Autoproj::Packaging::Jenkins.new(packager)
+        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
         puts "Creating Gem-Jobs for #{all_gems}"
 
         all_gems.each do |gem_name|
@@ -677,7 +685,8 @@ Dir.chdir(packager.build_dir) do
                     next
                 end
 
-                filepath = packager.build_local_package pkg, :distributions => o_distributions, :verbose => Autobuild.verbose
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                filepath = packager.build_local_package pkginfo, :distributions => o_distributions, :verbose => Autobuild.verbose
                 puts "Debian package created for package '#{pkg}': #{filepath}"
                 if o_dest_dir
                     puts "Copying debian package to destination folder: #{dest_dir}"
@@ -687,6 +696,7 @@ Dir.chdir(packager.build_dir) do
             end
         rescue Exception => e
             Autoproj::Packaging.warn "Local build failed: #{e}"
+            puts e.backtrace
             exit 10
         end
     end
@@ -711,7 +721,8 @@ Dir.chdir(packager.build_dir) do
                     Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                     next
                 end
-                debian_name = packager.debian_name(pkg, true)
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                debian_name = packager.debian_name_i(pkginfo)
 
                 puts "Installing locally: '#{pkg.name}'"
                 packager.install debian_name, :distributions => o_distributions, :verbose => Autobuild.verbose

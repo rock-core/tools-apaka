@@ -37,11 +37,11 @@ retry(3) {
 }
     <% end %>
 
-    <% flow[:packages].each_with_index do |pkg,i| %>
+    <% flow[:pkginfos].each_with_index do |pkginfo,i| %>
 retry(3) {
-    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= debian_packager.debian_name(pkg, true) %>&quot;)
-    build(&quot;<%= debian_packager.debian_name(pkg, false) %>&quot;, release: &quot;<%=  flavor %>&quot;)
-    build(&quot;0_update-osdeps-lists&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= pkg.name %>&quot;)
+    build(&quot;0_cleanup-package&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= debian_packager.debian_name_i(pkginfo, true) %>&quot;)
+    build(&quot;<%= debian_packager.debian_name_i(pkginfo, false) %>&quot;, release: &quot;<%=  flavor %>&quot;)
+    build(&quot;0_update-osdeps-lists&quot;, release: &quot;<%= flavor %>&quot;, package: &quot;<%= pkginfo.name %>&quot;)
 }
     <% end %>
 </dsl>

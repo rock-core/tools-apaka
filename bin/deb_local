@@ -70,7 +70,7 @@ def build_locally(packager, pkg_name, options)
             raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
         end
         puts "############### build #{pkg_name} #####################"
-        debian_package_dir = packager.packaging_dir(options[:debian_package_name])
+        debian_package_dir = packager.packaging_dir_i(options[:debian_package_name])
         dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
         options[:log_file] ||= File.join(log_dir, "#{options[:debian_package_name]}-deb_local-build.log")
         puts "Building package from #{dsc_file} -- see log (#{options[:log_file]})"
@@ -263,6 +263,8 @@ Autoproj.silent = true
 root_dir  = Autoproj::CmdLine.initialize_root_directory
 selection = Autoproj::CmdLine.initialize_and_load(nil)
 
+packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
+
 packager.rock_release_name = build_options[:release_name]
 build_options[:packager] = packager
 packager.initialize_reprepro_repository(build_options[:release_name])
@@ -270,7 +272,7 @@ puts "Building local package for: #{packager.target_platform}"
 
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
-    if pkg = Autoproj.manifest.package(name)
+    if pkg = package_info_ask.package(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock package"
         true
     elsif Autoproj.manifest.metapackages.has_key?(sel)
@@ -296,9 +298,9 @@ if !is_gem
 end
 
 # Compute dependencies for a given selection
-packager.package_set_order = ["orocos.toolchain","rock.core","rock"]
-all_rock_packages = packager.filter_all_required_packages packager.all_required_packages selection, selected_gems
-rock_packages = all_rock_packages[:packages]
+package_info_ask.package_set_order = ["orocos.toolchain","rock.core","rock"]
+all_rock_packages = packager.filter_all_required_packages package_info_ask.all_required_packages selection, selected_gems
+rock_pkginfos = all_rock_packages[:pkginfos]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
@@ -307,7 +309,7 @@ required_gems_versions = all_rock_packages[:gem_versions]
 meta_packages = {}
 if o_custom_meta
     meta_packages[o_custom_meta] =
-        rock_packages.collect {|pkg| pkg.name } +
+        rock_pkginfos.collect {|pkginfo| pkginfo.name } +
         required_gems.select do |pkg|
         native_name, is_osdeps = packager.native_dependency_name(pkg)
         !is_osdeps
@@ -383,38 +385,38 @@ end
 
 succeeded_pkg_builds = []
 failed_pkg_builds = []
-if !rock_packages || rock_packages.empty?
+if !rock_pkginfos || rock_pkginfos.empty?
     puts "# No Rock Packages to be packaged"
 elsif o_meta_only
     puts "# Creating only meta packages requested"
 else
-    pkg_names = rock_packages.collect {|pkg| pkg.name }
+    pkg_names = rock_pkginfos.collect {|pkginfo| pkginfo.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
     index = 0
-    rock_packages.each do |pkg|
+    rock_pkginfos.each do |pkginfo|
         begin
-            if Autoproj.manifest.ignored?(pkg.name)
+            if Autoproj.manifest.ignored?(pkginfo.name)
                 puts "    package is on the ignore list"
                 next
             end
             pkg_build_options = build_options.dup
-            pkg_build_options[:debian_package_name] = packager.debian_name(pkg,true)
-            if !o_no_deps || pkg.name =~ /#{o_selected_packages.first}/
+            pkg_build_options[:debian_package_name] = packager.debian_name_i(pkginfo,true)
+            if !o_no_deps || pkginfo.name =~ /#{o_selected_packages.first}/
                 index += 1
-                puts "    (#{index}) #{pkg.name}"
+                puts "    (#{index}) #{pkginfo.name}"
                 if !o_dry_run
-                    build_locally(packager, pkg.name, pkg_build_options)
+                    build_locally(packager, pkginfo.name, pkg_build_options)
                 end
-                succeeded_pkg_builds << [index, pkg.name]
+                succeeded_pkg_builds << [index, pkginfo.name]
             end
         rescue SignalException => e
             puts "Package building aborted by user"
             exit 0
         rescue Exception => e
-            puts "    package: #{pkg.name} building failed"
+            puts "    package: #{pkginfo.name} building failed"
             puts e.message
             puts e.backtrace.join("\n")
-            failed_pkg_builds << [index, pkg.name]
+            failed_pkg_builds << [index, pkginfo.name]
         ensure
             status['packages'] = { :succeeded => succeeded_pkg_builds,
                      :failed => failed_pkg_builds }
