@@ -158,6 +158,10 @@ selection = selection.select do |pkg_name, i|
     end
 end
 
+selected_gems = Array.new()
+osdeps = Array.new()
+rock_ruby_gems = Array.new()
+
 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     if o_all_packages
@@ -182,7 +186,20 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             end
 
             begin
+                # just to update the required gem property
+                deps = packager.dependencies(pkg)
+                osdeps.concat deps[:osdeps]
+                selected_gems.concat deps[:extra_gems]
+                selected_gems.uniq!
+
                 packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
+
+                if pkg.kind_of?(Autobuild::Ruby) &&
+                   pkg.name !~ /bundles/
+                    # register gem with the correct naming schema
+                    # to make sure dependency naming and gem naming are consistent
+                    rock_ruby_gems << packager.debian_name(pkg)
+                end
             rescue Interrupt
                 raise
             rescue Exception => e
@@ -192,11 +209,13 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         end
     end
 
+    osdeps.uniq!
+
     # Check for osdeps -- fixed set of repositories at the moment
     if o_osdeps
         # Opendeps to process and check whether they and their dependencies are
         # available
-        openlist_osdeps = packager.osdeps
+        openlist_osdeps = osdeps
         Autoproj::Packaging.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
 
         # List of which osdeps which already have dealt with
@@ -216,12 +235,12 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
-            # Workaround,e.g., for nokogiri -- insert to ruby_gems list to force
+            # Workaround,e.g., for nokogiri -- insert to selected_gems list to force
             # gem2deb usage instead of using the default os package
             if override_osdeps.has_key?(osdeps_name)
                 type = override_osdeps[osdeps_name]
                 if  type == :gem
-                    packager.ruby_gems << osdeps_name.sub("ruby-","")
+                    selected_gems << osdeps_name.sub("ruby-","")
                 else
                     raise ArgumentError, "obs_package: unsupported osdeps override: #{type}"
                 end
@@ -276,7 +295,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     if o_extra_gem
         # Allow to build a gem explicitely
-        packager.ruby_gems << o_extra_gem
+        selected_gems << o_extra_gem
     end
 
     # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
@@ -300,7 +319,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         end
 
         # Update all gems
-        packager.ruby_gems.each do |gem_name, version|
+        selected_gems.each do |gem_name, version|
             if version
                 puts "OBS -- update gem: #{gem_name} with version #{version}"
             else
@@ -311,7 +330,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         end
 
         # Update rock gems
-        packager.ruby_rock_gems.each do |gem_name, version|
+        rock_ruby_gems.each do |gem_name, version|
             puts "OBS -- update rock gem (converted ruby package): #{gem_name}"
             pkg_obs_name = gem_name
             Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)

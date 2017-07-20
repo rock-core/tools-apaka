@@ -268,6 +268,7 @@ build_options[:packager] = packager
 packager.initialize_reprepro_repository(build_options[:release_name])
 puts "Building local package for: #{packager.target_platform}"
 
+selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock package"
@@ -277,14 +278,14 @@ selected_rock_packages = o_selected_packages.select do |name|
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj::Packaging.debug "Package: #{name} is a gem"
-        packager.ruby_gems << [name, nil]
+        selected_gems << [name, nil]
         false
     else
         true
     end
 end
 
-Autoproj::Packaging.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{packager.ruby_gems}"
+Autoproj::Packaging.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 
 # When a ruby gem shall be packaged directly there are no selected rock
 # packages, but selected ony
@@ -296,7 +297,7 @@ end
 
 # Compute dependencies for a given selection
 packager.package_set_order = ["orocos.toolchain","rock.core","rock"]
-all_rock_packages = packager.filter_all_required_packages packager.all_required_packages selection
+all_rock_packages = packager.filter_all_required_packages packager.all_required_packages selection, selected_gems
 rock_packages = all_rock_packages[:packages]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]

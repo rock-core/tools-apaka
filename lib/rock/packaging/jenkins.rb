@@ -129,7 +129,7 @@ module Autoproj
                 end
             end
 
-            def create_flow_job(name, selection, release_name, options = Hash.new)
+            def create_flow_job(name, selection, selected_gems, release_name, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :parallel => false,
                     :force => false,
@@ -141,7 +141,7 @@ module Autoproj
                     debian_packager.rock_release_name = release_name
                 end
 
-                flow = debian_packager.filter_all_required_packages(debian_packager.all_required_packages(selection))
+                flow = debian_packager.filter_all_required_packages(debian_packager.all_required_packages(selection, selected_gems))
                 flow[:packages] = debian_packager.sort_by_package_sets(flow[:packages], options[:package_set_order])
                 flow[:gems].each do |name|
                     if !flow[:gem_versions].has_key?(name)
@@ -156,6 +156,7 @@ module Autoproj
                 package_names = flow[:packages].collect { |pkg| pkg.name }
                 Packager.info "Creating flow of packages: #{package_names}"
                 create_flow_job_xml(name, flow, release_name, options)
+                [:extra_gems => all_packages[:extra_gems], :extra_osdeps => all_packages[:extra_osdeps]]
             end
 
             def create_flow_job_xml(name, flow, flavor, options)
@@ -180,6 +181,10 @@ module Autoproj
             def create_package_job(pkg, options = Hash.new)
                 with_rock_release_prefix = false
 
+                # just to update the required gem property
+                deps = debian_packager.dependencies(pkg)
+                extras = [ :extra_gems => deps[:extra_gems], :extra_osdeps => deps[:osdeps]]
+
                 all_deps = debian_packager.filtered_dependencies(pkg, debian_packager.dependencies(pkg))
                 Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
 
@@ -202,6 +207,8 @@ module Autoproj
 
                 Packager.info "Create package job: #{options[:job_name]}, options #{options}"
                 create_job(options[:job_name], options)
+
+                extras
             end
 
             # Create a jenkins job for a ruby package

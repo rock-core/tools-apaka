@@ -356,7 +356,7 @@ selected_rock_packages = o_selected_packages.select do |name|
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj::Packaging.warn "Package: #{name} is a gem"
-        packager.ruby_gems << [name, o_package_version]
+        selected_gems << [name, o_package_version]
         false
     else
         true
@@ -398,7 +398,7 @@ Dir.chdir(packager.build_dir) do
     if o_package
         Autobuild.do_update = true
 
-        packager.ruby_gems.each do |pkg_name, version|
+        selected_gems.each do |pkg_name, version|
             Autoproj::Packaging.info "Converting ruby gem: '#{pkg_name}'"
             # Fails to be detected as normal package
             # so we assume it is a ruby gem
@@ -440,6 +440,9 @@ Dir.chdir(packager.build_dir) do
                 if !o_use_remote_repository
                     options[:existing_source_dir] = pkg.srcdir
                 end
+                # just to update the required gem property
+                deps = packager.dependencies(pkg)
+                selected_gems.concat deps[:extra_gems]
                 packager.package(pkg, options)
 
                 debian_pkg_name = packager.debian_name(pkg)
@@ -451,13 +454,14 @@ Dir.chdir(packager.build_dir) do
                 next
             end
         end
+        selected_gems.uniq!
     end
 
     if o_meta
         #get the package names
         meta_depend_packages = []
 
-        packager.ruby_gems.each do |pkg_name, version|
+        selected_gems.each do |pkg_name, version|
             debian_pkg_name = packager.debian_ruby_name(pkg_name)
             puts "ruby gem: #{debian_pkg_name}"
             meta_depend_packages << debian_pkg_name
@@ -537,15 +541,18 @@ Dir.chdir(packager.build_dir) do
             pkg = packages.last
             puts "Creating Jenkins-job: #{pkg.name} -- #{pkg}"
             options[:force] = o_overwrite
-            jenkins.create_package_job(pkg, options)
+            extras = jenkins.create_package_job(pkg, options)
+            selected_gems.concat extras[:extra_gems]
         else
             packages.each_with_index do |pkg, i|
                 puts "(#{i+1}/#{packages.size}) Creating Jenkins-job: #{pkg.name} -- #{pkg}"
                 options[:force] = o_overwrite
-                jenkins.create_package_job(pkg, options)
+                extras = jenkins.create_package_job(pkg, options)
+                selected_gems.concat extras[:extra_gems]
             end
         end
 
+        selected_gems.uniq!
     end
 
     if o_flow
@@ -553,7 +560,9 @@ Dir.chdir(packager.build_dir) do
 
         puts "Creating FLOW-Job"
         options = { :force => o_overwrite }
-        jenkins.create_flow_job(o_flow, selection, o_flavor, options)
+        extras = jenkins.create_flow_job(o_flow, selection, selected_gems, o_flavor, options)
+        selected_gems.concat extras[:extra_gems]
+        selected_gems.uniq!
     end
 
     if o_control_job
@@ -571,7 +580,9 @@ Dir.chdir(packager.build_dir) do
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
-        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection))
+        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection, selected_gems))
+        selected_gems.concat all_packages[:extra_gems]
+        selected_gems.uniq!
         packages = all_packages[:packages].map{ |pkg| pkg.name }
         update_package_list =  packages + all_packages[:gems]
 
@@ -601,7 +612,9 @@ Dir.chdir(packager.build_dir) do
         end
 
         i = 1
-        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection))
+        all_packages = packager.filter_all_required_packages(packager.all_required_packages(selection, selected_gems))
+        selected_gems.concat all_packages[:extra_gems]
+        selected_gems.uniq!
         all_gems  = all_packages[:gems]
 
         jenkins = Autoproj::Packaging::Jenkins.new(packager)
@@ -641,7 +654,7 @@ Dir.chdir(packager.build_dir) do
 
     if o_build_local
         begin
-            packager.ruby_gems.each do |gem_name, gem_version|
+            selected_gems.each do |gem_name, gem_version|
                 pkg = Autoproj.manifest.packages[gem_name]
                 options =  {:distributions => o_distributions, :verbose => Autobuild.verbose}
                 if pkg && pkg.autobuild
@@ -680,7 +693,7 @@ Dir.chdir(packager.build_dir) do
 
     if o_install
         begin
-            packager.ruby_gems.each do |gem_name, gem_version|
+            selected_gems.each do |gem_name, gem_version|
                 is_osdeps = false
                 native_name, is_osdeps = packager.native_dependency_name(gem_name)
                 if !is_osdeps

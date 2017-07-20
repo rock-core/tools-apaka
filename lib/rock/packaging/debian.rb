@@ -27,15 +27,6 @@ module Autoproj
 
             attr_reader :existing_debian_directories
 
-            # List of gems, which need to be converted to debian packages
-            attr_accessor :ruby_gems
-
-            # List of rock gems, ruby_packages that have been converted to debian packages
-            attr_accessor :ruby_rock_gems
-
-            # List of osdeps, which are needed by the set of packages
-            attr_accessor :osdeps
-
             # install directory if not given set to /opt/rock
             attr_accessor :rock_base_install_directory
             attr_accessor :rock_release_name
@@ -60,9 +51,6 @@ module Autoproj
                     :distribution => TargetPlatform.autodetect_linux_distribution_release,
                     :architecture => TargetPlatform.autodetect_dpkg_architecture
 
-                @ruby_gems = Array.new
-                @ruby_rock_gems = Array.new
-                @osdeps = Array.new
                 @debian_version = Hash.new
                 @rock_base_install_directory = "/opt/rock"
 
@@ -486,23 +474,30 @@ module Autoproj
             # This requires the current installation to be complete since
             # `gem dependency <gem-name>` has been selected to provide the information
             # of ruby dependencies
-            def all_required_packages(selection, with_rock_release_prefix = false)
+            def all_required_packages(selection, selected_gems, with_rock_release_prefix = false)
                 all_packages = all_required_rock_packages(selection)
 
                 gems = Array.new
                 gem_versions = Hash.new
 
                 # Make sure to account for extra packages
-                @ruby_gems.each do |name, version|
+                selected_gems.each do |name, version|
                     gems << name
                     gem_versions[name] ||= Array.new
                     gem_versions[name] << version
                 end
 
+                extra_gems = Array.new()
+                extra_osdeps = Array.new()
+
                 # Add the ruby requirements for the current rock selection
                 all_packages.each do |pkg|
-                    pkg = package_by_name(pkg.name)
-                    deps = filtered_dependencies(pkg, dependencies(pkg, with_rock_release_prefix), with_rock_release_prefix)
+                    deps = dependencies(pkg, with_rock_release_prefix)
+                    # Update global list
+                    extra_osdeps.concat deps[:osdeps]
+                    extra_gems.concat deps[:extra_gems]
+
+                    deps = filtered_dependencies(pkg, deps, with_rock_release_prefix)
                     deps[:nonnative].each do |dep, version|
                         gem_versions[dep] ||= Array.new
                         if version
@@ -524,7 +519,7 @@ module Autoproj
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
 
-                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
+                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }
             end
 
             def filter_all_required_packages(packages)
@@ -549,15 +544,17 @@ module Autoproj
                           rock_release_platform.ancestorContains(pkg_prefixed_name))
                     end
                 end
-                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list }
+                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_gems => packages[:extra_gems], :extra_osdeps => packages[:extra_osdeps] }
             end
 
             # Compute all recursive dependencies for a given package
             #
             # return the complete list of dependencies required for a package with the given name
+            # During removal of @osdeps, @ruby_gems, it was assumed this
+            # function is not supposed to affect those.
             def recursive_dependencies(pkg_name)
-                all_required_pkgs = filter_all_required_packages(all_required_packages([pkg_name]))
-                all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => []}
+                all_required_pkgs = filter_all_required_packages(all_required_packages([pkg_name], []))
+                all_recursive_deps = {:rock => [], :osdeps => [], :nonnative => [], :extra_gems => []}
                 all_required_pkgs[:packages].each do |p|
                     pdep = filtered_dependencies(p, dependencies(p))
                     pdep.keys.each do |k|
@@ -598,9 +595,6 @@ module Autoproj
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
                 Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
-                # Update global list
-                @osdeps += deps_osdeps_packages
-
                 non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
                     if handler != native_package_manager
                         [handler, pkg_list]
@@ -608,11 +602,12 @@ module Autoproj
                 end.compact
 
                 non_native_dependencies = Set.new
+                extra_gems = Set.new
                 non_native_handlers.each do |pkg_handler, pkg_list|
                     # Convert native ruby gems package names to rock-xxx
                     if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
                         pkg_list.each do |name,version|
-                            @ruby_gems << [name,version]
+                            extra_gems << [name, version]
                             non_native_dependencies << [name, version]
                         end
                     else
@@ -621,12 +616,8 @@ module Autoproj
                 end
                 Packager.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
 
-                # Remove duplicates
-                @osdeps.uniq!
-                @ruby_gems.uniq!
-
                 # Return rock packages, osdeps and non native deps (here gems)
-                {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies }
+                {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
             end
 
             def filtered_dependencies(pkg, dependencies, with_rock_release_prefix = true)
@@ -1089,9 +1080,6 @@ module Autoproj
                         options[:latest_commit_time] = pkg_commit_time
                         options[:recursive_deps] = recursive_dependencies(pkg.name)
                         convert_gem(gem_final_path, options)
-                        # register gem with the correct naming schema
-                        # to make sure dependency naming and gem naming are consistent
-                        @ruby_rock_gems << debian_name(pkg)
                     rescue Exception => e
                         raise RuntimeError, "Debian: failed to create gem from RubyPackage #{pkg.name} -- #{e.message}\n#{e.backtrace.join("\n")}"
                     end
@@ -1153,8 +1141,6 @@ module Autoproj
                          "#{plain_versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
-                        # just to update the required gem property
-                        filtered_dependencies(pkg, dependencies(pkg))
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                     FileUtils.rm_rf( File.basename(pkg.srcdir) )
@@ -1243,8 +1229,6 @@ module Autoproj
                          "#{plain_versioned_name(pkg)}.orig.tar.gz",
                          "#{versioned_name(pkg, distribution)}.dsc"]
                     else
-                        # just to update the required gem property
-                        filtered_dependencies(pkg, dependencies(pkg))
                         Packager.info "Package: #{pkg.name} is up to date"
                     end
                 end
