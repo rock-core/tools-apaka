@@ -1772,13 +1772,11 @@ module Autoproj
                     Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
                     Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
 
-
                     # Check if patching is needed
                     # To allow patching we need to split `gem2deb -S #{gem_name}`
                     # into its substeps
                     #
                     Dir.chdir(debian_ruby_name) do
-
                         package_name = options[:package_name] || gem_base_name
                         if patch_pkg_dir(package_name, options[:patch_dir])
                             dpkg_commit_changes("deb_autopackaging_overlay")
