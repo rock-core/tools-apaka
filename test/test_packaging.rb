@@ -102,7 +102,7 @@ class TestDebian < Minitest::Test
         ["base/cmake","utilrb"].each do |pkg_name|
             pkg = packager.package_by_name(pkg_name)
             packager.package(pkg)
-            ["debian.tar.gz", "dsc","orig.tar.gz"].each do |suffix|
+            ["debian.tar.{gz,xz}", "dsc","orig.tar.gz"].each do |suffix|
                 files = Dir.glob(File.join(packager.packaging_dir(pkg), "*.#{suffix}"))
                 assert(files.size == 1, "File with suffix #{suffix} generated")
             end
