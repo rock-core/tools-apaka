@@ -86,7 +86,7 @@ include /usr/share/cdbs/1/rules/autoreconf.mk
 ############################################
 # BEGIN IMPORTER
 #
-<% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage) %>
+<% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage) || package.name =~ /bundles/ %>
 CMAKE = $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
