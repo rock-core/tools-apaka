@@ -191,7 +191,7 @@ build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir
 else
-    Autoproj.warn "Patch directory: #{patch_dir} does not exist"
+    Autoproj.warn "Patch directory: #{o_patch_dir} does not exist"
     exit 0
 end
 
