@@ -1605,6 +1605,7 @@ module Autoproj
                                         if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
                                             Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
                                         end
+                                        dep.clear
                                     end
                                 end
                             else
@@ -1633,6 +1634,9 @@ module Autoproj
                                     t = $1
                                     if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
                                         Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
+                                        bdep.clear
+                                        ## todo: problem here: bdep (or dep above) does not necessarily reference an actual object, or (as is the case with metaruby=>tools/metaruby) reference a similarly named object.
+                                        ## in addition, metaruby is a metapackage, pulling tools/metaruby
                                     end
                                 end
                             end
