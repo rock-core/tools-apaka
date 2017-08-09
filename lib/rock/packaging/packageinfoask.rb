@@ -153,3 +153,9 @@ rescue LoadError
 rescue
     # if one of the backends does not load, we should still be fine.
 end
+
+begin
+    require 'rock/packaging/autoproj2adaptor'
+rescue LoadError
+rescue
+end
