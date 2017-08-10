@@ -1665,6 +1665,15 @@ module Autoproj
                         end
                         Packager.info "Converted: #{Dir.glob("**")}"
 
+                        # Check if patching is needed
+                        # To allow patching we need to split `gem2deb -S #{gem_name}`
+                        # into its substeps
+                        #
+                        Dir.chdir(gem_versioned_name) do
+                            package_name = options[:package_name] || gem_base_name
+                            patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
+                        end
+
                         # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
                         checksums_file="checksums.yaml.gz"
                         files = Dir.glob("*/#{checksums_file}")
