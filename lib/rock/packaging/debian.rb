@@ -719,7 +719,7 @@ module Autoproj
                             # Rake targets that should be tried for cleaning
                             gem_clean_success = false
                             @gem_clean_alternatives.each do |target|
-                                if !system("rake #{target} > #{File.join(log_dir, logname)} 2> #{File.join(log_dir, logname)}")
+                                if !system(pkginfo.env, "rake #{target} > #{File.join(log_dir, logname)} 2> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to clean package '#{pkginfo.name}' using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to clean package '#{pkginfo.name}' using target '#{target}'"
@@ -743,7 +743,7 @@ module Autoproj
                             # Allowed gem creation alternatives
                             gem_creation_success = false
                             @gem_creation_alternatives.each do |target|
-                                if !system("rake #{target} >> #{File.join(log_dir, logname)} 2>> #{File.join(log_dir, logname)}")
+                                if !system(pkginfo.env, "rake #{target} >> #{File.join(log_dir, logname)} 2>> #{File.join(log_dir, logname)}")
                                     Packager.info "Debian: failed to create gem using target '#{target}'"
                                 else
                                     Packager.info "Debian: succeeded to create gem using target '#{target}'"
