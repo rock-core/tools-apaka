@@ -227,14 +227,11 @@ module Autoproj
             end
 
             # Import from a local src directory into the packaging directory for the debian packaging
-            def import_from_local_src_dir(pkginfo, local_src_dir, packaging_dir)
-                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkginfo))
+            def import_from_local_src_dir(pkginfo, local_src_dir, pkg_target_importdir)
                 Packager.info "Preparing source dir #{pkginfo.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
                 if !pkginfo.importer_type || !pkginfo.importer_type == :git
                     Packager.info "Package importer requires copying into target directory"
                     FileUtils.cp_r local_src_dir, pkg_target_importdir
-                    remove_excluded_dirs(pkg_target_importdir)
-                    remove_excluded_files(pkg_target_importdir)
                 else
                     pkginfo.import(pkg_target_importdir)
                 end
@@ -269,12 +266,17 @@ module Autoproj
                 Packager.debug "Preparing source dir #{pkginfo.name}"
                 # If we have given an existing source directory we should use it, 
                 # but only if it is a git repository
+                pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
                 if support_local_import && existing_source_dir = options[:existing_source_dir]
-                    import_from_local_src_dir(pkginfo, existing_source_dir, pkg_dir)
+                    import_from_local_src_dir(pkginfo, existing_source_dir, pkg_target_importdir)
                 else
-                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
                     pkginfo.import(pkg_target_importdir)
                 end
+                # remove these even on fresh imports. some repositories
+                # have prepopulated build directories and similar
+                remove_excluded_dirs(pkg_target_importdir)
+                remove_excluded_files(pkg_target_importdir)
+
                 pkginfo
             end
 
