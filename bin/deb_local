@@ -378,17 +378,23 @@ end
 succeeded_pkg_builds = []
 failed_pkg_builds = []
 if !rock_pkginfos || rock_pkginfos.empty?
-    puts "# No Rock Packages to be packaged"
+    Autoproj::Packaging.info "# No Rock Packages to be packaged"
 elsif o_meta_only
-    puts "# Creating only meta packages requested"
+    Autoproj::Packaging.info "# Creating only meta packages requested"
 else
     pkg_names = rock_pkginfos.collect {|pkginfo| pkginfo.name }
-    puts "# Packaging Rock Packages --- #{pkg_names}"
+    Autoproj::Packaging.info "# Packaging Rock Packages --- #{pkg_names}"
     index = 0
     rock_pkginfos.each do |pkginfo|
         begin
             if package_info_ask.ignored?(pkginfo.name)
-                puts "    package is on the ignore list"
+                Autoproj::Packaging.warn "    package is on the ignore list"
+                next
+            end
+            pkgdeps = pkginfo.dependencies[:rock_pkginfo].map { |p| p.name }
+            if !(pkginfo.dependencies[:rock_pkginfo].map { |p| p.name } & failed_pkg_builds.map { |f| f[1] }).empty? ||
+               !(pkginfo.dependencies[:nonnative] & failed_gem_builds.map { |f| f[1] }).empty?
+                Autoproj::Packaging.warn "    skipped due to dependencies failing to build"
                 next
             end
             pkg_build_options = build_options.dup
@@ -402,10 +408,10 @@ else
                 succeeded_pkg_builds << [index, pkginfo.name]
             end
         rescue SignalException => e
-            puts "Package building aborted by user"
+            Autoproj::Packaging.error "Package building aborted by user"
             exit 0
         rescue Exception => e
-            puts "    package: #{pkginfo.name} building failed"
+            Autoproj::Packaging.error "    package: #{pkginfo.name} building failed"
             puts e.message
             puts e.backtrace.join("\n")
             failed_pkg_builds << [index, pkginfo.name]
