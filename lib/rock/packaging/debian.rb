@@ -1165,7 +1165,7 @@ module Autoproj
             # Convert all gems that are required
             # by package build with the debian packager
             def convert_gems(gems, options = Hash.new)
-                Packager.info "Convert gems: #{gems} with options #{options}"
+                Packager.info "Convert gems: #{gems} with options #{options.reject { |k,v| k==:deps }}"
                 if gems.empty?
                     return
                 end
@@ -1268,7 +1268,7 @@ module Autoproj
                         end
                         gem_file_name = Dir.glob(gem_globname).first
                         if !gem_file_name
-                            raise ArgumentError, "Could not retrieve a gem '#{gem_name}', version '#{version}' and options '#{options}'"
+                            raise ArgumentError, "Could not retrieve a gem '#{gem_name}', version '#{version}' and options '#{options.reject { |k,v| k==:deps }}'"
                         end
                         convert_gem(gem_file_name, options)
                     else
@@ -1336,7 +1336,7 @@ module Autoproj
             #        :local_package => false
             #
             def convert_gem(gem_path, options = Hash.new)
-                Packager.info "Convert gem: '#{gem_path}' with options: #{options}"
+                Packager.info "Convert gem: '#{gem_path}' with options: #{options.reject { |k,v| k==:deps }}"
 
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil,

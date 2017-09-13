@@ -12,6 +12,8 @@ module Autoproj
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
+            @base_image_lock = Mutex.new
+
             class ChrootCmdError < StandardError
                 attr_reader :status
 
@@ -99,29 +101,41 @@ module Autoproj
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil
 
-                image_prepare(distribution, architecture)
-                image_update(distribution, architecture)
-                image_prepare_hookdir(distribution, architecture, release_prefix)
+                @base_image_lock.lock
+                begin
 
-                CHROOT_EXTRA_DEBS.each do |extra_pkg|
-                    image_install_pkg(distribution, architecture, extra_pkg)
-                end
-                # If gem2deb_base_dir is given, then it will be tried to update
-                # (install a patched version of) gem2deb in the target chroot
-                # (if possible)
-                #
-                if options[:patch_dir]
-                    gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
-                    image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
+                    image_prepare(distribution, architecture)
+                    image_update(distribution, architecture)
+                    image_prepare_hookdir(distribution, architecture, release_prefix)
+
+                    CHROOT_EXTRA_DEBS.each do |extra_pkg|
+                        image_install_pkg(distribution, architecture, extra_pkg)
+                    end
+                    # If gem2deb_base_dir is given, then it will be tried to update
+                    # (install a patched version of) gem2deb in the target chroot
+                    # (if possible)
+                    #
+                    if options[:patch_dir]
+                        gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
+                        image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
+                    end
+                ensure
+                    @base_image_lock.unlock
                 end
             end
 
             def self.image_install_pkg(distribution, architecture, pkg)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
                 chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
             def self.image_install_debfile(distribution, architecture, debfile)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
                 begin
                     chroot_cmd(basepath, "dpkg -i #{debfile}")
@@ -146,6 +160,9 @@ module Autoproj
             # Prepare the chroot/image in order to build for different target
             # architectures
             def self.image_prepare(distribution, architecture)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution,architecture)
 
                 if File.exist?(basepath)
@@ -168,6 +185,9 @@ module Autoproj
 
             # Update the chroot/image using `cowbuilder --update`
             def self.image_update(distribution, architecture)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
                 cmd = ["sudo"]
                 cmd << "DIST=#{distribution}" << "ARCH=#{architecture}"
@@ -211,6 +231,9 @@ module Autoproj
             # Update the gem2deb version if a patched version is available
             #
             def self.image_update_gem2deb(distribution, architecture, gem2deb_debs_basedir)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
 
                 gem2deb_debs_dir = File.join(gem2deb_debs_basedir,"#{distribution}-all")
@@ -264,6 +287,9 @@ module Autoproj
             # packages
             #
             def self.image_prepare_hookdir(distribution,architecture, release_prefix)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 hook_dir = pbuilder_hookdir(distribution, architecture, release_prefix)
                 if !File.exist?(hook_dir)
                     FileUtils.mkdir_p hook_dir

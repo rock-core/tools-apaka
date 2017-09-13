@@ -391,6 +391,20 @@ module Autoproj
                     end
                 end
 
+                required_gems = all_required_gems(gem_versions)
+
+                all_pkginfos = all_packages.map do |pkg|
+                    pkginfo_from_pkg(pkg)
+                end
+
+                {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }.merge required_gems
+            end
+
+            # resolve the required gems of a list of gems and their versions
+            # { gem => [versions] }
+            # returns { :gems => [gem names sorted so least dependend is first],
+            #           :gem_versions => { gem => version } }
+            def all_required_gems(gem_versions)
                 gem_version_requirements = gem_versions.dup
                 gem_dependencies = GemDependencies.resolve_all(gem_versions)
                 gem_dependencies.each do |name, deps|
@@ -403,11 +417,7 @@ module Autoproj
                 end
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
                 sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
-                all_pkginfos = all_packages.map do |pkg|
-                    pkginfo_from_pkg(pkg)
-                end
-
-                {:pkginfos => all_pkginfos, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }
+                {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end
 
             private

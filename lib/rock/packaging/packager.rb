@@ -1,5 +1,6 @@
 
 require 'utilrb/logger'
+require 'thread'
 
 module Autoproj
     module Packaging
@@ -44,11 +45,16 @@ module Autoproj
                 @log_dir = File.join(@build_dir, "logs")
                 @local_tmp_dir = File.join(@build_dir, ".rock_packager")
                 @deb_repository = DEB_REPOSITORY
+                @reprepro_lock = Mutex.new
             end
 
             # Initialize the reprepro repository
             #
             def initialize_reprepro_conf_dir(release_prefix)
+                if !@reprepro_lock.owned?
+                    raise ThreadError.new
+                end
+                
                 conf_dir = File.join(deb_repository, release_prefix, "conf")
                 if File.exist? conf_dir
                     Packager.info "Reprepo repository exists: #{conf_dir}"
@@ -77,34 +83,39 @@ module Autoproj
             end
 
             def initialize_reprepro_repository(release_prefix)
+                @reprepro_lock.lock
+                begin
 
-                initialize_reprepro_conf_dir(release_prefix)
+                    initialize_reprepro_conf_dir(release_prefix)
 
-                # Check if Packages file exists: /var/www/rock-reprepro/local/dists/jessie/main/binary-amd64/Packages
-                # other initialize properly
-                packages_file = File.join(deb_repository,release_prefix,"dists",target_platform.distribution_release_name,"main",
-                                          "binary-#{target_platform.architecture}","Packages")
-                if !File.exist?(packages_file)
-                    reprepro_dir = File.join(deb_repository, release_prefix)
-                    logfile = File.join(log_dir,"reprepro-init.log")
-                    cmd = [reprepro_bin]
-                    cmd << "-V" << "-b" << reprepro_dir <<
-                        "export" << target_platform.distribution_release_name
-                    Packager.info "Initialize distribution #{target_platform.distribution_release_name} : #{cmd.join(" ")} &> #{logfile}"
-                    if !system(*cmd, [:out, :err] => logfile, :close_others => true)
-                        Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                    # Check if Packages file exists: /var/www/rock-reprepro/local/dists/jessie/main/binary-amd64/Packages
+                    # other initialize properly
+                    packages_file = File.join(deb_repository,release_prefix,"dists",target_platform.distribution_release_name,"main",
+                                              "binary-#{target_platform.architecture}","Packages")
+                    if !File.exist?(packages_file)
+                        reprepro_dir = File.join(deb_repository, release_prefix)
+                        logfile = File.join(log_dir,"reprepro-init.log")
+                        cmd = [reprepro_bin]
+                        cmd << "-V" << "-b" << reprepro_dir <<
+                            "export" << target_platform.distribution_release_name
+                        Packager.info "Initialize distribution #{target_platform.distribution_release_name} : #{cmd.join(" ")} &> #{logfile}"
+                        if !system(*cmd, [:out, :err] => logfile, :close_others => true)
+                            Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                        end
+                        cmd = [reprepro_bin]
+                        cmd << "-V" << "-b" << reprepro_dir <<
+                            "flood" << target_platform.distribution_release_name <<
+                            target_platform.architecture
+                        logfile = File.join(log_dir,"reprepro-flood.log")
+                        Packager.info "Flood #{target_platform.distribution_release_name} and #{target_platform.architecture}"
+                        if !system(*cmd, [:out, :err] => logfile, :close_others => true)
+                            Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                        end
+                    else
+                        Packager.info "File: #{packages_file} exists"
                     end
-                    cmd = [reprepro_bin]
-                    cmd << "-V" << "-b" << reprepro_dir <<
-                        "flood" << target_platform.distribution_release_name <<
-                        target_platform.architecture
-                    logfile = File.join(log_dir,"reprepro-flood.log")
-                    Packager.info "Flood #{target_platform.distribution_release_name} and #{target_platform.architecture}"
-                    if !system(*cmd, [:out, :err] => logfile, :close_others => true)
-                        Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
-                    end
-                else
-                    Packager.info "File: #{packages_file} exists"
+                ensure
+                    @reprepro_lock.unlock
                 end
             end
 
@@ -124,77 +135,95 @@ module Autoproj
             # (=distribution)
             # using reprepro
             def register_debian_package(debian_pkg_file, release_name, codename, force = false)
-                reprepro_dir = File.join(deb_repository, release_name)
+                @reprepro_lock.lock
+                begin
 
-                debian_package_dir = File.dirname(debian_pkg_file)
-                # get the basename, e.g., from rock-local-base-cmake_0.20160928-1~xenial_amd64.deb
-                debian_pkg_name = File.basename(debian_pkg_file).split("_").first
-                logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
+                    reprepro_dir = File.join(deb_repository, release_name)
 
-                if force
-                    deregister_debian_package(debian_pkg_name, release_name, codename, true)
-                end
+                    debian_package_dir = File.dirname(debian_pkg_file)
+                    # get the basename, e.g., from rock-local-base-cmake_0.20160928-1~xenial_amd64.deb
+                    debian_pkg_name = File.basename(debian_pkg_file).split("_").first
+                    logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
-                Dir.chdir(debian_package_dir) do
-                    debfile = Dir.glob("*.deb").first
-                    cmd = [reprepro_bin]
-                    cmd << "-V" << "-b" << reprepro_dir <<
-                        "includedeb" << codename << debfile
-
-                    Packager.info "Register deb file: #{cmd.join(" ")} &>> #{logfile}"
-                    if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
-                        raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                    if force
+                        deregister_debian_package(debian_pkg_name, release_name, codename, true)
                     end
 
-                    dscfile = Dir.glob("*.dsc").first
-                    cmd = [reprepro_bin]
-                    cmd << "-V" << "-b" << reprepro_dir <<
-                        "includedsc" << codename <<  dscfile
-                    Packager.info "Register dsc file: #{cmd.join(" ")} &>> #{logfile}"
-                    if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
-                        raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                    Dir.chdir(debian_package_dir) do
+                        debfile = Dir.glob("*.deb").first
+                        cmd = [reprepro_bin]
+                        cmd << "-V" << "-b" << reprepro_dir <<
+                            "includedeb" << codename << debfile
+
+                        Packager.info "Register deb file: #{cmd.join(" ")} &>> #{logfile}"
+                        if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                            raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                        end
+
+                        dscfile = Dir.glob("*.dsc").first
+                        cmd = [reprepro_bin]
+                        cmd << "-V" << "-b" << reprepro_dir <<
+                            "includedsc" << codename <<  dscfile
+                        Packager.info "Register dsc file: #{cmd.join(" ")} &>> #{logfile}"
+                        if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                            raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                        end
                     end
+                ensure
+                    @reprepro_lock.unlock
                 end
             end
 
             # Register a debian package
             def deregister_debian_package(pkg_name_expression, release_name, codename, exactmatch = false)
-                reprepro_dir = File.join(deb_repository, release_name)
-                logfile = File.join(log_dir,"deregistration-reprepro-#{release_name}-#{codename}.log")
+                @reprepro_lock.lock
 
-                cmd = [reprepro_bin]
-                cmd << "-V" << "-b" << reprepro_dir
+                begin
+                    reprepro_dir = File.join(deb_repository, release_name)
+                    logfile = File.join(log_dir,"deregistration-reprepro-#{release_name}-#{codename}.log")
 
-                if exactmatch
-                    cmd << "remove" << codename << pkg_name_expression
-                else
-                    cmd << "removematched" << codename << pkg_name_expression
-                end
-                IO::write(logfile, "#{cmd}\n", :mode => "a")
-                Packager.info "Remove existing package matching '#{pkg_name_expression}': #{cmd.join(" ")} &>> #{logfile}"
-                if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
-                    Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
-                else
                     cmd = [reprepro_bin]
                     cmd << "-V" << "-b" << reprepro_dir
-                    cmd << "deleteunreferenced"
+
+                    if exactmatch
+                        cmd << "remove" << codename << pkg_name_expression
+                    else
+                        cmd << "removematched" << codename << pkg_name_expression
+                    end
                     IO::write(logfile, "#{cmd}\n", :mode => "a")
-                    system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                    Packager.info "Remove existing package matching '#{pkg_name_expression}': #{cmd.join(" ")} &>> #{logfile}"
+                    if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                        Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                    else
+                        cmd = [reprepro_bin]
+                        cmd << "-V" << "-b" << reprepro_dir
+                        cmd << "deleteunreferenced"
+                        IO::write(logfile, "#{cmd}\n", :mode => "a")
+                        system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                    end
+                ensure
+                    @reprepro_lock.unlock
                 end
             end
 
             # Check if the given package in available in reprepro for the given
             # architecture
             def reprepro_has_package?(debian_pkg_name, release_name, codename, arch)
-                reprepro_dir = File.join(deb_repository, release_name)
-                cmd = "#{reprepro_bin} -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name} | grep #{arch}"
-                package_info = `#{cmd}`
-                if !package_info.empty?
-                    Packager.info "Reprepro: #{debian_pkg_name} available for #{codename} #{arch}"
-                    return true
-                else
-                    Packager.info "Reprepro: #{debian_pkg_name} not available for #{codename} #{arch}"
-                    return false
+                @reprepro_lock.lock
+
+                begin
+                    reprepro_dir = File.join(deb_repository, release_name)
+                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name} | grep #{arch}"
+                    package_info = `#{cmd}`
+                    if !package_info.empty?
+                        Packager.info "Reprepro: #{debian_pkg_name} available for #{codename} #{arch}"
+                        return true
+                    else
+                        Packager.info "Reprepro: #{debian_pkg_name} not available for #{codename} #{arch}"
+                        return false
+                    end
+                ensure
+                    @reprepro_lock.unlock
                 end
             end
 
