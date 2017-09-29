@@ -1522,19 +1522,8 @@ module Autoproj
                         package_name = options[:package_name] || gem_base_name
                         if patch_pkg_dir(package_name, options[:patch_dir])
                             dpkg_commit_changes("deb_autopackaging_overlay")
-                        end
-
-                        ################
-                        # debian/install
-                        ################
-                        if File.exists?("debian/install")
-                            system("sed", "-i", "s#/usr##{rock_install_directory}#g", "debian/install")
-                            dpkg_commit_changes("install_to_rock_specific_directory")
-                        end
-
-                        if File.exists?("debian/package.postinst")
-                            FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
-                            dpkg_commit_changes("add_postinst_script")
+                            # the above may fail when we patched debian/control
+                            # this is going to be fixed next
                         end
 
                         ################
@@ -1588,6 +1577,12 @@ module Autoproj
                             recursive_deps = options[:recursive_deps]
                         else
                             recursive_deps = nil
+                        end
+
+                        # Fix the name, in case we had to patch
+                        debcontrol.source["Source"] = debian_ruby_unversioned_name
+                        debcontrol.packages.each do |pkg|
+                            pkg["Package"] = debian_ruby_unversioned_name
                         end
 
                         # parse and filter dependencies
@@ -1690,6 +1685,23 @@ module Autoproj
                         # Inject the true name
                         system("sed", "-i", "s##{original_name}##{release_name}#g", "debian/*", :close_others => true)
                         dpkg_commit_changes("adapt_original_package_name")
+
+                        ################
+                        # debian/package.postinst
+                        ################
+                        if File.exists?("debian/package.postinst")
+                            FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
+                            dpkg_commit_changes("add_postinst_script")
+                        end
+
+                        ################
+                        # debian/install
+                        ################
+                        if File.exists?("debian/install")
+                            system("sed", "-i", "s#/usr##{rock_install_directory}#g", "debian/install")
+                            dpkg_commit_changes("install_to_rock_specific_directory")
+                            # the above may fail when we patched debian/control
+                        end
 
                         ################
                         # debian/rules
