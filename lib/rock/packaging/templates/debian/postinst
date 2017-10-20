@@ -8,6 +8,8 @@ my $rock_install_dir = "<%= rock_install_directory %>";
 my $rock_doc_install_dir = "$rock_install_dir/share/doc";
 
 sub update_index_html() {
+    #make sure $rock_doc_install_dir exists
+    system("mkdir","-p",$rock_doc_install_dir);
     #collect candidate files
     my @dirs = glob("$rock_doc_install_dir/*/");
     my @indexes = map {
