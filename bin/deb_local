@@ -276,6 +276,7 @@ selected_rock_packages = o_selected_packages.select do |name|
         true
     elsif package_info_ask.is_metapackage?(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock meta package"
+        #we want the dependencies(which it will resolve to)
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj::Packaging.debug "Package: #{name} is a gem"
@@ -320,9 +321,9 @@ end
 # check if the current collection in the manifest contains a
 # metapackage
 if o_build_meta
-    o_selected_packages.each do |sel|
-        if package_info_ask.is_metapackage?(sel)
-            meta_packages[sel] = package_info_ask.resolve_user_selection_packages([sel]).to_a
+    o_selected_packages.each do |name|
+        if package_info_ask.is_metapackage?(name)
+            meta_packages[name] = package_info_ask.resolve_user_selection_packages([name])
         end
     end
 end
@@ -373,7 +374,14 @@ else
             gem_deps = package_info_ask.all_required_gems({pkg => []})
         end
 
-        gem_deps = gem_deps[:gem_versions].to_a.map { |p| "ruby-#{p[0]}" }
+        gem_deps = gem_deps[:gem_versions].to_a.select do |gem,versions|
+            pkg_ruby_name = packager.debian_ruby_name(gem, false)
+            pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+            !( packager.rock_release_platform.ancestorContains(gem) ||
+               packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+               packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+        end .map { |p| "ruby-#{p[0]}" }
         #rice requires itself
         gem_deps.delete_if { |p| p == "ruby-#{pkg}" }
         
@@ -399,8 +407,20 @@ else
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_name(pkginfo,true)
 
-        deps = pkginfo.dependencies[:rock_pkginfo].map { |p| p.name }
-        deps.concat pkginfo.dependencies[:nonnative].map { |p| "ruby-#{p[0]}" }
+        pkgdeps = pkginfo.dependencies
+        deps = pkgdeps[:rock_pkginfo].select do |pkginfo|
+            pkg_name = packager.debian_name(pkginfo, true)
+            !packager.rock_release_platform.ancestorContains(pkg_name)
+        end .map { |p| p.name }
+        deps.concat (
+            pkgdeps[:nonnative].select do |gem,version|
+                pkg_ruby_name = packager.debian_ruby_name(gem, false)
+                pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+                !( packager.rock_release_platform.ancestorContains(gem) ||
+                   packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+                   packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+            end .map { |p| "ruby-#{p[0]}" })
         
         pending_jobs[pkginfo.name] = { :type => :package,
                                        :dependencies => deps,
@@ -410,13 +430,31 @@ else
     end
 end
 
-meta_packages.each do |pkg_name,depend_names|
+meta_packages.each do |pkg_name,dependencies|
     pkg_build_options = build_options.dup
     pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
-    pkg_build_options[:meta_depends] = depend_names
+
+    reqpkgs = packager.filter_all_required_packages package_info_ask.all_required_packages dependencies,[]
+
+    pkg_build_options[:meta_depends] = dependencies.to_a
+
+    deps = reqpkgs[:pkginfos].select do |pkginfo|
+        dep_pkg_name = packager.debian_name(pkginfo, true)
+        !packager.rock_release_platform.ancestorContains(dep_pkg_name)
+    end .map { |p| p.name }
+    deps.concat (
+        reqpkgs[:gem_versions].select do |gem,version|
+            pkg_ruby_name = packager.debian_ruby_name(gem, false)
+            pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+            !( packager.rock_release_platform.ancestorContains(gem) ||
+               packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+               packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+        end .map { |p| "ruby-#{p[0]}" }
+    )
 
     pending_jobs[pkg_name] = { :type => :meta,
-                               :dependencies => depend_names,
+                               :dependencies => deps,
                                :build_arguments =>
                                [pkg_name, pkg_build_options]
                              }

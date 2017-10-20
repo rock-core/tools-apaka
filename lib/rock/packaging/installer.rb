@@ -291,6 +291,7 @@ module Autoproj
                     raise ThreadError.new
                 end
                 hook_dir = pbuilder_hookdir(distribution, architecture, release_prefix)
+                rock_release_platform = TargetPlatform.new(release_prefix, architecture)
                 if !File.exist?(hook_dir)
                     FileUtils.mkdir_p hook_dir
                 end
@@ -299,7 +300,13 @@ module Autoproj
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
                         f.write("set -ex\n")
+                        #todo: add the ancestor distributions
                         f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,release_prefix)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                        rock_release_platform.ancestors.each do |ancestor_name|
+                            if TargetPlatform::isRock(ancestor_name)
+                                f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,ancestor_name)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                            end
+                        end
                         f.write("/usr/bin/apt-get update\n")
                     end
                     Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
@@ -319,13 +326,22 @@ module Autoproj
                     :log_file => nil
 
                 image_setup(distribution, architecture, release_prefix, options)
+                rock_release_platform = TargetPlatform.new(release_prefix, architecture)
 
                 cmd  = ["sudo", "DIST=#{distribution}", "ARCH=#{architecture}"]
                 cmd << "cowbuilder" << "--build" << dsc_file
                 cmd << "--basepath" << image_basepath(distribution, architecture)
                 cmd << "--buildresult" << build_options[:result_dir]
                 cmd << "--debbuildopts" << "-sa"
-                cmd << "--bindmounts" << File.join(DEB_REPOSITORY, release_prefix)
+                bindmounts = [File.join(DEB_REPOSITORY, release_prefix)]
+                rock_release_platform.ancestors.each do |ancestor_name|
+                    if TargetPlatform::isRock(ancestor_name)
+                        bindmounts << File.join(DEB_REPOSITORY, ancestor_name)
+                    end
+                end
+
+                cmd << "--bindmounts" << bindmounts.join(" ")
+
                 cmd << "--hookdir" << pbuilder_hookdir(distribution, architecture, release_prefix)
                 cmdopts = {:close_others => true}
                 if log_file = build_options[:log_file]

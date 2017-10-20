@@ -501,8 +501,11 @@ module Autoproj
 
                 dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
                 build_dependencies = dependencies.dup
+
+                this_rock_release = TargetPlatform.new(rock_release_name, target_platform.architecture)
                 @rock_autobuild_deps[pkginfo.build_type].each do |pkginfo|
-                    build_dependencies << debian_name( pkginfo )
+                    name = debian_name(pkginfo)
+                    build_dependencies << this_rock_release.packageReleaseName(name)
                 end
                 if pkginfo.build_type == :cmake
                     build_dependencies << "cmake"
@@ -1867,6 +1870,7 @@ END
                 ld_library_path_env = "LD_LIBRARY_PATH="
                 cmake_prefix_path   = "CMAKE_PREFIX_PATH="
                 orogen_plugin_path  = "OROGEN_PLUGIN_PATH="
+                rock_library_dirs = ""
 
                 rock_release_hierarchy.each do |release_name|
                     install_dir = File.join(rock_base_install_directory, release_name)
@@ -1886,6 +1890,7 @@ END
                     ld_library_path_env += "#{File.join(install_dir,"lib")}:#{File.join(install_dir,"lib/$(arch)")}:"
                     cmake_prefix_path += "#{install_dir}:"
                     orogen_plugin_path += "#{File.join(install_dir,"share/orogen/plugins")}:"
+                    rock_library_dirs += "#{File.join(install_dir,"lib")}:#{File.join(install_dir,"lib/$(arch)")}:"
                 end
 
                 pkgconfig_env       += "/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:"
@@ -1910,6 +1915,7 @@ END
                     envsh += "export TYPELIB_CXX_LOADER=castxml\n"
                 end
                 envsh += "export DEB_CPPFLAGS_APPEND=-std=c++11\n"
+                envsh += "rock_library_dirs=#{rock_library_dirs}\n"
                 envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
             end
