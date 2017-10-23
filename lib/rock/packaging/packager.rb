@@ -10,7 +10,7 @@ module Autoproj
         LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
         WWW_ROOT = File.join("/var/www")
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
-        TEMPLATES_DIR=File.expand_path(File.dirname(__FILE__),"templates")
+        TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
         CACHE_DIR=File.join(BUILD_DIR,"cache")
 
         EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
