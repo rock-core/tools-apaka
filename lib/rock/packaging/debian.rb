@@ -1770,7 +1770,7 @@ module Autoproj
                     end
 
                     debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
-                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*$/,"")
+                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*(\.rc[0-9]+)?$/,"")
                     Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
                     Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
 
