@@ -147,7 +147,7 @@ module Autoproj
                 pkginfo.origin_information = Array.new()
                 begin
                     if pkg.importer.kind_of?(Autobuild::Git)
-                        status = pkg.importer.status(pkg)
+                        status = pkg.importer.status(pkg, only_local: true)
                         pkginfo.origin_information << "repository: #{pkg.importer.repository_id}"
                         pkginfo.origin_information << "branch: #{pkg.importer.current_branch(pkg)}"
                         pkginfo.origin_information << "commit: #{status.common_commit}"
