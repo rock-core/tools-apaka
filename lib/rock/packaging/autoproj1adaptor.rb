@@ -32,8 +32,15 @@ module Autoproj
                 if @pkginfo_cache.has_key?(pkg.name)
                     return @pkginfo_cache[pkg.name]
                 end
+                #first, we need to make sure the package is imported. otherwise,
+                #there is no useful manifest, thus no dependencies,
+                #latest_commit_time does not work, and more.
+                if not File.exists?(pkg.srcdir)
+                    Packaging.debug "Retrieving remote git repository of '#{pkg.name}'"
+                    pkg.importer.import(pkg)
+                end
                 pkg_commit_time = latest_commit_time(pkg);
-                pkginfo = PackageInfo.new
+                pkginfo = Autoproj1PackageInfo.new(pkg,self)
                 @pkginfo_cache[pkg.name] = pkginfo
                 pkginfo.latest_commit_time = pkg_commit_time
                 pkginfo.name = pkg.name
@@ -492,12 +499,7 @@ module Autoproj
                     # If it is not available import package
                     # from the original source
                     if pkg.importer.kind_of?(Autobuild::Git)
-                        if not File.exists?(pkg.srcdir)
-                            Packaging.debug "Retrieving remote git repository of '#{pkg.name}'"
-                            pkg.importer.import(pkg)
-                        else
-                            Packaging.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
-                        end
+                        Packaging.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
                         pkg.importer.repository = pkg.srcdir
                         pkg.importer.commit = pkg.importer.current_remote_commit(pkg)
 
