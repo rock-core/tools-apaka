@@ -601,6 +601,13 @@ module Autoproj
                     @required_rock_packages
                 end
 
+                def env
+                    ENV.to_h
+                    # this does not work due to a bug in autobuild
+                    #env = @pkg.resolved_env
+                    #dependencies[:rock_pkginfo].each { |d| pkginfo.env.merge d.env }
+                end
+
             end #class PackageInfo
             
         end #class Autoproj
