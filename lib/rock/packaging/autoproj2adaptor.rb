@@ -37,7 +37,9 @@ module Autoproj
                 @osdeps_release_tags = release_tags
 
                 Autoproj::workspace.setup
-                Autoproj::workspace.load_package_sets(mainline: true)
+                #mainline: true: apply no overrides
+                #          nil: apply local overrides
+                Autoproj::workspace.load_package_sets(mainline: nil)
                 Autoproj::workspace.config.save
                 Autoproj::workspace.setup_all_package_directories
                 Autoproj::workspace.finalize_package_setup
