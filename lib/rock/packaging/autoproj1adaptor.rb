@@ -26,6 +26,8 @@ module Autoproj
                 @package_set_order = []
 
                 @pkginfo_cache = {}
+
+                @pkg_manifest_cache = {}
             end
 
             def pkginfo_from_pkg(pkg)
@@ -156,8 +158,20 @@ module Autoproj
 
             public
 
+            def pkgmanifest_by_name(package_name)
+                if !@pkg_manifest_cache[package_name]
+                    begin
+                        puts "Loading manifest for #{package_name}"
+                        @pkg_manifest_cache[package_name] = Autoproj.manifest.package(package_name)
+                    rescue Exception => e
+                        raise RuntimeError, "Autoproj::Packaging::Autoproj1Adaptor: failed to load manifest for '#{package_name}' -- #{e}"
+                    end
+                end
+                @pkg_manifest_cache[package_name]
+            end
+            
             def package_by_name(package_name)
-                Autoproj.manifest.package(package_name).autobuild
+                pkgmanifest_by_name(package_name).autobuild
             end
 
             private
