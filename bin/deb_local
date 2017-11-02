@@ -42,14 +42,6 @@ def build_locally(packager, pkg_name, options)
     arguments += "--distributions #{distribution}"
     arguments += " "
     arguments += "--architectures #{architecture}"
-    arguments += " "
-    if options[:meta_depends]
-        arguments += "--meta #{pkg_name}"
-        arguments += " "
-        arguments += options[:meta_depends].join(" ")
-    else
-        arguments +="#{pkg_name}"
-    end
 
     # Create logging directory
     log_dir = File.join(packager.log_dir,"#{distribution}-#{architecture}")
@@ -61,7 +53,17 @@ def build_locally(packager, pkg_name, options)
     if options[:rebuild] || !packager.reprepro_has_package?(options[:debian_package_name], options[:release_name], distribution, architecture)
         puts "############### package #{pkg_name} ###################"
         rebuild_log = File.join(log_dir, "#{options[:debian_package_name]}-deb_local-rebuild.log")
-        cmd = "deb_package --package --rebuild #{arguments} > #{rebuild_log}"
+        cmd = "deb_package --rebuild #{arguments}"
+        cmd += " "
+        if options[:meta_depends]
+            cmd += "--meta #{pkg_name}"
+            cmd += " "
+            cmd += options[:meta_depends].join(" ")
+        else
+            cmd += "--package #{pkg_name}"
+        end
+        cmd += " > #{rebuild_log}"
+
         puts "Execution of: #{cmd}"
         if !system(cmd)
             raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
@@ -98,7 +100,7 @@ def build_locally(packager, pkg_name, options)
         if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform
             puts "############### install #{pkg_name} #####################"
             install_log = File.join(log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
-            cmd = "deb_package --install #{arguments} > #{install_log}"
+            cmd = "deb_package --install #{arguments} #{pkg_name} > #{install_log}"
             puts "Execution of: #{cmd}"
             if !system(cmd)
                 raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
@@ -265,6 +267,9 @@ selected_rock_packages = o_selected_packages.select do |name|
     if pkg = Autoproj.manifest.package(name)
         Autoproj.debug "Package: #{name} is a known rock package"
         true
+    elsif Autoproj.manifest.metapackages.has_key?(sel)
+        Autoproj::Packaging.debug "Package: #{name} is a known rock meta package"
+        true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj.debug "Package: #{name} is a gem"
         packager.ruby_gems << [name, nil]
@@ -295,8 +300,12 @@ required_gems_versions = all_rock_packages[:gem_versions]
 # command line including they gem dependencies
 meta_packages = {}
 if o_custom_meta
-    meta_packages[o_custom_meta] = rock_packages.collect {|pkg| pkg.name } +
-                            required_gems
+    meta_packages[o_custom_meta] =
+        rock_packages.collect {|pkg| pkg.name } +
+        required_gems.select do |pkg|
+        native_name, is_osdeps = packager.native_dependency_name(pkg)
+        !is_osdeps
+    end
 end
 
 # check if the current collection in the manifest contains a
@@ -322,6 +331,8 @@ failed_gem_builds = []
 status = {}
 if !required_gems || required_gems.empty?
     puts "# No Gems to be packaged"
+elsif o_meta_only
+    # message output later
 else
     puts "# Packaging Gems ---- #{required_gems}"
     index = 0
@@ -369,7 +380,7 @@ failed_pkg_builds = []
 if !rock_packages || rock_packages.empty?
     puts "# No Rock Packages to be packaged"
 elsif o_meta_only
-    puts "# Creating only the meta package requested"
+    puts "# Creating only meta packages requested"
 else
     pkg_names = rock_packages.collect {|pkg| pkg.name }
     puts "# Packaging Rock Packages --- #{pkg_names}"
@@ -411,6 +422,7 @@ succeeded_meta_builds = []
 failed_meta_builds = []
 
 index = 0
+# o_build_meta is handled earlier: meta_packages will be setup accordingly.
 meta_packages.each do |pkg_name,depend_names|
     puts "# Creating meta package #{pkg_name} --- #{depend_names}"
 
@@ -418,10 +430,16 @@ meta_packages.each do |pkg_name,depend_names|
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
         pkg_build_options[:meta_depends] = depend_names
-        pkg_build_options[:rebuild] = false
+
         index += 1
         puts "    (#{index}) #{pkg_name}"
-        build_locally(packager, pkg_name, pkg_build_options)
+        if !o_dry_run
+            build_locally(packager, pkg_name, pkg_build_options)
+        end
+        succeeded_meta_builds << [index, pkg_name]
+    rescue SignalException => e
+        puts "Package building aborted by user"
+        exit 0
     rescue Exception => e
         puts "    package: #{pkg_name} building failed"
         puts e.message

@@ -453,7 +453,7 @@ Dir.chdir(packager.build_dir) do
             meta_depend_packages << debian_pkg_name
         end
 
-        selection.each_with_index do |pkg_name, i|
+        selection.each do |pkg_name|
             if pkg = Autoproj.manifest.package(pkg_name)
                 pkg = pkg.autobuild
                 Autoproj.warn "Package: #{pkg_name} is a known rock package"
@@ -462,8 +462,7 @@ Dir.chdir(packager.build_dir) do
                 next
             end
 
-            debian_pkg_name = packager.debian_name(pkg)
-            meta_depend_packages << debian_pkg_name
+            meta_depend_packages << packager.debian_name(pkg)
         end
 
         #create the meta package
@@ -484,7 +483,7 @@ Dir.chdir(packager.build_dir) do
             begin
                 # Only account for packages which are actually available
                 dependencies = meta_depend_packages.select do |pkg|
-                    packager.reprepro_has_package?(pkg, options[:release_name], distribution, architecture)
+                    packager.reprepro_has_package?(pkg, o_rock_release_name, distribution, o_architectures.first)
                 end
 
                 packager.package_meta(o_meta, dependencies, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :package_set_dir => o_ps_dir})
