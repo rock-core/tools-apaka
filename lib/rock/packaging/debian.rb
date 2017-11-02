@@ -560,7 +560,6 @@ module Autoproj
 
                 # Filter all packages that are available
                 if rock_release_name
-                    rock_release_platform = TargetPlatform.new(rock_release_name, target_platform.architecture)
                     sorted_gem_list = sorted_gem_list.select do |gem|
                         with_prefix = true
                         pkg_ruby_name = debian_ruby_name(gem, !with_prefix)
