@@ -224,9 +224,11 @@ module Autoproj
                 #
                 svn_log = pkg.importer.run_svn(pkg, 'log', "-l 1", "--xml")
                 svn_log = REXML::Document.new(svn_log.join("\n"))
+                time_of_last_commit = nil
                 svn_log.elements.each('//log/logentry/date') do |d|
                     time_of_last_commit = Time.parse(d.text)
                 end
+                time_of_last_commit
             end
 
             def archive_version(pkg)
