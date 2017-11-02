@@ -1,8 +1,6 @@
 #! /usr/bin/env ruby
 require 'find'
 require 'optparse'
-require 'autoproj'
-require 'autobuild'
 require 'rock/packaging'
 require 'rock/packaging/packageinfoask'
 require 'tempfile'
@@ -190,8 +188,6 @@ end
 
 o_selected_packages = options.parse(ARGV)
 
-Autoproj::Packaging.root_dir = Autoproj.root_dir
-
 build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir
@@ -200,8 +196,10 @@ else
     exit 0
 end
 
-packager = Autoproj::Packaging::Debian.new(build_options)
 package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Autoproj::Packaging.root_dir = package_info_ask.root_dir
+Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
+packager = Autoproj::Packaging::Debian.new(build_options)
 
 if o_prepare_local_build
     puts "Preparing local building of packages"
@@ -259,10 +257,6 @@ if o_deregister
     exit 0
 end
 
-Autoproj.silent = true
-root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(nil)
-
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
 packager.rock_release_name = build_options[:release_name]
@@ -275,7 +269,7 @@ selected_rock_packages = o_selected_packages.select do |name|
     if pkg = package_info_ask.package(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock package"
         true
-    elsif Autoproj.manifest.metapackages.has_key?(sel)
+    elsif package_info_ask.is_metapackage?(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock meta package"
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
@@ -289,12 +283,14 @@ end
 
 Autoproj::Packaging.info "Selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 
+selection = []
+
 # When a ruby gem shall be packaged directly there are no selected rock
 # packages, but selected ony
 is_gem = selected_rock_packages.empty? && !o_selected_packages.empty?
 if !is_gem
-    selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
-    selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+    selection = package_info_ask.autoproj_init_and_load(selected_rock_packages)
+    selection = package_info_ask.resolve_user_selection_packages(selection)
 end
 
 # Compute dependencies for a given selection
@@ -320,8 +316,8 @@ end
 # metapackage
 if o_build_meta
     o_selected_packages.each do |sel|
-        if Autoproj.manifest.metapackages.has_key?(sel)
-            meta_packages[sel] = Autoproj.manifest.metapackages[sel].packages.collect { |pkg| pkg.name }
+        if package_info_ask.is_metapackage?(sel)
+            meta_packages[sel] = package_info_ask.resolve_user_selection_packages([sel]).to_a
         end
     end
 end
@@ -395,7 +391,7 @@ else
     index = 0
     rock_pkginfos.each do |pkginfo|
         begin
-            if Autoproj.manifest.ignored?(pkginfo.name)
+            if package_info_ask.ignored?(pkginfo.name)
                 puts "    package is on the ignore list"
                 next
             end

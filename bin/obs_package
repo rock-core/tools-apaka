@@ -113,7 +113,8 @@ class OBSConfiguration
     end
 end
 
-Autoproj::Packaging.root_dir = Autoproj.root_dir
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Autoproj::Packaging.root_dir = package_info_ask.root_dir
 
 obs_configuration = OBSConfiguration.new
 ################################################################################
@@ -138,12 +139,11 @@ if o_list_build_projects
     exit 0
 end
 
-root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
-selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+selection = package_info_ask.autoproj_init_and_load(o_selected_packages)
+selection = package_info_ask.resolve_user_selection_packages(selection)
 
-packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
-package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
+packager = Autoproj::Packaging::Debian.new(File.join(package_info_ask.root_dir, "debian"))
 
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 

@@ -2,12 +2,15 @@ require 'rexml/document'
 require 'autoproj'
 require 'autobuild'
 require 'rock/packaging/packageinfoask'
+require 'rock/packaging/gem_dependencies'
 
 module Autoproj
     module Packaging
         class Autoproj1Adaptor < PackageInfoAsk
 
             attr_accessor :package_set_order
+
+            attr_reader :osdeps_release_tags
 
             def self.which
                 :autoproj_v1
@@ -28,6 +31,59 @@ module Autoproj
                 @pkginfo_cache = {}
 
                 @pkg_manifest_cache = {}
+
+                distribution,release_tags = osdeps_operating_system
+                @osdeps_release_tags = release_tags
+
+                Autoproj.silent = true
+                Autoproj::CmdLine.initialize_root_directory
+                Autoproj::CmdLine.initialize_and_load(nil)
+            end
+
+            def osdeps_operating_system
+                Autoproj::OSDependencies.operating_system
+            end
+
+            # required for jenkins.rb or if there is a specific operating
+            # system in the config file
+            def osdeps_operating_system= (os)
+                Autoproj::OSDependencies.operating_system = os
+            end
+
+            def root_dir
+                Autoproj.root_dir
+            end
+
+            def osdeps_set_alias(old_name, new_name)
+                Autoproj::OSDependencies.alias(old_name, new_name)
+            end
+
+            def autoproj_init_and_load(selection)
+                #this should not be needed, we do
+                #Autoproj::CmdLine.initialize_and_load(nil)
+                #and it just passes selection through(if there are no options,
+                #and i think we filter anything that looks like an option)
+                Autoproj::CmdLine.initialize_and_load(selection)
+            end
+
+            def resolve_user_selection_packages(selection)
+                Autoproj::CmdLine.resolve_user_selection(selection).packages
+            end
+
+            def moved_packages
+                Autoproj.manifest.moved_packages
+            end
+
+            def package(package_name)
+                Autoproj.manifest.package(package_name)
+            end
+
+            def is_metapackage?(sel)
+                Autoproj.manifest.metapackages.has_key?(sel)
+            end
+
+            def ignored?(name)
+                Autoproj.manifest.ignored?(name)
             end
 
             def pkginfo_from_pkg(pkg)

@@ -277,7 +277,7 @@ module Autoproj
             # there is no need to repackage the ruby package 'bundler' if it already
             # exists in a specific release of Ubuntu or Debian
             def combination_filter(architectures, distributions, package_name, isGem, options = Hash.new)
-                operating_system = Autoproj::OSDependencies.operating_system
+                operating_system = package_info_ask.operating_system
 
                 begin
                     Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
@@ -291,7 +291,7 @@ module Autoproj
                             target_platform = TargetPlatform.new(release, requested_architecture)
 
                             if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(release)
-                                Autoproj::OSDependencies.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
+                                package_info_ask.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
                             else
                                 raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
                             end
@@ -320,7 +320,7 @@ module Autoproj
                 rescue Exception => e
                     raise
                 ensure
-                    Autoproj::OSDependencies.operating_system = operating_system
+                    package_info_ask.operating_system = operating_system
                 end
 
                 ret = ""

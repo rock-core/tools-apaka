@@ -1,6 +1,7 @@
 require 'rubygems/requirement'
 require 'set'
 require 'autoproj'
+require 'rock/packaging/packager'
 
 module Autoproj
     module Packaging
@@ -27,7 +28,7 @@ module Autoproj
                 gem_dependency = `#{gem_dependency_cmd}`
 
                 if $?.exitstatus != 0
-                    Autoproj.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
+                    Autoproj::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
                     gem_manager = ::Autoproj::PackageManagers::GemManager.new
                     if version_requirements.empty?
                         gem_manager.install([[gem_name]])
@@ -112,7 +113,7 @@ module Autoproj
             # Returns[Hash] with keys as required gems and versioned dependencies
             # as values (a Ruby Set)
             def self.resolve_all(gems)
-                Autoproj.info "Resolve all: #{gems}"
+                Autoproj::Packaging.info "Resolve all: #{gems}"
 
                 dependencies = Hash.new
                 handled_gems = Set.new
@@ -139,10 +140,10 @@ module Autoproj
                     remaining_gems = gems
                 end
 
-                Autoproj.info "Resolve remaining: #{remaining_gems}"
+                Autoproj::Packaging.info "Resolve remaining: #{remaining_gems}"
 
                 while !remaining_gems.empty?
-                    Autoproj.info "Resolve all: #{remaining_gems.to_a}"
+                    Autoproj::Packaging.info "Resolve all: #{remaining_gems.to_a}"
                     remaining = Hash.new
                     remaining_gems.each do |gem_name, gem_versions|
                         deps = resolve_by_name(gem_name, gem_versions)[:deps]
@@ -228,7 +229,7 @@ module Autoproj
             # uses 'gem fetch' for testing
             def self.is_gem?(gem_name)
                 if gem_name =~ /\//
-                    Autoproj.info "GemDependencies: invalid name -- cannot be a gem"
+                    Autoproj::Packaging.info "GemDependencies: invalid name -- cannot be a gem"
                     return false
                 end
                 # Check if this is a gem or not
@@ -240,7 +241,7 @@ module Autoproj
                         end
                     end
                     if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
-                        Autoproj.info "GemDependencies: #{gem_name} is a ruby gem"
+                        Autoproj::Packaging.info "GemDependencies: #{gem_name} is a ruby gem"
                         return true
                     end
                 end

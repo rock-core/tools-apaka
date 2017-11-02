@@ -47,13 +47,20 @@ module Autoproj
                                    autodetect_dpkg_architecture)
             end
 
+            def self.osdeps_release_tags
+                @osdeps_release_tags
+            end
+
+            def self.osdeps_release_tags= (tags)
+                @osdeps_release_tags = tags
+            end
+            
             # Autodetect the linux distribution release
             # require the general allow identification tag to be present in the
             # configuration file
             def self.autodetect_linux_distribution_release
-                distribution,release_tags = Autoproj::OSDependencies.operating_system
                 release = nil
-                release_tags.each do |tag|
+                osdeps_release_tags.each do |tag|
                     if Config.linux_distribution_releases.include?(tag)
                         return tag
                     end

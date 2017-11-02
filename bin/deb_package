@@ -13,7 +13,8 @@ lock_file.flock(File::LOCK_EX)
 lock_wait_time_in_s = Time.now - lock_time
 Autoproj::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
 
-Autoproj::Packaging.root_dir = Autoproj.root_dir
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Autoproj::Packaging.root_dir = package_info_ask.root_dir
 
 o_architectures = []
 o_distributions = []
@@ -315,10 +316,10 @@ if o_distributions.size == 1
     end
 
     if !operating_system.empty?
-        Autoproj::OSDependencies.operating_system = operating_system
+        package_info_ask.osdeps_operating_system = operating_system
         puts "Custom setting of operating system to: #{operating_system}"
         if preferred_ruby_version
-            Autoproj::OSDependencies.alias(preferred_ruby_version,"ruby")
+            package_info_ask.osdeps_set_alias(preferred_ruby_version,"ruby")
             puts "Setting preferred ruby version: #{preferred_ruby_version}"
         end
     end
@@ -330,20 +331,14 @@ end
 if !o_architectures.empty?
     options[:architecture] = o_architectures.first
 end
+Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
 packager = Autoproj::Packaging::Debian.new(options)
-package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
-
-# First load autoproj so that we can query what is a in rock defined
-# package and what is not
-Autoproj.silent = true
-root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(nil)
 
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
 #if the name matches a move target directory, convert to package name
 o_selected_packages = o_selected_packages.map do |name|
-    Autoproj.manifest.moved_packages.each do |pkg_name,target_dir|
+    package_info_ask.moved_packages.each do |pkg_name,target_dir|
         if name == target_dir
             name = pkg_name
         end
@@ -353,7 +348,7 @@ end
 
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
-    if pkg = Autoproj.manifest.package(name)
+    if package_info_ask.package(name)
         Autoproj::Packaging.warn "Package: #{name} is a known rock package"
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
@@ -366,8 +361,8 @@ selected_rock_packages = o_selected_packages.select do |name|
 end
 
 Autoproj::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
-selection = Autoproj::CmdLine.initialize_and_load(selected_rock_packages)
-selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+selection = package_info_ask.autoproj_init_and_load(selected_rock_packages)
+selection = package_info_ask.resolve_user_selection_packages(selection)
 
 packager.prepare
 
@@ -411,7 +406,7 @@ Dir.chdir(packager.build_dir) do
         end
 
         selection.each_with_index do |pkg_name, i|
-            if pkg = Autoproj.manifest.package(pkg_name)
+            if pkg = package_info_ask.package(pkg_name)
                 pkg = pkg.autobuild
                 Autoproj::Packaging.warn "Package: #{pkg_name} is a known rock package"
             else
@@ -472,11 +467,11 @@ Dir.chdir(packager.build_dir) do
         end
 
         selection.each do |pkg_name|
-            if pkg = Autoproj.manifest.package(pkg_name)
+            if pkg = package_info_ask.package(pkg_name)
                 pkg = pkg.autobuild
-                Autoproj.warn "Package: #{pkg_name} is a known rock package"
+                Autoproj::Packaging.warn "Package: #{pkg_name} is a known rock package"
             else
-                Autoproj.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
 
@@ -488,7 +483,7 @@ Dir.chdir(packager.build_dir) do
         #create the meta package
         if meta_depend_packages.empty?
             puts "Meta package #{o_meta} requested with no dependencies"
-        elsif pkg = Autoproj.manifest.package(o_meta)
+        elsif pkg = package_info_ask.package(o_meta)
             puts "Meta package #{o_meta} is a known rock package"
         else
             #maybe let the packager handle the name conversion
@@ -594,7 +589,7 @@ Dir.chdir(packager.build_dir) do
             packager.update_osdeps_lists(pkginfo, o_osdeps_list_dir)
         end
         all_packages[:gems].each do |pkg_name|
-            pkg = Autoproj.manifest.package(pkg_name)
+            pkg = package_info_ask.package(pkg_name)
             if !pkg.nil?
                 pkg = pkg.autobuild
                 pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
@@ -663,7 +658,7 @@ Dir.chdir(packager.build_dir) do
     if o_build_local
         begin
             selected_gems.each do |gem_name, gem_version|
-                pkg = Autoproj.manifest.packages[gem_name]
+                pkg = package_info_ask.package(gem_name)
                 options =  {:distributions => o_distributions, :verbose => Autobuild.verbose}
                 if pkg && pkg.autobuild
                     options[:parallel_build_level] = pkg.autobuild.parallel_build_level
@@ -678,7 +673,7 @@ Dir.chdir(packager.build_dir) do
             end
 
             selection.each_with_index do |pkg_name, i|
-                if pkg = Autoproj.manifest.package(pkg_name)
+                if pkg = package_info_ask.package(pkg_name)
                     pkg = pkg.autobuild
                 else
                     Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
@@ -715,7 +710,7 @@ Dir.chdir(packager.build_dir) do
                 end
             end
             selection.each_with_index do |pkg_name, i|
-                if pkg = Autoproj.manifest.package(pkg_name)
+                if pkg = package_info_ask.package(pkg_name)
                     pkg = pkg.autobuild
                 else
                     Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
