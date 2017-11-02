@@ -239,41 +239,6 @@ module Autoproj
                 end
             end
 
-            # Import a package for packaging
-            def import_package(pkg, pkg_target_importdir)
-                # Some packages, e.g. mars use a single git repository a split it artificially
-                # if this is the case, try to copy the content instead of doing a proper checkout
-                if pkg.srcdir != pkg.importdir
-                    Packager.debug "Importing repository from #{pkg.srcdir} to #{pkg_target_importdir}"
-                    FileUtils.mkdir_p pkg_target_importdir
-                    FileUtils.cp_r File.join(pkg.srcdir,"/."), pkg_target_importdir
-                    # Update resulting source directory
-                    pkg.srcdir = pkg_target_importdir
-                else
-                    pkg.srcdir = pkg_target_importdir
-                    begin
-                        Packager.debug "Importing repository to #{pkg.srcdir}"
-                        # Workaround for bug in autoproj:
-                        # archive_dir should be set from pkg.srcdir, but is actually set from pkg.name
-                        # see autobuild-1.9.3/lib/autobuild/import/archive.rb +406
-                        if pkg.importer.kind_of?(Autobuild::ArchiveImporter)
-                            pkg.importer.options[:archive_dir] ||= File.basename(pkg.srcdir)
-                        end
-                        pkg.importer.import(pkg)
-                    rescue Exception => e
-                        if not e.message =~ /failed in patch phase/
-                            raise
-                        else
-                            Packager.warn "Patching #{pkg.name} failed"
-                        end
-                    end
-
-                    Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
-                        FileUtils.rm_f file
-                    end
-                end
-            end
-
             # Prepare source directory and provide and pkg with update importer
             # information
             # return Autobuild package with update importer definition

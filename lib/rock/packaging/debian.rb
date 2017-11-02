@@ -3,7 +3,6 @@ require 'tmpdir'
 require 'utilrb'
 require 'timeout'
 require 'time'
-require 'rexml/document'
 require 'rock/packaging/debiancontrol'
 require 'rock/packaging/packageinfo'
 
@@ -30,7 +29,7 @@ module Autoproj
 
             # install directory if not given set to /opt/rock
             attr_accessor :rock_base_install_directory
-            attr_accessor :rock_release_name
+            attr_reader :rock_release_name
 
             # List of alternative rake target names to clean a gem
             attr_accessor :gem_clean_alternatives
@@ -46,8 +45,6 @@ module Autoproj
             attr_reader :target_platform
             attr_reader :rock_release_platform
             attr_reader :rock_release_hierarchy
-
-            attr_accessor :package_set_order
 
             def initialize(options = Hash.new)
                 super()
@@ -66,9 +63,6 @@ module Autoproj
                 # Rake and rdoc commands to try to create documentation
                 @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rdoc']
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
-
-                # Package set order
-                @package_set_order = []
                 @rock_autobuild_deps = { :orogen => [], :cmake => [], :autotools => [], :ruby => [], :archive_importer => [], :importer_package => [] }
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
@@ -110,30 +104,6 @@ module Autoproj
                 name = pkginfo.name
 
                 if pkginfo.build_type == :ruby
-                    debian_ruby_name(name, with_rock_release_prefix)
-                else
-                    if with_rock_release_prefix
-                        rock_release_prefix + canonize(name)
-                    else
-                        "rock-" + canonize(name)
-                    end
-                end
-            end
-
-            # The debian name of a package -- either
-            # rock[-<release-name>]-<canonized-package-name>
-            # or for ruby packages
-            # rock[-<release-name>]-ruby-<canonized-package-name>
-            # and the release-name can be avoided by setting
-            # with_rock_release_prefix to false
-            #
-            def debian_name(pkg, with_rock_release_prefix = true)
-                if pkg.kind_of?(String)
-                    raise ArgumentError, "method debian_name expects a autobuild pkg as argument, got: #{pkg.class} '#{pkg}'"
-                end
-                name = pkg.name
-
-                if pkg.kind_of?(Autobuild::Ruby)
                     debian_ruby_name(name, with_rock_release_prefix)
                 else
                     if with_rock_release_prefix
@@ -187,110 +157,20 @@ module Autoproj
                 @debian_version[pkginfo.name]
             end
 
-            def debian_version(pkg, distribution, revision = "1")
-                res = debian_plain_version(pkg) + "-" + revision
-                if distribution
-                    res += '~' + distribution
-                end
-                res
-            end
-
-            # Extract the latest commit time for given importers
-            # return a Time object
-            def latest_commit_time(pkg)
-                importer = pkg.importer
-                if importer.kind_of?(Autobuild::Git)
-                    git_version(pkg)
-                elsif importer.kind_of?(Autobuild::SVN)
-                    svn_version(pkg)
-                elsif importer.kind_of?(Autobuild::ArchiveImporter) || importer.kind_of?(Autobuild::ImporterPackage)
-                    archive_version(pkg)
-                else
-                    Packager.warn "No version extraction yet implemented for importer type: #{importer.class} -- using current time for version string"
-                    Time.now
-                end
-            end
-
-            def git_version(pkg)
-                time_of_last_commit=pkg.importer.run_git_bare(pkg, 'log', '--encoding=UTF-8','--date=iso',"--pretty=format:'%cd'","-1").first
-                Time.parse(time_of_last_commit.strip)
-            end
-
-            def svn_version(pkg)
-                #["------------------------------------------------------------------------",
-                # "r21 | anauthor | 2012-10-01 13:46:46 +0200 (Mo, 01. Okt 2012) | 1 Zeile",
-                #  "",
-                #   "some comment",
-                #    "------------------------------------------------------------------------"]
-                #
-                svn_log = pkg.importer.run_svn(pkg, 'log', "-l 1", "--xml")
-                svn_log = REXML::Document.new(svn_log.join("\n"))
-                time_of_last_commit = nil
-                svn_log.elements.each('//log/logentry/date') do |d|
-                    time_of_last_commit = Time.parse(d.text)
-                end
-                time_of_last_commit
-            end
-
-            def archive_version(pkg)
-                File.lstat(pkg.importer.cachefile).mtime
-            end
-
             def debian_plain_version_i(pkginfo)
                 pkginfo.description_version + "." + pkginfo.latest_commit_time.strftime("%Y%m%d")
-            end
-
-            # Plain version is the version string without the revision
-            def debian_plain_version(pkg)
-                if !@debian_version.has_key?(pkg.name)
-                    if pkg.description.nil?
-                       v = "0"
-                    else
-                        if !pkg.description.version
-                           v = "0"
-                        else
-                           v = pkg.description.version
-                        end
-                    end
-                    @debian_version[pkg.name] = v + "." + latest_commit_time(pkg).strftime("%Y%m%d")
-                end
-                @debian_version[pkg.name]
-            end
-
-            def versioned_name(pkg, distribution)
-                debian_name(pkg) + "_" + debian_version(pkg, distribution)
             end
 
             def versioned_name_i(pkginfo, distribution)
                 debian_name_i(pkginfo) + "_" + debian_version_i(pkginfo, distribution)
             end
 
-            def plain_versioned_name(pkg)
-                debian_name(pkg) + "_" + debian_plain_version(pkg)
-            end
-
             def plain_versioned_name_i(pkginfo)
                 debian_name_i(pkginfo) + "_" + debian_plain_version_i(pkginfo)
             end
 
-            def dir_name(pkg, distribution)
-                versioned_name(pkg, distribution)
-            end
-
-            def plain_dir_name(pkg)
-                plain_versioned_name(pkg)
-            end
-
             def plain_dir_name_i(pkginfo)
                 plain_versioned_name_i(pkginfo)
-            end
-
-            def packaging_dir(pkg)
-                pkg_name = pkg
-                if !pkg.kind_of?(String)
-                    pkg_name = debian_name(pkg)
-                end
-                File.join(@build_dir, pkg_name, target_platform.to_s.gsub("/","-"))
             end
 
             def packaging_dir_i(pkginfo)
@@ -305,10 +185,6 @@ module Autoproj
                 File.join(rock_base_install_directory, rock_release_name)
             end
 
-            def package_by_name(package_name)
-                Autoproj.manifest.package(package_name).autobuild
-            end
-
             def rock_release_name=(name)
                 @rock_release_name = name
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
@@ -320,126 +196,6 @@ module Autoproj
                     # Add the actual release name as first
                     @rock_release_hierarchy += release_hierarchy
                 end
-            end
-
-
-            # Compute all packages that are require and their corresponding
-            # reverse dependencies
-            # return [Hash<package_name, reverse_dependencies>]
-            def reverse_dependencies(selection)
-                Packager.info ("#{selection.size} packages selected")
-                Packager.debug "Selection: #{selection}}"
-                orig_selection = selection.clone
-                reverse_dependencies = Hash.new
-
-                all_packages = Set.new
-                all_packages.merge(selection)
-                while true
-                    all_packages_refresh = all_packages.dup
-                    all_packages.each do |pkg_name|
-                        begin
-                            pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
-                        rescue Exception => e
-                            raise RuntimeError, "Autoproj::Packaging::Debian: failed to load manifest for '#{pkg_name}' -- #{e}"
-                        end
-
-                        pkg = pkg_manifest.package
-
-                        pkg.resolve_optional_dependencies
-                        reverse_dependencies[pkg.name] = pkg.dependencies.dup
-                        Packager.debug "deps: #{pkg.name} --> #{pkg.dependencies}"
-                        all_packages_refresh.merge(pkg.dependencies)
-                    end
-
-                    if all_packages.size == all_packages_refresh.size
-                        # nothing changed, so converged
-                        break
-                    else
-                        all_packages = all_packages_refresh
-                    end
-                end
-                Packager.info "all packages: #{all_packages.to_a}"
-                Packager.info "reverse deps: #{reverse_dependencies}"
-
-                reverse_dependencies
-            end
-
-            # Compute all required packages from a given selection
-            # including the dependencies
-            #
-            # The selection is a list of package names
-            #
-            # The order of the resulting package list is sorted
-            # accounting for interdependencies among packages
-            def all_required_rock_packages(selection)
-                reverse_dependencies = reverse_dependencies(selection)
-                sort_packages(reverse_dependencies)
-            end
-
-            def sort_packages(reverse_dependencies_hash)
-                # input is a hash, but we require a sorted list
-                # to deal with package set order, so we convert
-
-                reverse_dependencies = Array.new
-                if !package_set_order.empty?
-                    sorted_dependencies = Array.new
-                    sorted_pkgs = sort_by_package_sets(reverse_dependencies_hash.keys, package_set_order)
-                    sorted_pkgs.each do |pkg_name|
-                       pkg_dependencies = reverse_dependencies_hash[pkg_name]
-                       sorted_pkg_dependencies = sort_by_package_sets(pkg_dependencies, package_set_order)
-                       sorted_dependencies << [ pkg_name, sorted_pkg_dependencies ]
-                    end
-                    reverse_dependencies = sorted_dependencies
-                else
-                    reverse_dependencies_hash.each do |k,v|
-                        reverse_dependencies << [k,v]
-                    end
-                end
-
-                all_required_packages = Array.new
-                resolve_packages = []
-                while true
-                    if resolve_packages.empty?
-                        if reverse_dependencies.empty?
-                            break
-                        else
-                            # Pick the entries name
-                            resolve_packages = [ reverse_dependencies.first.first ]
-                        end
-                    end
-
-                    # Contains the name of all handled packages
-                    handled_packages = Array.new
-                    resolve_packages.each do |pkg_name|
-                        name, dependencies = reverse_dependencies.find { |p| p.first == pkg_name }
-                        if dependencies.empty?
-                            handled_packages << pkg_name
-                            pkg = Autoproj.manifest.package(pkg_name).autobuild
-                            all_required_packages << pkg
-                        else
-                            resolve_packages += dependencies
-                            resolve_packages.uniq!
-                        end
-                    end
-
-                    handled_packages.each do |pkg_name|
-                        resolve_packages.delete(pkg_name)
-                        reverse_dependencies.delete_if { |dep_name, _| dep_name == pkg_name }
-                    end
-
-                    reverse_dependencies.map! do |pkg,dependencies|
-                        dependencies.reject! { |x| handled_packages.include? x }
-                        [pkg, dependencies]
-                    end
-
-                    Packager.debug "Handled: #{handled_packages}"
-                    Packager.debug "Remaining: #{reverse_dependencies}"
-                    if handled_packages.empty? && !resolve_packages
-                        Packager.warn "Unhandled dependencies: #{resolve_packages}"
-                    end
-                end
-
-                all_required_packages
             end
 
             # Update the automatically generated osdeps list for a given
@@ -533,60 +289,6 @@ module Autoproj
                 end
             end
 
-            # Get all required packages that come with a given selection of packages
-            # including the dependencies of ruby gems
-            #
-            # This requires the current installation to be complete since
-            # `gem dependency <gem-name>` has been selected to provide the information
-            # of ruby dependencies
-            def all_required_packages(selection, selected_gems, with_rock_release_prefix = false)
-                all_packages = all_required_rock_packages(selection)
-
-                gems = Array.new
-                gem_versions = Hash.new
-
-                # Make sure to account for extra packages
-                selected_gems.each do |name, version|
-                    gems << name
-                    gem_versions[name] ||= Array.new
-                    gem_versions[name] << version
-                end
-
-                extra_gems = Array.new()
-                extra_osdeps = Array.new()
-
-                # Add the ruby requirements for the current rock selection
-                all_packages.each do |pkg|
-                    deps = dependencies(pkg, with_rock_release_prefix)
-                    # Update global list
-                    extra_osdeps.concat deps[:osdeps]
-                    extra_gems.concat deps[:extra_gems]
-
-                    deps = filtered_dependencies(pkg, deps, with_rock_release_prefix)
-                    deps[:nonnative].each do |dep, version|
-                        gem_versions[dep] ||= Array.new
-                        if version
-                            gem_versions[dep] << version
-                        end
-                    end
-                end
-
-                gem_version_requirements = gem_versions.dup
-                gem_dependencies = GemDependencies.resolve_all(gem_versions)
-                gem_dependencies.each do |name, deps|
-                    if deps
-                        deps.each do |dep_name, dep_versions|
-                            gem_version_requirements[dep_name] ||= Array.new
-                            gem_version_requirements[dep_name] = (gem_version_requirements[dep_name] + dep_versions).uniq
-                        end
-                    end
-                end
-                exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
-                sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
-
-                {:packages => all_packages, :gems => sorted_gem_list, :gem_versions => exact_version_list, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }
-            end
-
             def filter_all_required_packages(packages)
                 all_pkginfos = packages[:pkginfos]
                 sorted_gem_list = packages[:gems]
@@ -634,57 +336,6 @@ module Autoproj
                     all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative])
                 end
                 recursive_deps = all_recursive_deps.values.flatten.uniq
-            end
-
-            # Compute dependencies of this package
-            # Returns [:rock => rock_packages, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
-            def dependencies(pkg, with_rock_release_prefix = true)
-                pkg = package_by_name(pkg.name)
-
-                pkg.resolve_optional_dependencies
-                deps_rock_pkgs = pkg.dependencies.map do |dep_name|
-                    package_by_name(dep_name)
-                end
-
-                pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
-                # There are limitations regarding handling packages with native dependencies
-                #
-                # Currently gems need to converted into debs using gem2deb
-                # These deps dependencies are updated here before uploading a package
-                #
-                # Generation of the debian packages from the gems can be done in postprocessing step
-                # i.e. see convert_gems
-
-                deps_osdeps_packages = []
-                native_package_manager = Autoproj.osdeps.os_package_handler
-                _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
-
-                deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packager.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
-
-                non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
-                    if handler != native_package_manager
-                        [handler, pkg_list]
-                    end
-                end.compact
-
-                non_native_dependencies = Set.new
-                extra_gems = Set.new
-                non_native_handlers.each do |pkg_handler, pkg_list|
-                    # Convert native ruby gems package names to rock-xxx
-                    if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
-                        pkg_list.each do |name,version|
-                            extra_gems << [name, version]
-                            non_native_dependencies << [name, version]
-                        end
-                    else
-                        raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
-                    end
-                end
-                Packager.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
-
-                # Return rock packages, osdeps and non native deps (here gems)
-                {:rock_pkg => deps_rock_pkgs, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
             end
 
             # returns debian package names of dependencies
@@ -1326,7 +977,6 @@ module Autoproj
                     :distributions => nil,
                     :parallel_build_level => nil
                 filepath = build_dir
-                distribution = max_one_distribution(options[:distributions])
                 # cd package_name
                 # tar -xf package_name_0.0.debian.tar.gz
                 # tar -xf package_name_0.0.orig.tar.gz
@@ -1523,8 +1173,6 @@ module Autoproj
                     :local_pkg => false,
                     :distribution => target_platform.distribution_release_name,
                     :architecture => target_platform.architecture
-
-                distribution = options[:distribution]
 
                 if unknown_options.size > 0
                     Packager.warn "Autoproj::Packaging Unknown options provided to convert gems: #{unknown_options}"
@@ -2156,54 +1804,6 @@ END
                     version.gsub(/-dev/,"")
                 end
                 ruby_versions
-            end
-
-            def extra_configure_flags(package)
-                flags = []
-                key_value_regexp = Regexp.new(/([^=]+)=([^=]+)/)
-                package.configureflags.each do |flag|
-                    if match_data = key_value_regexp.match(flag)
-                        key = match_data[1]
-                        value = match_data[2]
-                        # Skip keys that start with --arguments
-                        # and assume defines starting with UpperCase
-                        # letter, e.g., CFLAGS='...'
-                        if key =~ /^[A-Z]/
-                            if value !~ /^["]/ && value !~ /^[']/
-                                value = "'#{match_data[2]}'"
-                            end
-                        end
-                        flags << "#{key}=#{value}"
-                    else
-                        flags << flag
-                    end
-                end
-                Packager.info "Using extra configure flags: #{flags}"
-                flags
-            end
-
-            # Sort by package set order
-            def sort_by_package_sets(packages, pkg_set_order)
-                priority_lists = Array.new
-                (0..pkg_set_order.size).each do |i|
-                    priority_lists << Array.new
-                end
-
-                packages.each do |package|
-                    if !package.kind_of?(String)
-                        package = package.name
-                    end
-                    pkg = Autoproj.manifest.package(package)
-                    pkg_set_name = pkg.package_set.name
-
-                    if index = pkg_set_order.index(pkg_set_name)
-                        priority_lists[index] << package
-                    else
-                        priority_lists.last << package
-                    end
-                end
-
-                priority_lists.flatten
             end
 
             # Compute the ruby arch setup
