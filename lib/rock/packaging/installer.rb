@@ -246,7 +246,7 @@ module Autoproj
             end
 
             def self.pbuilder_hookdir(distribution, architecture, release_prefix)
-                base_hook_dir = File.join(Autoproj::Packaging::BUILD_DIR,"pbuilder-hookdir")
+                base_hook_dir = File.join(Autoproj::Packaging::build_dir,"pbuilder-hookdir")
                 hook_dir = File.join(base_hook_dir,"#{distribution}-#{architecture}-#{release_prefix}")
                 hook_dir
             end

@@ -1,5 +1,6 @@
 #! /usr/bin/env ruby
 require 'rock/packaging/debian'
+require 'rock/packaging/packageinfoask'
 
 o_skip_existing = false
 o_obs_dir = nil
@@ -112,6 +113,9 @@ class OBSConfiguration
     end
 end
 
+package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Autoproj::Packaging.root_dir = package_info_ask.root_dir
+
 obs_configuration = OBSConfiguration.new
 ################################################################################
 
@@ -135,16 +139,13 @@ if o_list_build_projects
     exit 0
 end
 
+selection = package_info_ask.autoproj_init_and_load(o_selected_packages)
+selection = package_info_ask.resolve_user_selection_packages(selection)
 
-root_dir  = Autoproj::CmdLine.initialize_root_directory
-selection = Autoproj::CmdLine.initialize_and_load(o_selected_packages)
-selection = Autoproj::CmdLine.resolve_user_selection(selection).packages
+Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
+packager = Autoproj::Packaging::Debian.new(File.join(package_info_ask.root_dir, "debian"))
 
-packager = Autoproj::Packaging::Debian.new(File.join(Autoproj.root_dir, "debian"))
-
-packager.add_package_alias("tools/rtt","rtt")
-packager.add_package_alias("tools/rtt-typelib", "rtt-typelib")
-packager.add_package_alias("tools/typelib","typelib")
+packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
 packager.prepare
 
@@ -158,15 +159,20 @@ selection = selection.select do |pkg_name, i|
     end
 end
 
+selected_gems = Array.new()
+osdeps = Array.new()
+rock_ruby_gems = Array.new()
+
 Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     if o_all_packages
         Autobuild.do_update = true
         selection.each_with_index do |pkg_name, i|
-            pkg = Autoproj.manifest.package(pkg_name).autobuild
+            pkg = package_info_ask.package_by_name(pkg_name)
+            pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
 
             if o_skip_existing && o_obs_dir
-                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkg))
+                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkginfo))
                 if File.directory?(pkg_obs_dir)
                     puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
                     next
@@ -174,30 +180,45 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             end
 
             puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
-            if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
-                cmakelists_txt = File.read(File.join(pkg.srcdir, "CMakeLists.txt"))
+            if File.file?(File.join(pkginfo.srcdir, "CMakeLists.txt"))
+                cmakelists_txt = File.read(File.join(pkginfo.srcdir, "CMakeLists.txt"))
                 if cmakelists_txt =~ /include\(Rock\)|Rock\.cmake/ || cmakelists_txt =~ /find_package\(Rock\)/
-                    pkg.depends_on "base/cmake" unless pkg.name == "base/cmake"
+                    pkginfo.dependencies[:rock_pkginfo] <<
+                        package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("base/cmake"))  unless pkginfo.name == "base/cmake"
                 end
             end
 
             begin
-                packager.package(pkg, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
+                # just to update the required gem property
+                osdeps.concat pkginfo.dependencies[:osdeps]
+                selected_gems.concat pkginfo.dependencies[:extra_gems]
+                selected_gems.uniq!
+
+                packager.package(pkginfo, {:force_update => o_rebuild, :patch_dir => o_patch_dir, :existing_source_dir => o_src_dir, :package_set_dir => o_ps_dir })
+
+                if pkginfo.build_type == :ruby &&
+                   pkginfo.name !~ /bundles/
+                    # register gem with the correct naming schema
+                    # to make sure dependency naming and gem naming are consistent
+                    rock_ruby_gems << packager.debian_name(pkginfo)
+                end
             rescue Interrupt
                 raise
             rescue Exception => e
-                puts "failed to package #{pkg.name}: #{e.message} #{e.backtrace}"
+                puts "failed to package #{pkginfo.name}: #{e.message} #{e.backtrace}"
                 next
             end
         end
     end
 
+    osdeps.uniq!
+
     # Check for osdeps -- fixed set of repositories at the moment
     if o_osdeps
         # Opendeps to process and check whether they and their dependencies are
         # available
-        openlist_osdeps = packager.osdeps
-        Autoproj.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
+        openlist_osdeps = osdeps
+        Autoproj::Packaging.info "obs_package: checking osdeps: #{openlist_osdeps.join(",")}"
 
         # List of which osdeps which already have dealt with
         blacklist_osdeps = []
@@ -216,12 +237,12 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                 next
             end
 
-            # Workaround,e.g., for nokogiri -- insert to ruby_gems list to force
+            # Workaround,e.g., for nokogiri -- insert to selected_gems list to force
             # gem2deb usage instead of using the default os package
             if override_osdeps.has_key?(osdeps_name)
                 type = override_osdeps[osdeps_name]
                 if  type == :gem
-                    packager.ruby_gems << osdeps_name.sub("ruby-","")
+                    selected_gems << osdeps_name.sub("ruby-","")
                 else
                     raise ArgumentError, "obs_package: unsupported osdeps override: #{type}"
                 end
@@ -231,7 +252,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
             # Check if the osdeps package is already available, otherwise add it
             # to the current obs project
             if not available_packages.include?(osdeps_name)
-                Autoproj.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
+                Autoproj::Packaging.warn "OBS: Missing dependency: '#{osdeps_name}' --creating package dir in #{Autoproj::Packaging::OBS_BUILD_DIR}"
                 if !File.directory?(Autoproj::Packaging::OBS_BUILD_DIR)
                     FileUtils.mkdir(Autoproj::Packaging::OBS_BUILD_DIR)
                 end
@@ -244,7 +265,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                     if system("obs_ubuntu_universe_package #{osdeps_name}")
                         update_osdeps << osdeps_name
                     else 
-                        Autoproj.warn "OBS: universe package for osdeps '#{osdeps_name}' could not be found"
+                        Autoproj::Packaging.warn "OBS: universe package for osdeps '#{osdeps_name}' could not be found"
                     end
                     blacklist_osdeps << osdeps_name
                     add_osdeps = Autoproj::Packaging::OBS.resolve_dependencies(osdeps_name)
@@ -267,7 +288,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
                     if File.directory?(name)
                         Autoproj::Packaging::OBS.update_dir(obs_configuration.osdeps_target_directory(o_obs_dir),Autoproj::Packaging::OBS_BUILD_DIR, name, ["_service"], o_commit)
                     else
-                        Autoproj.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
+                        Autoproj::Packaging.warn "OBS: Requested update for #{name}, but directory does not exists in #{Autoproj::Packaging::OBS_BUILD_DIR}, i.e., the osdeps '#{name}' could not be resolved properly. Please check manually using 'obs_ubuntu_universe_package --validate #{name}'"
                     end
                 end
             end
@@ -276,7 +297,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
     if o_extra_gem
         # Allow to build a gem explicitely
-        packager.ruby_gems << o_extra_gem
+        selected_gems << o_extra_gem
     end
 
     # Convert gems of which we know that need to be packaged -- needs to be set here, to include the osdeps overrides
@@ -294,13 +315,14 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
 
                 puts "OBS -- update pkg: #{pkg_name}"
                 # if the directory does not exist create one and add it to obs setup
-                pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkg)
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                pkg_obs_name = Autoproj::Packaging::Packager.obs_package_name(pkginfo)
                 Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)
             end
         end
 
         # Update all gems
-        packager.ruby_gems.each do |gem_name, version|
+        selected_gems.each do |gem_name, version|
             if version
                 puts "OBS -- update gem: #{gem_name} with version #{version}"
             else
@@ -311,7 +333,7 @@ Dir.chdir(Autoproj::Packaging::OBS_BUILD_DIR) do
         end
 
         # Update rock gems
-        packager.ruby_rock_gems.each do |gem_name, version|
+        rock_ruby_gems.each do |gem_name, version|
             puts "OBS -- update rock gem (converted ruby package): #{gem_name}"
             pkg_obs_name = gem_name
             Autoproj::Packaging::OBS.update_dir(o_obs_dir, Autoproj::Packaging::OBS_BUILD_DIR, pkg_obs_name, packager.file_suffix_patterns, o_commit)

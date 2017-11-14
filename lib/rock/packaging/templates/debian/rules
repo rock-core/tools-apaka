@@ -32,10 +32,10 @@ pre-build::
 ######################################
 # BEGIN OROGEN -- This block needs to be executed before CMAKE
 
-<% if package.class == Autobuild::Orogen %>
+<% if package_info.build_type == :orogen %>
 	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
-	$(env_setup) orogen <%= Autobuild::Orogen.orogen_options.join(" ") %> <%= package.orogen_options.join(" ") %> --corba --transports=corba,mqueue,typelib --type-export-policy=used <%= package.orogen_file %>
+	$(env_setup) <%= orogen_command %>
 	#echo "Current directory including oroGen generated files"
 	#find . 
 <% end %>
@@ -44,7 +44,7 @@ pre-build::
 ######################################
 # BEGIN CMAKE
 #
-<% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen %>
+<% if package_info.build_type == :cmake || package_info.build_type == :orogen %>
 # Defining the cmake command and setting the required enviroment variables
 # PKG_CONFIG_PATH Resolve Rock package via pkg-config
 # Rock_DIR Set to make sure find_package(Rock) does work
@@ -58,7 +58,7 @@ DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 # Telling FindGEM.cmake to search for os packages using pkg-config and not for gems
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
 # Leaving RUBY_EXECUTABLE unset since it maps to a path of the user executing the upload script
-DEB_CMAKE_EXTRA_FLAGS += <%= package.defines.map { |k, v| "-D#{k}=\"#{v}\"" unless "#{k}" == "RUBY_EXECUTABLE" || "#{k}" == "ROCK_TEST_ENABLED" || "#{k}" == "ROCK_TEST_LOG_DIR" }.join(" ") %>
+DEB_CMAKE_EXTRA_FLAGS += <%= package_info.cmake_defines.map { |k, v| "-D#{k}=\"#{v}\"" unless "#{k}" == "RUBY_EXECUTABLE" || "#{k}" == "ROCK_TEST_ENABLED" || "#{k}" == "ROCK_TEST_LOG_DIR" }.join(" ") %>
 # Disable ROCK Testing -- since running test on the OBS would require proper setting of path, etc. (see. data_processing/type_to_vector)
 DEB_CMAKE_EXTRA_FLAGS += -DROCK_TEST_ENABLED=OFF -UROCK_TEST_LOG_DIR
 include /usr/share/cdbs/1/class/cmake.mk
@@ -67,17 +67,17 @@ include /usr/share/cdbs/1/class/cmake.mk
 ##########################################
 # BEGIN AUTOTOOLS
 #
-<% elsif package.class == Autobuild::Autotools %>
+<% elsif package_info.build_type == :autotools %>
 DEB_CONFIGURE_PREFIX= $(rock_install_dir)
-DEB_CONFIGURE_EXTRA_FLAGS = <%= extra_configure_flags(package).join(" ") %>
+DEB_CONFIGURE_EXTRA_FLAGS = <%= package_info.extra_configure_flags.join(" ") %>
 
 # use autoreconf: check with external/libply
 # use autogen: check with drivers/araviz
-<% if package.using[:autogen].nil? %>
-<%     package.using[:autogen] = %w{autogen autogen.sh}.find { |f| File.exist?(File.join(package.srcdir, f)) } %>
+<% if package_info.using_autogen.nil? %>
+<%     package_info.using_autogen = %w{autogen autogen.sh}.find { |f| File.exist?(File.join(package_info.srcdir, f)) } %>
 <% end %>
-<% if package.using[:autogen] %>
-DEB_DH_AUTORECONF_ARGS += <%= File.join(".",package.using[:autogen]) %>
+<% if package_info.using_autogen %>
+DEB_DH_AUTORECONF_ARGS += <%= File.join(".",package_info.using_autogen) %>
 <% end %>
 include /usr/share/cdbs/1/class/autotools.mk
 include /usr/share/cdbs/1/rules/autoreconf.mk
@@ -86,7 +86,7 @@ include /usr/share/cdbs/1/rules/autoreconf.mk
 ############################################
 # BEGIN IMPORTER
 #
-<% elsif package.importer.kind_of?(Autobuild::ArchiveImporter) || package.kind_of?(Autobuild::ImporterPackage) %>
+<% elsif package_info.importer_type == :archive_importer || package_info.build_type == :importer_package || package_info.name =~ /bundles/ %>
 CMAKE = $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
@@ -98,7 +98,7 @@ include /usr/share/cdbs/1/class/cmake.mk
 # ##########################################
 #
 <% else 
-raise "debian/rules: cannot handle package type #{package.class} for #{package.name}"
+raise "debian/rules: cannot handle package type #{package_info.build_type} for #{package_info.name}"
 end %>
 
 # http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml see post-configure actions
@@ -106,14 +106,14 @@ end %>
 #   (a) guarantee that pkgconfig can still knowns the include directory (-I)
 #   (b) the include directory is actually accounted for as system include directory (-isystem)
 # Account for the fact, that configure is called multiple times e.g. revert changes first, then reapply
-configure/<%=debian_name(package,true) %>::
+configure/<%= debian_name %>::
 	echo "Adapt -I to -isystem in pkgconfig files:"
-	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Adapting {}; sed -i 's#-isystem[^ ]\+##g' {}; sed -i 's#-I\([^ ]\+\)#-I\1 -isystem\1#g' {}; sed -i 's#[ ]\+# #g' {}; cat {};" \;
+	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Adapting {}; sed -i 's#\(\"\?\)-isystem[^ ]\+\1##g; s#\(\"\?\)-I\([^ ]\+\)\1#\1-I\2\1 \1-isystem\2\1#g; s#[ ]\+# #g' {}; cat {};" \;
 
 ###########################################
 # DOCS
 
-<% if package.class == Autobuild::CMake || package.class == Autobuild::Orogen || package.class == Autobuild::Autotools %>
+<% if package_info.build_type == :orogen || package_info.build_type == :cmake || package_info.build_type == :autotools %>
 
 # Build docs
 # This checks for Doxyfile and runs doxygen with that.

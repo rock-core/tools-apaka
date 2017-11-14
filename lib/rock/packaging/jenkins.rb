@@ -2,9 +2,11 @@ module Autoproj
     module Packaging
         class Jenkins
             attr_reader :debian_packager
+            attr_reader :package_info_ask
 
-            def initialize(debian_packager)
+            def initialize(debian_packager, package_info_ask)
                 @debian_packager = debian_packager
+                @package_info_ask = package_info_ask
             end
 
             def self.list_all_jobs
@@ -129,7 +131,7 @@ module Autoproj
                 end
             end
 
-            def create_flow_job(name, selection, release_name, options = Hash.new)
+            def create_flow_job(name, selection, selected_gems, release_name, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :parallel => false,
                     :force => false,
@@ -141,8 +143,8 @@ module Autoproj
                     debian_packager.rock_release_name = release_name
                 end
 
-                flow = debian_packager.all_required_packages(selection)
-                flow[:packages] = debian_packager.sort_by_package_sets(flow[:packages], options[:package_set_order])
+                flow = debian_packager.filter_all_required_packages(package_info_ask.all_required_packages(selection, selected_gems))
+                flow[:pkginfos] = package_info_ask.sort_by_package_sets(flow[:pkginfos], options[:package_set_order])
                 flow[:gems].each do |name|
                     if !flow[:gem_versions].has_key?(name)
                         flow[:gem_versions][name] = "noversion"
@@ -153,9 +155,10 @@ module Autoproj
                 # using the depends_on option)
 
                 Packager.info "Creating flow of gems: #{flow[:gems]}"
-                package_names = flow[:packages].collect { |pkg| pkg.name }
+                package_names = flow[:pkginfos].collect { |pkginfo| pkginfo.name }
                 Packager.info "Creating flow of packages: #{package_names}"
                 create_flow_job_xml(name, flow, release_name, options)
+                [:extra_gems => all_packages[:extra_gems], :extra_osdeps => all_packages[:extra_osdeps]]
             end
 
             def create_flow_job_xml(name, flow, flavor, options)
@@ -180,7 +183,12 @@ module Autoproj
             def create_package_job(pkg, options = Hash.new)
                 with_rock_release_prefix = false
 
-                all_deps = debian_packager.dependencies(pkg)
+                # just to update the required gem property
+                pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                deps = pkginfo.dependencies
+                extras = [ :extra_gems => deps[:extra_gems], :extra_osdeps => deps[:osdeps] ]
+
+                all_deps = debian_packager.filtered_dependencies(pkginfo, deps)
                 Packager.info "Dependencies of #{pkg.name}: rock: #{all_deps[:rock]}, osdeps: #{all_deps[:osdeps]}, nonnative: #{all_deps[:nonnative].to_a}"
 
                 # Prepare upstream dependencies
@@ -202,6 +210,8 @@ module Autoproj
 
                 Packager.info "Create package job: #{options[:job_name]}, options #{options}"
                 create_job(options[:job_name], options)
+
+                extras
             end
 
             # Create a jenkins job for a ruby package
@@ -267,7 +277,7 @@ module Autoproj
             # there is no need to repackage the ruby package 'bundler' if it already
             # exists in a specific release of Ubuntu or Debian
             def combination_filter(architectures, distributions, package_name, isGem, options = Hash.new)
-                operating_system = Autoproj::OSDependencies.operating_system
+                operating_system = package_info_ask.operating_system
 
                 begin
                     Packager.info "Filter combinations of: archs #{architectures} , dists: #{distributions},
@@ -281,7 +291,7 @@ module Autoproj
                             target_platform = TargetPlatform.new(release, requested_architecture)
 
                             if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(release)
-                                Autoproj::OSDependencies.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
+                                package_info_ask.operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ release ]
                             else
                                 raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
                             end
@@ -310,7 +320,7 @@ module Autoproj
                 rescue Exception => e
                     raise
                 ensure
-                    Autoproj::OSDependencies.operating_system = operating_system
+                    package_info_ask.operating_system = operating_system
                 end
 
                 ret = ""

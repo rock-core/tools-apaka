@@ -1,33 +1,47 @@
-require 'autoproj'
-require 'autobuild'
+
+require 'utilrb/logger'
 
 module Autoproj
     module Packaging
         # Directory for temporary data to
         # validate obs_packages
-        BUILD_DIR=File.join(Autoproj.root_dir, "build/rock-packager")
-        LOG_DIR=File.join(BUILD_DIR, "logs")
-        LOCAL_TMP = File.join(BUILD_DIR,".rock_packager")
         WWW_ROOT = File.join("/var/www")
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
-        TEMPLATES_DIR=File.expand_path(File.dirname(__FILE__),"templates")
-        CACHE_DIR=File.join(BUILD_DIR,"cache")
+        TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
 
         EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
         EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
 
+        extend Logger::Root("Packaging", Logger::INFO)
+
+        def self.root_dir= (dir)
+            @root_dir = dir
+        end
+
+        def self.root_dir
+            @root_dir
+        end
+
+        def self.build_dir
+            File.join(root_dir, "build", "rock-packager")
+        end
+        
+        def self.cache_dir
+            File.join(build_dir, "cache")
+        end
+        
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
-            attr_accessor :build_dir
-            attr_accessor :log_dir
-            attr_accessor :local_tmp_dir
-            attr_accessor :deb_repository
+            attr_reader :build_dir
+            attr_reader :log_dir
+            attr_reader :local_tmp_dir
+            attr_reader :deb_repository
 
             def initialize
-                @build_dir = BUILD_DIR
-                @log_dir = LOG_DIR
-                @local_tmp_dir = LOCAL_TMP
+                @build_dir = Autoproj::Packaging.build_dir
+                @log_dir = File.join(@build_dir, "logs")
+                @local_tmp_dir = File.join(@build_dir, ".rock_packager")
                 @deb_repository = DEB_REPOSITORY
             end
 
@@ -212,71 +226,16 @@ module Autoproj
             end
 
             # Import from a local src directory into the packaging directory for the debian packaging
-            def import_from_local_src_dir(pkg, local_src_dir, packaging_dir)
-                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkg, target_platform.distribution_release_name))
-                Packager.info "Preparing source dir #{pkg.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
-                if !pkg.importer || !pkg.importer.kind_of?(Autobuild::Git)
-                   Packager.info "Package importer requires coping into target directory"
-                   FileUtils.cp_r local_src_dir, pkg_target_importdir
-                   remove_excluded_dirs(pkg_target_importdir)
-                   remove_excluded_files(pkg_target_importdir)
+            def import_from_local_src_dir(pkginfo, local_src_dir, packaging_dir)
+                pkg_target_importdir = File.join(packaging_dir, plain_dir_name(pkginfo))
+                Packager.info "Preparing source dir #{pkginfo.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
+                if !pkginfo.importer_type || !pkginfo.importer_type == :git
+                    Packager.info "Package importer requires copying into target directory"
+                    FileUtils.cp_r local_src_dir, pkg_target_importdir
+                    remove_excluded_dirs(pkg_target_importdir)
+                    remove_excluded_files(pkg_target_importdir)
                 else
-                    Autoproj.manifest.load_package_manifest(pkg.name)
-
-                    # Test whether there is a local
-                    # version of the package to use.
-                    # Only for Git-based repositories
-                    # If it is not available import package
-                    # from the original source
-                    if pkg.importer.kind_of?(Autobuild::Git)
-                        if not File.exists?(pkg.srcdir)
-                            Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
-                            pkg.importer.import(pkg)
-                        else
-                            Packager.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
-                        end
-                        pkg.importer.repository = pkg.srcdir
-                        pkg.importer.commit = pkg.importer.current_remote_commit(pkg)
-
-                        Packager.info "Using local (git) package: #{pkg.srcdir} and commit #{pkg.importer.commit}"
-                    end
-
-                    import_package(pkg, pkg_target_importdir)
-                end
-            end
-
-            # Import a package for packaging
-            def import_package(pkg, pkg_target_importdir)
-                # Some packages, e.g. mars use a single git repository a split it artificially
-                # if this is the case, try to copy the content instead of doing a proper checkout
-                if pkg.srcdir != pkg.importdir
-                    Packager.debug "Importing repository from #{pkg.srcdir} to #{pkg_target_importdir}"
-                    FileUtils.mkdir_p pkg_target_importdir
-                    FileUtils.cp_r File.join(pkg.srcdir,"/."), pkg_target_importdir
-                    # Update resulting source directory
-                    pkg.srcdir = pkg_target_importdir
-                else
-                    pkg.srcdir = pkg_target_importdir
-                    begin
-                        Packager.debug "Importing repository to #{pkg.srcdir}"
-                        # Workaround for bug in autoproj:
-                        # archive_dir should be set from pkg.srcdir, but is actually set from pkg.name
-                        # see autobuild-1.9.3/lib/autobuild/import/archive.rb +406
-                        if pkg.importer.kind_of?(Autobuild::ArchiveImporter)
-                            pkg.importer.options[:archive_dir] ||= File.basename(pkg.srcdir)
-                        end
-                        pkg.importer.import(pkg)
-                    rescue Exception => e
-                        if not e.message =~ /failed in patch phase/
-                            raise
-                        else
-                            Packager.warn "Patching #{pkg.name} failed"
-                        end
-                    end
-
-                    Dir.glob(File.join(pkg.srcdir, "*-stamp")) do |file|
-                        FileUtils.rm_f file
-                    end
+                    pkginfo.import(pkg_target_importdir)
                 end
             end
 
@@ -284,12 +243,12 @@ module Autoproj
             # information
             # return Autobuild package with update importer definition
             # reflecting the local checkout
-            def prepare_source_dir(orig_pkg, options = Hash.new)
-                pkg = orig_pkg.dup
+            def prepare_source_dir(orig_pkginfo, options = Hash.new)
+                pkginfo = orig_pkginfo.dup
 
                 options, unknown_options = Kernel.filter_options options,
                     :existing_source_dir => nil,
-                    :packaging_dir => File.join(@build_dir, debian_name(pkg))
+                    :packaging_dir => File.join(@build_dir, debian_name(pkginfo))
 
                 pkg_dir = options[:packaging_dir]
                 if not File.directory?(pkg_dir)
@@ -299,44 +258,27 @@ module Autoproj
                 # Only when there is no importer or when the VCS supports distribution (here git)
                 # then we allow to use the local version
                 support_local_import = false
-                if !pkg.importer || pkg.importer.kind_of?(Autobuild::Git)
-                    Packager.info "Import from local repository is supported for #{pkg.name}"
+                if !pkginfo.importer_type || pkginfo.importer_type == :git
+                    Packager.info "Import from local repository is supported for #{pkginfo.name}"
                     support_local_import = true
                 else
-                    Packager.info "Import from local repository is not supported for #{pkg.name}"
+                    Packager.info "Import from local repository is not supported for #{pkginfo.name}"
                 end
 
-                Packager.debug "Preparing source dir #{pkg.name}"
+                Packager.debug "Preparing source dir #{pkginfo.name}"
                 # If we have given an existing source directory we should use it, 
                 # but only if it is a git repository
                 if support_local_import && existing_source_dir = options[:existing_source_dir]
-                    import_from_local_src_dir(pkg, existing_source_dir, pkg_dir)
+                    import_from_local_src_dir(pkginfo, existing_source_dir, pkg_dir)
                 else
-                    Autoproj.manifest.load_package_manifest(pkg.name)
-
-                    # Test whether there is a local
-                    # version of the package to use.
-                    # Only for Git-based repositories
-                    # If it is not available import package
-                    # from the original source
-                    if pkg.importer.kind_of?(Autobuild::Git)
-                        if not File.exists?(pkg.srcdir)
-                            Packager.debug "Retrieving remote git repository of '#{pkg.name}'"
-                            pkg.importer.import(pkg)
-                        else
-                            Packager.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
-                        end
-                        pkg.importer.repository = pkg.srcdir
-                    end
-                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkg, target_platform.distribution_release_name))
-
-                    import_package(pkg, pkg_target_importdir)
+                    pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
+                    pkginfo.import(pkg_target_importdir)
                 end
-                pkg
+                pkginfo
             end
 
-            def self.obs_package_name(pkg)
-                "rock-" + pkg.name.gsub(/[\/_]/, '-').downcase
+            def self.obs_package_name(pkginfo)
+                "rock-" + pkginfo.name.gsub(/[\/_]/, '-').downcase
             end
         end # Packager
     end # Packaging

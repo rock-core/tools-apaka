@@ -47,13 +47,20 @@ module Autoproj
                                    autodetect_dpkg_architecture)
             end
 
+            def self.osdeps_release_tags
+                @osdeps_release_tags
+            end
+
+            def self.osdeps_release_tags= (tags)
+                @osdeps_release_tags = tags
+            end
+            
             # Autodetect the linux distribution release
             # require the general allow identification tag to be present in the
             # configuration file
             def self.autodetect_linux_distribution_release
-                distribution,release_tags = Autoproj::OSDependencies.operating_system
                 release = nil
-                release_tags.each do |tag|
+                osdeps_release_tags.each do |tag|
                     if Config.linux_distribution_releases.include?(tag)
                         return tag
                     end
@@ -125,7 +132,7 @@ module Autoproj
                     if platform.contains(package_name)
                         return ancestor_release_name
                     else
-                        Packager.info "#{self} ancestor #{platform} does not contain #{package_name}"
+                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{package_name}"
                     end
                 end
                 return ""
@@ -140,7 +147,7 @@ module Autoproj
             end
 
             def cacheFilename(package, release_name, architecture)
-                File.join(Autoproj::Packaging::CACHE_DIR,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
+                File.join(Autoproj::Packaging.cache_dir,"deb_package-availability-#{package}-in-#{release_name}-#{architecture}")
             end
 
             # Use dcontrol in order to check if the debian distribution contains
@@ -153,13 +160,13 @@ module Autoproj
                     raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
                 end
 
-                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
-                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                if !File.exist?(Autoproj::Packaging.cache_dir)
+                    FileUtils.mkdir_p Autoproj::Packaging.cache_dir
                 end
                 outfile = cacheFilename(package, distribution_release_name, architecture)
                 if !File.exists?(outfile)
                     cmd = "dcontrol #{package}@#{architecture}/#{distribution_release_name} > #{outfile} 2> #{outfile}"
-                    Packager.info "TargetPlatform::debianContains: #{cmd}"
+                    Autoproj::Packaging.info "TargetPlatform::debianContains: #{cmd}"
                     if !system(cmd)
                         return false
                     end
@@ -179,7 +186,7 @@ module Autoproj
             def contains(package, cache_results = true)
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
-                    Packager.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
+                    Autoproj::Packaging.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
                     return false
                 end
                 release_name = distribution_release_name
@@ -193,7 +200,7 @@ module Autoproj
                     begin
                         return debianContains(package, true)
                     rescue Exception => e
-                        Packager.warn "#{e} -- falling back to http query-based package verification"
+                        Autoproj::Packaging.warn "#{e} -- falling back to http query-based package verification"
                         urls << File.join(debian,release_name,architecture,package,"download")
                     end
                 elsif TargetPlatform::isRock(release_name)
@@ -206,8 +213,8 @@ module Autoproj
                 errorfile = nil
                 result = true
 
-                if !File.exist?(Autoproj::Packaging::CACHE_DIR)
-                    FileUtils.mkdir_p Autoproj::Packaging::CACHE_DIR
+                if !File.exist?(Autoproj::Packaging.cache_dir)
+                    FileUtils.mkdir_p Autoproj::Packaging.cache_dir
                 end
 
                 urls.each do |url|
@@ -221,7 +228,7 @@ module Autoproj
                         # query already done sometime before
                     else
                         cmd = "wget -O #{outfile} -o #{errorfile} #{url}"
-                        Packager.info "TargetPlatform::contains: query with #{cmd}"
+                        Autoproj::Packaging.info "TargetPlatform::contains: query with #{cmd}"
                         system(cmd)
                     end
 
@@ -259,16 +266,16 @@ module Autoproj
                                 # allow all users to read and write file
                                 FileUtils.chmod 0666, file
                             rescue
-                                Packager.info "TargetPlatform::contains could not change permissions for #{file}"
+                                Autoproj::Packaging.info "TargetPlatform::contains could not change permissions for #{file}"
                             end
                         end
                     end
                 end
 
                 if result
-                    Packager.info "TargetPlatform #{to_s} contains #{package}"
+                    Autoproj::Packaging.info "TargetPlatform #{to_s} contains #{package}"
                 else
-                    Packager.info "TargetPlatform #{to_s} does not contain #{package}"
+                    Autoproj::Packaging.info "TargetPlatform #{to_s} does not contain #{package}"
                 end
                 result
             end

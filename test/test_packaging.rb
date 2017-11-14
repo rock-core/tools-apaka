@@ -82,7 +82,7 @@ class TestDebian < Minitest::Test
     end
 
     def test_recursive_dependencies
-        test_set = { "utilrb" => ["rake", "rubygems-integration", "bundler", "ruby-facets", "rake-compiler", "ruby-flexmock"],
+        test_set = { "utilrb" => ["rake", "rubygems-integration", "bundler", "ruby-facets"],
                      "rtt"  => ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
@@ -102,7 +102,7 @@ class TestDebian < Minitest::Test
         ["base/cmake","utilrb"].each do |pkg_name|
             pkg = packager.package_by_name(pkg_name)
             packager.package(pkg)
-            ["debian.tar.gz", "dsc","orig.tar.gz"].each do |suffix|
+            ["debian.tar.{gz,xz}", "dsc","orig.tar.gz"].each do |suffix|
                 files = Dir.glob(File.join(packager.packaging_dir(pkg), "*.#{suffix}"))
                 assert(files.size == 1, "File with suffix #{suffix} generated")
             end
@@ -114,7 +114,7 @@ class TestDebian < Minitest::Test
     end
 
     def test_orig_tgz
-        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermannwebsocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus',['grape','0.16.2'],'grape_logging']
+        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus',['grape','0.16.2'],'grape_logging']
 
         require 'digest'
 
