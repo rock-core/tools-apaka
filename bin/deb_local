@@ -5,6 +5,8 @@ require 'rock/packaging'
 require 'rock/packaging/packageinfoask'
 require 'tempfile'
 require 'yaml'
+require 'thread'
+require 'timeout'
 
 def build_locally(packager, pkg_name, options)
     options, unknown_options = Kernel.filter_options options,
@@ -18,29 +20,24 @@ def build_locally(packager, pkg_name, options)
         :rebuild => false,
         :install => false
 
-    arguments = ""
+    arguments = []
     if options[:release_name]
-        arguments += "--release-name #{options[:release_name]}"
-        arguments += " "
+        arguments << "--release-name" << options[:release_name]
     end
     if options[:rock_base_install_dir]
-        arguments += "--rock-base-install-dir #{options[:rock_base_install_dir]}"
-        arguments += " "
+        arguments << "--rock-base-install-dir" << options[:rock_base_install_dir]
     end
     if options[:patch_dir]
-        arguments += "--patch-dir #{options[:patch_dir]}"
-        arguments += " "
+        arguments << "--patch-dir" << options[:patch_dir]
     end
     if options[:package_version]
-        arguments +=  "--package-version '#{options[:package_version]}'"
-        arguments += " "
+        arguments << "--package-version" << options[:package_version]
     end
     distribution = packager.target_platform.distribution_release_name
     architecture = packager.target_platform.architecture
 
-    arguments += "--distributions #{distribution}"
-    arguments += " "
-    arguments += "--architectures #{architecture}"
+    arguments << "--distributions" << distribution
+    arguments << "--architectures" << architecture
 
     # Create logging directory
     log_dir = File.join(packager.log_dir,"#{distribution}-#{architecture}")
@@ -52,24 +49,25 @@ def build_locally(packager, pkg_name, options)
     if options[:rebuild] || !packager.reprepro_has_package?(options[:debian_package_name], options[:release_name], distribution, architecture)
         puts "############### package #{pkg_name} ###################"
         rebuild_log = File.join(log_dir, "#{options[:debian_package_name]}-deb_local-rebuild.log")
-        cmd = "deb_package --rebuild #{arguments}"
-        cmd += " "
+        cmd = ["deb_package", "--rebuild"]
+        cmd.concat arguments
         if options[:meta_depends]
-            cmd += "--meta #{pkg_name}"
-            cmd += " "
-            cmd += options[:meta_depends].join(" ")
+            cmd << "--meta" << pkg_name
+            cmd.concat options[:meta_depends]
         else
-            cmd += "--package #{pkg_name}"
+            cmd << "--package" << pkg_name
         end
-        cmd += " > #{rebuild_log}"
 
-        puts "Execution of: #{cmd}"
-        if !system(cmd)
+        puts "Execution of: #{cmd.join(" ")} &> #{rebuild_log}"
+        if !system(*cmd, [:out, :err] => rebuild_log, :close_others => true)
+            raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
+        end
+        debian_package_dir = packager.packaging_dir(options[:debian_package_name])
+        dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
+        if !dsc_file
             raise RuntimeError, "Local rebuild of pkg #{pkg_name} failed -- see #{rebuild_log}"
         end
         puts "############### build #{pkg_name} #####################"
-        debian_package_dir = packager.packaging_dir(options[:debian_package_name])
-        dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
         options[:log_file] ||= File.join(log_dir, "#{options[:debian_package_name]}-deb_local-build.log")
         puts "Building package from #{dsc_file} -- see log (#{options[:log_file]})"
 
@@ -99,9 +97,12 @@ def build_locally(packager, pkg_name, options)
         if packager.target_platform == Autoproj::Packaging::TargetPlatform.autodetect_target_platform
             puts "############### install #{pkg_name} #####################"
             install_log = File.join(log_dir,"#{options[:debian_package_name]}-deb_local-install.log")
+            cmd = [ "deb_package", "--install" ]
+            cmd.concat arguments
+            cmd << pkg_name
             cmd = "deb_package --install #{arguments} #{pkg_name} > #{install_log}"
-            puts "Execution of: #{cmd}"
-            if !system(cmd)
+            puts "Execution of: #{cmd.join(" ")} &> #{install_log}"
+            if !system(*cmd, [:out, :err] => install_log, :close_others => true)
                 raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
             end
         else
@@ -123,6 +124,7 @@ o_architecture = nil
 o_dry_run = false
 o_register = false
 o_deregister = false
+o_max_parallel_jobs = 1
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
@@ -183,6 +185,9 @@ options = OptionParser.new do |opt|
     end
     opt.on("--deregister", "Deregister/remove a package") do
         o_deregister = true
+    end
+    opt.on("-j JOBS", "--jobs JOBS","Maximum number of parallel jobs") do |jobs|
+        o_max_parallel_jobs = jobs
     end
 end
 
@@ -271,6 +276,7 @@ selected_rock_packages = o_selected_packages.select do |name|
         true
     elsif package_info_ask.is_metapackage?(name)
         Autoproj::Packaging.debug "Package: #{name} is a known rock meta package"
+        #we want the dependencies(which it will resolve to)
         true
     elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
         Autoproj::Packaging.debug "Package: #{name} is a gem"
@@ -315,9 +321,9 @@ end
 # check if the current collection in the manifest contains a
 # metapackage
 if o_build_meta
-    o_selected_packages.each do |sel|
-        if package_info_ask.is_metapackage?(sel)
-            meta_packages[sel] = package_info_ask.resolve_user_selection_packages([sel]).to_a
+    o_selected_packages.each do |name|
+        if package_info_ask.is_metapackage?(name)
+            meta_packages[name] = package_info_ask.resolve_user_selection_packages([name])
         end
     end
 end
@@ -330,125 +336,275 @@ if !File.directory?(log_dir)
     FileUtils.mkdir_p log_dir
 end
 
-succeeded_gem_builds = []
-failed_gem_builds = []
-status = {}
+###############################################################
+
+# runnable job consists of dependencies and build parameters for build_locally
+# a job is removed from the list if a dependency fails
+# a job is started when all its dependencies have been built
+
+# { jobname => { :dependencies => [:gems, :rock], :build_parameters => [] } }
+pending_jobs = {}
+running_jobs = {}
+finished_jobs = {}
+failed_jobs = {}
+skipped_jobs = {}
+
 if !required_gems || required_gems.empty?
-    puts "# No Gems to be packaged"
 elsif o_meta_only
-    # message output later
 else
-    puts "# Packaging Gems ---- #{required_gems}"
     index = 0
     required_gems.each do |pkg|
-        begin
-            is_osdeps = false
-            native_name, is_osdeps = packager.native_dependency_name(pkg)
-            if is_osdeps
-                Autoproj::Packaging.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
-                next
-            end
-
-            pkg_build_options = build_options.dup
-            pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
-            if version = required_gems_versions[pkg]
-                pkg_build_options[:package_version] = version
-            end
-            if !o_no_deps || pkg =~ /#{o_selected_packages.first}/
-                index += 1
-                puts "    (#{index}) #{pkg}"
-                if !o_dry_run
-                    build_locally(packager, pkg, pkg_build_options)
-                end
-                succeeded_gem_builds << [index, pkg, version]
-            end
-        rescue SignalException => e
-            puts "Package building aborted by user"
-            exit 0
-        rescue Exception => e
-            puts "    package: #{pkg} building failed"
-            puts e.message
-            puts e.backtrace.join("\n")
-            failed_gem_builds << [index, pkg, version]
-        ensure
-            status['gems'] = { "succeeded" => succeeded_gem_builds,
-                     "failed" => failed_gem_builds }
-
-            File.write(File.join(log_dir,'deb_local-build_results.yml'), status.to_yaml)
+        is_osdeps = false
+        native_name, is_osdeps = packager.native_dependency_name(pkg)
+        if is_osdeps
+            Autoproj::Packaging.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
+            finished_jobs["ruby-#{pkg}"] = { :type => :nativegem,
+                                             :dependencies => []
+                                           }
+            next
         end
+
+        pkg_build_options = build_options.dup
+        pkg_build_options[:debian_package_name] = packager.debian_ruby_name(pkg,true)
+        gem_deps = nil
+        if version = required_gems_versions[pkg]
+            pkg_build_options[:package_version] = version
+            gem_deps = package_info_ask.all_required_gems({pkg => [version]})
+        else
+            gem_deps = package_info_ask.all_required_gems({pkg => []})
+        end
+
+        gem_deps = gem_deps[:gem_versions].to_a.select do |gem,versions|
+            pkg_ruby_name = packager.debian_ruby_name(gem, false)
+            pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+            !( packager.rock_release_platform.ancestorContains(gem) ||
+               packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+               packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+        end .map { |p| "ruby-#{p[0]}" }
+        #rice requires itself
+        gem_deps.delete_if { |p| p == "ruby-#{pkg}" }
+        
+        pending_jobs["ruby-#{pkg}"] = { :type => :gem,
+                                        :dependencies => gem_deps,
+                                        :build_arguments =>
+                                        [pkg, pkg_build_options],
+                                        :version => version
+                                      }
     end
 end
 
-succeeded_pkg_builds = []
-failed_pkg_builds = []
 if !rock_pkginfos || rock_pkginfos.empty?
-    puts "# No Rock Packages to be packaged"
 elsif o_meta_only
-    puts "# Creating only meta packages requested"
 else
     pkg_names = rock_pkginfos.collect {|pkginfo| pkginfo.name }
-    puts "# Packaging Rock Packages --- #{pkg_names}"
-    index = 0
     rock_pkginfos.each do |pkginfo|
-        begin
-            if package_info_ask.ignored?(pkginfo.name)
-                puts "    package is on the ignore list"
-                next
-            end
-            pkg_build_options = build_options.dup
-            pkg_build_options[:debian_package_name] = packager.debian_name(pkginfo,true)
-            if !o_no_deps || pkginfo.name =~ /#{o_selected_packages.first}/
-                index += 1
-                puts "    (#{index}) #{pkginfo.name}"
-                if !o_dry_run
-                    build_locally(packager, pkginfo.name, pkg_build_options)
-                end
-                succeeded_pkg_builds << [index, pkginfo.name]
-            end
-        rescue SignalException => e
-            puts "Package building aborted by user"
-            exit 0
-        rescue Exception => e
-            puts "    package: #{pkginfo.name} building failed"
-            puts e.message
-            puts e.backtrace.join("\n")
-            failed_pkg_builds << [index, pkginfo.name]
-        ensure
-            status['packages'] = { :succeeded => succeeded_pkg_builds,
-                     :failed => failed_pkg_builds }
-
-            File.write(File.join(log_dir,'deb_local-build_results.yml'), status.to_yaml)
+        if package_info_ask.ignored?(pkginfo.name)
+            Autoproj::Packaging.warn "package #{pkginfo.name} is on the ignore list"
+            next
         end
+
+        pkg_build_options = build_options.dup
+        pkg_build_options[:debian_package_name] = packager.debian_name(pkginfo,true)
+
+        pkgdeps = pkginfo.dependencies
+        deps = pkgdeps[:rock_pkginfo].select do |pkginfo|
+            pkg_name = packager.debian_name(pkginfo, true)
+            !packager.rock_release_platform.ancestorContains(pkg_name)
+        end .map { |p| p.name }
+        deps.concat (
+            pkgdeps[:nonnative].select do |gem,version|
+                pkg_ruby_name = packager.debian_ruby_name(gem, false)
+                pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+                !( packager.rock_release_platform.ancestorContains(gem) ||
+                   packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+                   packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+            end .map { |p| "ruby-#{p[0]}" })
+        
+        pending_jobs[pkginfo.name] = { :type => :package,
+                                       :dependencies => deps,
+                                       :build_arguments =>
+                                       [pkginfo.name, pkg_build_options]
+                                     }
     end
 end
 
+meta_packages.each do |pkg_name,dependencies|
+    pkg_build_options = build_options.dup
+    pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
+
+    reqpkgs = packager.filter_all_required_packages package_info_ask.all_required_packages dependencies,[]
+
+    pkg_build_options[:meta_depends] = dependencies.to_a
+
+    deps = reqpkgs[:pkginfos].select do |pkginfo|
+        dep_pkg_name = packager.debian_name(pkginfo, true)
+        !packager.rock_release_platform.ancestorContains(dep_pkg_name)
+    end .map { |p| p.name }
+    deps.concat (
+        reqpkgs[:gem_versions].select do |gem,version|
+            pkg_ruby_name = packager.debian_ruby_name(gem, false)
+            pkg_prefixed_name = packager.debian_ruby_name(gem, true)
+
+            !( packager.rock_release_platform.ancestorContains(gem) ||
+               packager.rock_release_platform.ancestorContains(pkg_ruby_name) ||
+               packager.rock_release_platform.ancestorContains(pkg_prefixed_name))
+        end .map { |p| "ruby-#{p[0]}" }
+    )
+
+    pending_jobs[pkg_name] = { :type => :meta,
+                               :dependencies => deps,
+                               :build_arguments =>
+                               [pkg_name, pkg_build_options]
+                             }
+end
+
+succeeded_gem_builds = []
+failed_gem_builds = []
+gem_index = 0
+succeeded_pkg_builds = []
+failed_pkg_builds = []
+pkg_index = 0
 succeeded_meta_builds = []
 failed_meta_builds = []
+meta_index = 0
+status = {}
+if !required_gems || required_gems.empty?
+    Autoproj::Packaging.info "# No Gems to be packaged"
+end
+if !rock_pkginfos || rock_pkginfos.empty?
+    Autoproj::Packaging.info "# No Rock Packages to be packaged"
+end
+if o_meta_only
+    Autoproj::Packaging.info "# Creating only meta packages requested"
+end
 
-index = 0
-# o_build_meta is handled earlier: meta_packages will be setup accordingly.
-meta_packages.each do |pkg_name,depend_names|
-    puts "# Creating meta package #{pkg_name} --- #{depend_names}"
+wait_queue = Queue.new
 
-    begin
-        pkg_build_options = build_options.dup
-        pkg_build_options[:debian_package_name] = packager.debian_meta_name(pkg_name,true)
-        pkg_build_options[:meta_depends] = depend_names
+#validate sudo credentials while we are still single threaded
+system("sudo","-v")
 
-        index += 1
-        puts "    (#{index}) #{pkg_name}"
-        if !o_dry_run
-            build_locally(packager, pkg_name, pkg_build_options)
+while !pending_jobs.empty? || !running_jobs.empty?
+    #first, remove all jobs depending on failed jobs
+    pending_jobs.delete_if do |k,v|
+        if !v[:dependencies].select { |p| failed_jobs[p] || skipped_jobs[p] }.empty?
+            Autoproj::Packaging.info "Skipping #{k} due to failed dependencies"
+            skipped_jobs[k] = v
+            true
+        else
+            false
         end
-        succeeded_meta_builds << [index, pkg_name]
-    rescue SignalException => e
-        puts "Package building aborted by user"
-        exit 0
-    rescue Exception => e
-        puts "    package: #{pkg_name} building failed"
-        puts e.message
-        puts e.backtrace.join("\n")
-        failed_meta_builds << [index, pkg_name]
+    end
+    made_progress = false
+    # find a job where all dependencies are in finished_jobs
+    pending_jobs.delete_if do |pkg,job|
+        if running_jobs.length > o_max_parallel_jobs
+            false
+        elsif job[:dependencies].reject { |p| finished_jobs[p] }.empty?
+            #found one. run it.
+            if job[:type] == :gem
+                job[:index] = gem_index
+                puts "    gem (#{job[:index]}) #{pkg}"
+                gem_index += 1
+            elsif job[:type] == :package
+                job[:index] = pkg_index
+                puts "    package (#{job[:index]}) #{pkg}"
+                pkg_index += 1
+            elsif job[:type] == :meta
+                job[:index] = meta_index
+                puts "    meta (#{job[:index]}) #{pkg}"
+                meta_index += 1
+            end
+            job[:thread] = Thread.new do
+                begin
+                    if !o_dry_run
+                        build_locally(packager, *job[:build_arguments])
+                    end
+                    job[:success] = true
+                rescue SignalException => e
+                    puts "Package building aborted by user"
+                    exit 2
+                rescue Exception => e
+                    puts "    package: #{pkg} building failed"
+                    puts e.message
+                    puts e.backtrace.join("\n")
+                    job[:success] = false
+                ensure
+                    wait_queue.push job
+                end
+            end
+            running_jobs[pkg] = job
+            made_progress = true
+            true
+        else
+            false
+        end
+    end
+    if running_jobs.empty? && !pending_jobs.empty?
+        Autoproj::Packaging.error "Could not find any package with satisfied dependencies"
+        Autoproj::Packaging.error "Packages still pending: "
+        pending_jobs.each do |pkg,job|
+            Autoproj::Packaging.error "#{pkg}: #{job[:dependencies].join(", ")}"
+        end
+        exit 1
+    end
+    if !made_progress && !running_jobs.empty?
+        #could not add more jobs, so wait for one to finish.
+        # bound the time we are waiting for jobs to complete so we can
+        # refresh the sudo credentials
+        begin
+            Timeout::timeout(180) do
+                # the job returned by .pop will be removed from running_jobs below,
+                # if it is not already.
+                wait_queue.pop
+            end
+        rescue Timeout::Error
+            # we don't really care, we just want to wait until something happens
+            # or needs to be done, then we check what/if something happened and
+            # do the deed.
+        end
+        system("sudo","-v")
+    end
+    running_jobs.delete_if do |pkg,job|
+        if !job[:thread].alive?
+            if job[:success]
+                finished_jobs[pkg] = job
+                if job[:type] == :gem
+                    succeeded_gem_builds << [job[:index], pkg, job[:version]]
+                    status['gems'] = { :succeeded => succeeded_gem_builds,
+                                           :failed => failed_gem_builds }
+                elsif job[:type] == :package
+                    succeeded_pkg_builds << [job[:index], pkg]
+                    status['packages'] = { :succeeded => succeeded_pkg_builds,
+                                           :failed => failed_pkg_builds }
+                elsif job[:type] == :meta
+                    succeeded_meta_builds << [job[:index], pkg]
+                    status['meta'] = { :succeeded => succeeded_meta_builds,
+                                       :failed => failed_meta_builds }
+                end
+            else
+                failed_jobs[pkg] = job
+                if job[:type] == :gem
+                    failed_gem_builds << [job[:index], pkg, job[:version]]
+                    status['gems'] = { :succeeded => succeeded_gem_builds,
+                                           :failed => failed_gem_builds }
+                elsif job[:type] == :package
+                    failed_pkg_builds << [job[:index], pkg]
+                    status['packages'] = { :succeeded => succeeded_pkg_builds,
+                                           :failed => failed_pkg_builds }
+                elsif job[:type] == :meta
+                    failed_meta_builds << [job[:index], pkg]
+                    status['meta'] = { :succeeded => succeeded_meta_builds,
+                                       :failed => failed_meta_builds }
+                end
+            end
+            
+            File.write(File.join(log_dir,'deb_local-build_results.yml'), status.to_yaml)
+            true
+        else
+            false
+        end
     end
 end
 
@@ -459,3 +615,5 @@ puts ""
 puts "Gem building failed for: #{failed_gem_builds}"
 puts "Pkg building failed for: #{failed_pkg_builds}"
 puts "Meta building failed for: #{failed_meta_builds}"
+
+

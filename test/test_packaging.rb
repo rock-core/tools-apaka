@@ -13,8 +13,15 @@ require 'rock/packaging'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
-Autoproj::CmdLine.initialize_root_directory
-Autoproj::CmdLine.initialize_and_load(nil)
+$autoprojadaptor = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+
+def autoprojadaptor
+    $autoprojadaptor
+end
+
+Autoproj::Packaging.root_dir = autoprojadaptor.root_dir
+
+Autoproj::Packaging::TargetPlatform.osdeps_release_tags= autoprojadaptor.osdeps_release_tags
 
 class TestDebian < Minitest::Test
 
@@ -60,29 +67,32 @@ class TestDebian < Minitest::Test
                      "utilrb"     => "rock-master-ruby-utilrb" }
 
         test_set.each do |tin, tout|
-            pkg = packager.package_by_name(tin)
+            pkg = autoprojadaptor.package_by_name(tin)
+            pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
 
-            debian_name = packager.debian_name(pkg, true)
+            debian_name = packager.debian_name(pkginfo, true)
             assert( debian_name == tout, "Debian name: #{debian_name}, expected: #{tout}" )
         end
     end
 
     def test_commit_time
-        pkg = packager.package_by_name("base/cmake")
+        pkg = autoprojadaptor.package_by_name("base/cmake")
+        pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
 
-        time = packager.latest_commit_time(pkg).strftime("%Y%m%d")
+        time = pkginfo.latest_commit_time.strftime("%Y%m%d")
         assert( time =~ /[1-2]\d\d\d[0-1][0-9][0-3]\d/, "Debian commit time: #{time}, expected format %Y%m%d" )
     end
 
     def test_debian_version
-        pkg = packager.package_by_name("base/cmake")
+        pkg = autoprojadaptor.package_by_name("base/cmake")
+        pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
 
-        version = packager.debian_version(pkg, "trusty", "9")
+        version = packager.debian_version(pkginfo, "trusty", "9")
         assert( version =~ /[0-9]\.[1-2]\d\d\d[0-1][0-9][0-3]\d-9~trusty/, "Debian version: #{version}, expected: <version>.<timestamp>.<revision>" )
     end
 
     def test_recursive_dependencies
-        test_set = { "utilrb" => ["rake", "rubygems-integration", "bundler", "ruby-facets"],
+        test_set = { "utilrb" => ["bundler", "ruby-facets"],
                      "rtt"  => ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
@@ -90,7 +100,9 @@ class TestDebian < Minitest::Test
         }
 
         test_set.each do |pkg_name, expected_deps|
-            deps = packager.recursive_dependencies(pkg_name)
+            pkg = autoprojadaptor.package_by_name(pkg_name)
+            pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
+            deps = packager.recursive_dependencies(pkginfo)
             deps.delete_if { |dep| dep == "ccache" }
             assert(deps.uniq.sort == expected_deps.uniq.sort, "Recursive dependencies for '#{pkg_name}': " \
                    " #{deps} expected #{expected_deps}")
@@ -100,10 +112,11 @@ class TestDebian < Minitest::Test
     def test_package
         # cmake package
         ["base/cmake","utilrb"].each do |pkg_name|
-            pkg = packager.package_by_name(pkg_name)
-            packager.package(pkg)
+            pkg = autoprojadaptor.package_by_name(pkg_name)
+            pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
+            packager.package(pkginfo)
             ["debian.tar.{gz,xz}", "dsc","orig.tar.gz"].each do |suffix|
-                files = Dir.glob(File.join(packager.packaging_dir(pkg), "*.#{suffix}"))
+                files = Dir.glob(File.join(packager.packaging_dir(pkginfo), "*.#{suffix}"))
                 assert(files.size == 1, "File with suffix #{suffix} generated")
             end
         end
@@ -114,7 +127,7 @@ class TestDebian < Minitest::Test
     end
 
     def test_orig_tgz
-        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus',['grape','0.16.2'],'grape_logging']
+        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus','grape','grape_logging']
 
         require 'digest'
 

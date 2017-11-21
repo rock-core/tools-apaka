@@ -57,6 +57,13 @@ module Autoproj
                 raise "#{self.class} needs to overwrite dependencies"
             end
 
+            # environment for using external utilities on an imported
+            # version of this package
+            # {"VARIABLE" => "VALUE"}
+            def env
+                raise "#{self.class} needs to overwrite env"
+            end
+
             # Array of PackageInfos, containing the packages that need to
             # be build for this package. Mostly just this package and
             # dependencies.

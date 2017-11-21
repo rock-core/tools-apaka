@@ -1,25 +1,26 @@
-require 'rexml/document'
+#require 'rexml/document'
 require 'autoproj'
 require 'autobuild'
 require 'rock/packaging/packageinfoask'
-require 'rock/packaging/gem_dependencies'
+require 'autoproj/cli/base'
+require 'rock/packaging/gem_dependencies2'
 
 module Autoproj
     module Packaging
-        class Autoproj1Adaptor < PackageInfoAsk
+        class Autoproj2Adaptor < PackageInfoAsk
 
             attr_accessor :package_set_order
 
             attr_reader :osdeps_release_tags
 
             def self.which
-                :autoproj_v1
+                :autoproj_v2
             end
 
             def self.probe
                 #theoretically, we could check for every thing we use in
                 #autoproj, but this should suffice for now.
-                defined? Autoproj::CmdLine.initialize_root_directory()
+                defined? Autoproj::workspace
             rescue
                 false
             end
@@ -35,19 +36,25 @@ module Autoproj
                 distribution,release_tags = osdeps_operating_system
                 @osdeps_release_tags = release_tags
 
-                Autoproj.silent = true
-                Autoproj::CmdLine.initialize_root_directory
-                Autoproj::CmdLine.initialize_and_load(nil)
+                Autoproj::workspace.setup
+                #mainline: true: apply no overrides
+                #          nil: apply local overrides
+                Autoproj::workspace.load_package_sets(mainline: nil)
+                Autoproj::workspace.config.save
+                Autoproj::workspace.setup_all_package_directories
+                Autoproj::workspace.finalize_package_setup
+                
+                @cli = Autoproj::CLI::Base.new(Autoproj::workspace)
             end
 
             def osdeps_operating_system
-                Autoproj::OSDependencies.operating_system
+                Autoproj::workspace.os_package_resolver.operating_system
             end
 
             # required for jenkins.rb or if there is a specific operating
             # system in the config file
             def osdeps_operating_system= (os)
-                Autoproj::OSDependencies.operating_system = os
+                Autoproj::workspace.os_package_resolver.operating_system = os
             end
 
             def root_dir
@@ -55,19 +62,16 @@ module Autoproj
             end
 
             def osdeps_set_alias(old_name, new_name)
-                Autoproj::OSDependencies.alias(old_name, new_name)
+                Autoproj::workspace.os_package_resolver.add_aliases(new_name => old_name)
             end
 
             def autoproj_init_and_load(selection)
-                #this should not be needed, we do
-                #Autoproj::CmdLine.initialize_and_load(nil)
-                #and it just passes selection through(if there are no options,
-                #and i think we filter anything that looks like an option)
-                Autoproj::CmdLine.initialize_and_load(selection)
+                selection
             end
 
             def resolve_user_selection_packages(selection)
-                Autoproj::CmdLine.resolve_user_selection(selection).packages
+                pkgs, _ = @cli.resolve_user_selection(selection)
+                pkgs.packages
             end
 
             def moved_packages
@@ -97,8 +101,8 @@ module Autoproj
                     Packaging.debug "Retrieving remote git repository of '#{pkg.name}'"
                     pkg.importer.import(pkg)
                 end
-                pkg_commit_time = latest_commit_time(pkg);
-                pkginfo = Autoproj1PackageInfo.new(pkg,self)
+                pkg_commit_time = latest_commit_time(pkg)
+                pkginfo = Autoproj2PackageInfo.new(pkg,self)
                 @pkginfo_cache[pkg.name] = pkginfo
                 pkginfo.latest_commit_time = pkg_commit_time
                 pkginfo.name = pkg.name
@@ -161,7 +165,7 @@ module Autoproj
                     end
                 rescue Exception => e
                     pkginfo.origin_information << "the repository and commit information could not be extracted"
-                    origin_information << "error at generation: #{e.to_s}"
+                    pkginfo.origin_information << "error at generation: #{e.to_s}"
                 end
 
                 pkginfo.parallel_build_level = pkg.parallel_build_level
@@ -212,22 +216,22 @@ module Autoproj
                 File.lstat(pkg.importer.cachefile).mtime
             end
 
-            public
-
             def pkgmanifest_by_name(package_name)
                 if !@pkg_manifest_cache[package_name]
                     begin
                         puts "Loading manifest for #{package_name}"
-                        @pkg_manifest_cache[package_name] = Autoproj.manifest.package(package_name)
+                        @pkg_manifest_cache[package_name] = Autoproj.manifest.load_package_manifest(package_name)
                     rescue Exception => e
-                        raise RuntimeError, "Autoproj::Packaging::Autoproj1Adaptor: failed to load manifest for '#{package_name}' -- #{e}"
+                        raise RuntimeError, "Autoproj::Packaging::Autoproj2Adaptor: failed to load manifest for '#{package_name}' -- #{e}"
                     end
                 end
                 @pkg_manifest_cache[package_name]
             end
             
+            public
+
             def package_by_name(package_name)
-                pkgmanifest_by_name(package_name).autobuild
+                pkgmanifest_by_name(package_name).package
             end
 
             private
@@ -246,15 +250,8 @@ module Autoproj
                 while true
                     all_packages_refresh = all_packages.dup
                     all_packages.each do |pkg_name|
-                        begin
-                            pkg_manifest = Autoproj.manifest.load_package_manifest(pkg_name)
-                        rescue Exception => e
-                            raise RuntimeError, "Autoproj::Packaging::Autoproj1Adaptor: failed to load manifest for '#{pkg_name}' -- #{e}"
-                        end
-
-                        pkg = pkg_manifest.package
-
-                        pkg.resolve_optional_dependencies
+                        pkg = package_by_name(pkg_name)
+                        resolve_optional_dependencies(pkg)
                         reverse_dependencies[pkg.name] = pkg.dependencies.dup
                         Packaging.debug "deps: #{pkg.name} --> #{pkg.dependencies}"
                         all_packages_refresh.merge(pkg.dependencies)
@@ -369,7 +366,9 @@ module Autoproj
                 selected_gems.each do |name, version|
                     gems << name
                     gem_versions[name] ||= Array.new
-                    gem_versions[name] << version
+                    if version
+                        gem_versions[name] << version
+                    end
                 end
 
                 extra_gems = Array.new()
@@ -392,7 +391,7 @@ module Autoproj
                 end
 
                 required_gems = all_required_gems(gem_versions)
-
+                
                 all_pkginfos = all_packages.map do |pkg|
                     pkginfo_from_pkg(pkg)
                 end
@@ -406,7 +405,7 @@ module Autoproj
             #           :gem_versions => { gem => version } }
             def all_required_gems(gem_versions)
                 gem_version_requirements = gem_versions.dup
-                gem_dependencies = GemDependencies.resolve_all(gem_versions)
+                gem_dependencies = GemDependencies2.resolve_all(gem_versions)
                 gem_dependencies.each do |name, deps|
                     if deps
                         deps.each do |dep_name, dep_versions|
@@ -415,24 +414,40 @@ module Autoproj
                         end
                     end
                 end
-                exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
-                sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
+                exact_version_list = GemDependencies2.gem_exact_versions(gem_version_requirements)
+                sorted_gem_list = GemDependencies2.sort_by_dependency(gem_dependencies).uniq
+                
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end
-
+            
             private
 
+            def resolve_optional_dependencies(pkg)
+                packages, osdeps = pkg.partition_optional_dependencies
+                packages.each do |dep_pkg_name|
+                    if !Autoproj::manifest.ignored?(dep_pkg_name) && !Autoproj::manifest.excluded?(dep_pkg_name)
+                        pkg.depends_on dep_pkg_name
+                    end
+                end
+                osdeps.each do |osdep_pkg_name|
+                    if !Autoproj::manifest.ignored?(osdep_pkg_name) && !Autoproj::manifest.excluded?(osdep_pkg_name)
+                        pkg.os_packages << osdep_pkg_name
+                    end
+                end
+            end
+            
             # Compute dependencies of this package
             # Returns [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
                 pkg = package_by_name(pkg.name)
 
-                pkg.resolve_optional_dependencies
+                resolve_optional_dependencies(pkg)
+
                 deps_rock_pkginfo = pkg.dependencies.map do |dep_name|
                     pkginfo_from_pkg(package_by_name(dep_name))
                 end
 
-                pkg_osdeps = Autoproj.osdeps.resolve_os_dependencies(pkg.os_packages)
+                pkg_osdeps = Autoproj.osdeps.resolve_os_packages(pkg.os_packages)
                 # There are limitations regarding handling packages with native dependencies
                 #
                 # Currently gems need to converted into debs using gem2deb
@@ -442,8 +457,8 @@ module Autoproj
                 # i.e. see convert_gems
 
                 deps_osdeps_packages = []
-                native_package_manager = Autoproj.osdeps.os_package_handler
-                _, native_pkg_list = pkg_osdeps.find { |handler, _| handler == native_package_manager }
+                native_package_manager = Autoproj.osdeps.os_package_manager
+                _, native_pkg_list = pkg_osdeps.find { |manager, _| manager == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
                 Packaging.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
@@ -458,8 +473,13 @@ module Autoproj
                 extra_gems = Set.new
                 non_native_handlers.each do |pkg_handler, pkg_list|
                     # Convert native ruby gems package names to rock-xxx
-                    if pkg_handler.kind_of?(Autoproj::PackageManagers::GemManager)
-                        pkg_list.each do |name,version|
+                    if pkg_handler == "gem"
+                        pkg_list.each do |name|
+                            version = nil
+                            if name =~ /([<>]=?.*)$/
+                                version = $1
+                            end
+                            name = name.gsub(/[<>]=?.*$/,"")
                             extra_gems << [name, version]
                             non_native_dependencies << [name, version]
                         end
@@ -560,7 +580,7 @@ module Autoproj
                 end
             end
 
-            class Autoproj1PackageInfo < PackageInfo
+            class Autoproj2PackageInfo < PackageInfo
                 def initialize(pkg,pkginfoask)
                     @pkg = pkg
                     @pkginfoask = pkginfoask
@@ -571,23 +591,22 @@ module Autoproj
                 # it may be a source control checkout.
                 def import(pkg_target_importdir)
                     pkg = @pkg.dup
-                    Autoproj.manifest.load_package_manifest(pkg.name)
+                    @pkginfoask.send(:pkgmanifest_by_name, @pkg.name)
 
                     # Test whether there is a local
                     # version of the package to use.
                     # Only for Git-based repositories
                     # If it is not available import package
                     # from the original source
-                    if pkg.importer.kind_of?(Autobuild::Git)
-                        Packaging.debug "Using locally available git repository of '#{pkg.name}' -- '#{pkg.srcdir}'"
-                        pkg.importer.repository = pkg.srcdir
-                        pkg.importer.commit = pkg.importer.current_remote_commit(pkg)
-
-                        Packaging.info "Using local (git) package: #{pkg.srcdir} and commit #{pkg.importer.commit}"
+                    if @pkg.importer.kind_of?(Autobuild::Git)
+                        Packaging.debug "Using locally available git repository of '#{@pkg.name}' -- '#{@pkg.srcdir}' ('#{@pkg.importdir}')"
+                        @pkg.importer.repository = pkg.importdir
+                        @pkg.importer.commit = pkg.importer.current_remote_commit(pkg)
+                        Packaging.info "Using local (git) package: #{@pkg.srcdir} and commit #{@pkg.importer.commit}"
                     end
 
                     @srcdir = pkg_target_importdir
-                    @pkginfoask.send(:import_package, pkg, pkg_target_importdir)
+                    @pkginfoask.send(:import_package, @pkg, pkg_target_importdir)
                 end
 
                 # raw dependencies
@@ -596,7 +615,7 @@ module Autoproj
                 # [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
                 def dependencies
                     if !@dependencies
-                        @dependencies = @pkginfoask.send(:dependencies, @pkg)
+                        @dependencies = @pkginfoask.send(:dependencies,@pkg)
                     end
                     @dependencies
                 end
@@ -612,15 +631,20 @@ module Autoproj
                 end
 
                 def env
-                    ENV.to_h
-                    # this does not work due to a bug in autobuild
-                    #env = @pkg.resolved_env
-                    #dependencies[:rock_pkginfo].each { |d| pkginfo.env.merge d.env }
+                    if !@env
+                        @pkg.update_environment
+                        #make autoproj actually generate the environments.
+                        #resolved_env and update_environment are not enough,
+                        #looks like it needs to be done recursively
+                        dependencies[:rock_pkginfo].each { |d| d.env }
+                        @env = @pkg.resolved_env
+                    end
+                    @env
                 end
 
-            end #class PackageInfo
-            
-        end #class Autoproj
+            end #class Autoproj2PackageInfo
+
+        end #class Autoproj2Adaptor
     end #module Packaging
 end #module Autoproj
 

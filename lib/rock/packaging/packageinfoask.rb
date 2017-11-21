@@ -134,6 +134,14 @@ module Autoproj
                 raise "#{self.class} needs to overwrite all_required_packages"
             end
 
+            # resolve the required gems of a list of gems and their versions
+            # { gem => [versions] }
+            # returns { :gems => [gem names sorted so least dependend is first],
+            #           :gem_versions => { gem => version } }
+            def all_required_gems(gem_versions)
+                raise "#{self.class} needs to overwrite all_required_gems"
+            end
+
             # Sort by package set order
             # can be used with any packages array of objects providing a name(),
             # that is, works with both autobuild packages and PackageInfos
@@ -152,4 +160,10 @@ rescue LoadError
     # in case the adaptors require fails, not so much that this require fails
 rescue
     # if one of the backends does not load, we should still be fine.
+end
+
+begin
+    require 'rock/packaging/autoproj2adaptor'
+rescue LoadError
+rescue
 end

@@ -5,7 +5,7 @@ require 'rock/packaging/packager'
 
 module Autoproj
     module Packaging
-        class GemDependencies
+        class GemDependencies2
             # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
             # This will only work if the local installation is update to date
             # regarding the gems
@@ -26,17 +26,37 @@ module Autoproj
                 end
                 gem_dependency_cmd = "gem dependency #{gem_name}"
                 gem_dependency = `#{gem_dependency_cmd}`
-
                 if $?.exitstatus != 0
+                    gem_dependency = nil
+                else
+                    # do a quick check to verify we actually found our gem
+                    found = false
+                    gem_dependency.split("\n").each do |line|
+                        if match = /Gem #{gem_name}-([0-9].*)/.match(line)
+                            found = true
+                            break;
+                        end
+                    end
+                    if !found
+                        gem_dependency = nil
+                    end
+                end
+
+                if !gem_dependency
                     Autoproj::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
-                    gem_manager = ::Autoproj::PackageManagers::GemManager.new
+                    bundler_manager = ::Autoproj::PackageManagers::BundlerManager.new(::Autoproj::workspace)
                     if version_requirements.empty?
-                        gem_manager.install([[gem_name]])
+                        bundler_manager.install([gem_name])
                     else
                         if version_requirements.size != 1
                             raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
                         end
-                        gem_manager.install([[gem_name, version_requirements.first]])
+                        binding.pry
+                        bundler_manager.install([gem_name+version_requirements.first])
+                    end
+                    gem_dependency = `#{gem_dependency_cmd}`
+                    if $?.exitstatus != 0
+                        raise RuntimeError, "GemDependencies::resolve_by_name could not find '#{gem_name}', even though we tried to install it"
                     end
                 end
 
@@ -236,11 +256,11 @@ module Autoproj
                 Dir.chdir("/tmp") do
                     outfile = "/tmp/gem-fetch-#{gem_name}"
                     if not File.exists?(outfile)
-                        if !system("gem", "fetch", gem_name, [ :out, :err] => outfile)
+                        if !system("gem fetch #{gem_name} > #{outfile} 2>&1")
                             return false
                         end
                     end
-                    if !system("grep", "-i", "ERROR", :in => outfile, [:out, :err] => "/dev/null")
+                    if !system("grep -ir ERROR #{outfile} > /dev/null 2>&1")
                         Autoproj::Packaging.info "GemDependencies: #{gem_name} is a ruby gem"
                         return true
                     end

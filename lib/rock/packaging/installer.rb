@@ -12,6 +12,8 @@ module Autoproj
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
 
+            @base_image_lock = Mutex.new
+
             class ChrootCmdError < StandardError
                 attr_reader :status
 
@@ -44,11 +46,11 @@ module Autoproj
             def self.install_webserver_config(config_path, release_prefix)
                 target_config_file = "100_jenkins-#{release_prefix}.conf"
                 apache_config = File.join("/etc","apache2","sites-available",target_config_file)
-                `sudo cp #{config_path} #{apache_config}`
+                system("sudo", "cp", config_path, apache_config, :close_others => true)
                 if $?.exitstatus == 0
-                    `sudo a2ensite #{target_config_file}`
+                    system("sudo", "a2ensite", target_config_file, :close_others => true)
                     if $?.exitstatus == 0
-                        `sudo service apache2 reload`
+                        system("sudo", "service", "apache2", "reload", :close_others => true)
                         Installer.info "Activated apache site #{apache_config}"
                     else
                         Installer.warn "#{cmd} failed -- could not enable apache site #{apache_config}"
@@ -74,12 +76,12 @@ module Autoproj
             def self.install_package(package_name)
                 if installed?(package_name)
                     Installer.info "Installing '#{package_name}'"
-                    `sudo apt-get -y install #{package_name}`
+                    system("sudo", "apt-get", "-y", "install", package_name, :close_others => true)
                 end
             end
 
             def self.installed?(package_name)
-                if !system("dpkg -l #{package_name}")
+                if !system("dpkg", "-l", package_name, :close_others => true)
                     Installer.info "'#{package_name}' is not yet installed"
                     return false
                 else
@@ -90,7 +92,7 @@ module Autoproj
 
             def self.install_pbuilder_conf
                 pbuilder_conf = File.join(TEMPLATES_DIR,"etc-pbuilderrc")
-                `sudo cp #{pbuilder_conf} /etc/pbuilderrc`
+                system("sudo", "cp", pbuilder_conf, "/etc/pbuilderrc", :close_others => true)
                 Installer.info "Installed #{pbuilder_conf} as /etc/pbuilderrc"
             end
 
@@ -99,29 +101,41 @@ module Autoproj
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil
 
-                image_prepare(distribution, architecture)
-                image_update(distribution, architecture)
-                image_prepare_hookdir(distribution, architecture, release_prefix)
+                @base_image_lock.lock
+                begin
 
-                CHROOT_EXTRA_DEBS.each do |extra_pkg|
-                    image_install_pkg(distribution, architecture, extra_pkg)
-                end
-                # If gem2deb_base_dir is given, then it will be tried to update
-                # (install a patched version of) gem2deb in the target chroot
-                # (if possible)
-                #
-                if options[:patch_dir]
-                    gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
-                    image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
+                    image_prepare(distribution, architecture)
+                    image_update(distribution, architecture)
+                    image_prepare_hookdir(distribution, architecture, release_prefix)
+
+                    CHROOT_EXTRA_DEBS.each do |extra_pkg|
+                        image_install_pkg(distribution, architecture, extra_pkg)
+                    end
+                    # If gem2deb_base_dir is given, then it will be tried to update
+                    # (install a patched version of) gem2deb in the target chroot
+                    # (if possible)
+                    #
+                    if options[:patch_dir]
+                        gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
+                        image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
+                    end
+                ensure
+                    @base_image_lock.unlock
                 end
             end
 
             def self.image_install_pkg(distribution, architecture, pkg)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
                 chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
             def self.image_install_debfile(distribution, architecture, debfile)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
                 begin
                     chroot_cmd(basepath, "dpkg -i #{debfile}")
@@ -146,17 +160,22 @@ module Autoproj
             # Prepare the chroot/image in order to build for different target
             # architectures
             def self.image_prepare(distribution, architecture)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution,architecture)
 
                 if File.exist?(basepath)
                     Installer.info "Image #{basepath} already exists"
                 else
-                    cmd = "sudo DIST=#{distribution} ARCH=#{architecture} "
-                    cmd+= "cowbuilder --create --basepath #{basepath} "
-                    cmd+= "--distribution #{distribution} "
-                    cmd+= "--architecture #{architecture}"
+                    cmd = ["sudo"]
+                    cmd << "DIST=#{distribution}" << "ARCH=#{architecture}" <<
+                        "cowbuilder" << "--create" <<
+                        "--basepath" << basepath <<
+                        "--distribution" << distribution <<
+                        "--architecture" << architecture
 
-                    if !system(cmd)
+                    if !system(*cmd, :close_others => true)
                         raise RuntimeError, "#{self} failed to create base-image: #{basepath}"
                     else
                         Installer.info "Successfully created base-image: #{basepath}"
@@ -166,11 +185,16 @@ module Autoproj
 
             # Update the chroot/image using `cowbuilder --update`
             def self.image_update(distribution, architecture)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
-                cmd = "sudo DIST=#{distribution} ARCH=#{architecture} "
-                cmd+= "cowbuilder --update --basepath #{basepath}"
+                cmd = ["sudo"]
+                cmd << "DIST=#{distribution}" << "ARCH=#{architecture}"
+                cmd << "cowbuilder" << "--update" <<
+                    "--basepath" << basepath
 
-                if !system(cmd)
+                if !system(*cmd, :close_others => true)
                     raise RuntimeError, "#{self} failed to update base-image: #{basepath}"
                 else
                     Installer.info "Successfully update base-image: #{basepath}"
@@ -190,7 +214,10 @@ module Autoproj
 
             # Execute a command in the given chroot 
             def self.chroot_cmd(basepath, cmd)
-                if !system("sudo chroot #{basepath} /bin/bash -c '#{cmd}'")
+                #todo: can we get this to be somewhat more safe, like
+                #passing all arguments as actual arguments
+                if !system("sudo", "chroot", basepath, "/bin/bash", "-c", cmd,
+                          :close_others => true)
                     # No need to do any extra processing on $?, sudo tries
                     # hard to be transparent to the exit status, even
                     # resignalling itself as needed.
@@ -204,6 +231,9 @@ module Autoproj
             # Update the gem2deb version if a patched version is available
             #
             def self.image_update_gem2deb(distribution, architecture, gem2deb_debs_basedir)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 basepath = image_basepath(distribution, architecture)
 
                 gem2deb_debs_dir = File.join(gem2deb_debs_basedir,"#{distribution}-all")
@@ -227,9 +257,10 @@ module Autoproj
 
                 mountbase = "mnt"
                 mountdir = File.join(basepath,mountbase)
-                cmd = "sudo mount --bind #{gem2deb_debs_dir} #{mountdir}"
-                if !system(cmd)
-                    raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                cmd = ["sudo"]
+                cmd << "mount" << "--bind" << gem2deb_debs_dir << mountdir
+                if !system(*cmd, :close_others => true)
+                    raise RuntimeError, "#{self} -- Execution: #{cmd.join(" ")} failed"
                 end
 
                 begin
@@ -238,9 +269,10 @@ module Autoproj
                     end
                     image_install_debfile(distribution, architecture, "/#{mountbase}/#{gem2deb_debfile}")
                 ensure
-                    cmd = "sudo umount #{mountdir}"
-                    if !system(cmd)
-                        raise RuntimeError, "#{self} -- Execution: #{cmd} failed"
+                    cmd = ["sudo"]
+                    cmd << "umount" << mountdir
+                    if !system(*cmd, :close_others => true)
+                        raise RuntimeError, "#{self} -- Execution: #{cmd.join(" ")} failed"
                     end
                 end
             end
@@ -255,7 +287,11 @@ module Autoproj
             # packages
             #
             def self.image_prepare_hookdir(distribution,architecture, release_prefix)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
                 hook_dir = pbuilder_hookdir(distribution, architecture, release_prefix)
+                rock_release_platform = TargetPlatform.new(release_prefix, architecture)
                 if !File.exist?(hook_dir)
                     FileUtils.mkdir_p hook_dir
                 end
@@ -264,7 +300,13 @@ module Autoproj
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
                         f.write("set -ex\n")
+                        #todo: add the ancestor distributions
                         f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,release_prefix)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                        rock_release_platform.ancestors.each do |ancestor_name|
+                            if TargetPlatform::isRock(ancestor_name)
+                                f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,ancestor_name)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                            end
+                        end
                         f.write("/usr/bin/apt-get update\n")
                     end
                     Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
@@ -284,23 +326,35 @@ module Autoproj
                     :log_file => nil
 
                 image_setup(distribution, architecture, release_prefix, options)
+                rock_release_platform = TargetPlatform.new(release_prefix, architecture)
 
-                cmd  = "sudo DIST=#{distribution} ARCH=#{architecture} "
-                cmd += "cowbuilder --build #{dsc_file} "
-                cmd += "--basepath #{image_basepath(distribution, architecture)} "
-                cmd += "--buildresult #{build_options[:result_dir]} "
-                cmd += "--debbuildopts -sa "
-                cmd += "--bindmounts #{File.join(DEB_REPOSITORY, release_prefix)} "
-                cmd += "--hookdir #{pbuilder_hookdir(distribution, architecture, release_prefix)} "
+                cmd  = ["sudo", "DIST=#{distribution}", "ARCH=#{architecture}"]
+                cmd << "cowbuilder" << "--build" << dsc_file
+                cmd << "--basepath" << image_basepath(distribution, architecture)
+                cmd << "--buildresult" << build_options[:result_dir]
+                cmd << "--debbuildopts" << "-sa"
+                bindmounts = [File.join(DEB_REPOSITORY, release_prefix)]
+                rock_release_platform.ancestors.each do |ancestor_name|
+                    if TargetPlatform::isRock(ancestor_name)
+                        bindmounts << File.join(DEB_REPOSITORY, ancestor_name)
+                    end
+                end
+
+                cmd << "--bindmounts" << bindmounts.join(" ")
+
+                cmd << "--hookdir" << pbuilder_hookdir(distribution, architecture, release_prefix)
+                cmdopts = {:close_others => true}
                 if log_file = build_options[:log_file]
                     # \z to match the end of the string (compared to $ end of line)
                     pbuilder_log_file = log_file.sub(/\.[^.]+\z/, "-pbuilder.log")
-                    cmd += "--logfile #{pbuilder_log_file} "
-                    cmd += " 2>&1 > #{log_file} "
+                    cmd << "--logfile" << pbuilder_log_file
+                    cmdopts[[:out, :err]] = log_file
                 end
-
-                if !system(cmd)
-                    Installer.warn "Failed to build package for #{dsc_file} using: #{cmd}"
+                if !system(*cmd, cmdopts)
+                    Installer.warn "Failed to build package for #{dsc_file} using: #{cmd}" +
+                                   if build_options[:log_file]
+                                       " &> #{build_options[:log_file]}"
+                                   end
                 end
             end
         end
