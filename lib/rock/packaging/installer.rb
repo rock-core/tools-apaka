@@ -7,7 +7,7 @@ module Autoproj
         class Installer
             extend Logger::Root("Installer", Logger::INFO)
 
-            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder"]
+            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static"]
             WEBSERVER_DEBS=["apache2"]
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
@@ -74,7 +74,7 @@ module Autoproj
             end
 
             def self.install_package(package_name)
-                if installed?(package_name)
+                if !installed?(package_name)
                     Installer.info "Installing '#{package_name}'"
                     system("sudo", "apt-get", "-y", "install", package_name, :close_others => true)
                 end
