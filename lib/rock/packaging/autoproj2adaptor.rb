@@ -51,10 +51,12 @@ module Autoproj
                 Autoproj::workspace.os_package_resolver.operating_system
             end
 
-            # required for jenkins.rb or if there is a specific operating
-            # system in the config file
+            # required for jenkins.rb, if there is a specific operating
+            # system in the config file or if there is one given on the
+            # commandline
             def osdeps_operating_system= (os)
                 Autoproj::workspace.os_package_resolver.operating_system = os
+                Autoproj::workspace.os_package_resolver.invalidate_resolve_package_cache
             end
 
             def root_dir
