@@ -81,6 +81,9 @@ module Autoproj
             end
 
             def package(package_name)
+                #make sure the manifest of package_name has been parsed,
+                #and while we are at it, put it in our cache.
+                pkgmanifest_by_name(package_name)
                 Autoproj.manifest.package(package_name)
             end
 
