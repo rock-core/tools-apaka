@@ -150,7 +150,7 @@ options = OptionParser.new do |opt|
         end
         build_options[:rock_base_install_dir] = dir
     end
-    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used") do
+    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used)") do
         build_options[:rebuild] = true
     end
     opt.on("--no-deps","Ignore building dependencies") do
@@ -309,8 +309,8 @@ rock_pkginfos = all_rock_packages[:pkginfos]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
-# create a custom meta package from the package that are listed on the
-# command line including they gem dependencies
+# create a custom meta package from the packages that are listed on the
+# command line including their gem dependencies
 meta_packages = {}
 if o_custom_meta
     meta_packages[o_custom_meta] =
