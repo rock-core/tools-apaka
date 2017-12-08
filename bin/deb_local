@@ -187,7 +187,7 @@ options = OptionParser.new do |opt|
         o_deregister = true
     end
     opt.on("-j JOBS", "--jobs JOBS","Maximum number of parallel jobs") do |jobs|
-        o_max_parallel_jobs = jobs
+        o_max_parallel_jobs = jobs.to_i
     end
 end
 
