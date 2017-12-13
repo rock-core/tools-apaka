@@ -150,7 +150,7 @@ options = OptionParser.new do |opt|
         end
         build_options[:rock_base_install_dir] = dir
     end
-    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used") do
+    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used)") do
         build_options[:rebuild] = true
     end
     opt.on("--no-deps","Ignore building dependencies") do
@@ -187,7 +187,7 @@ options = OptionParser.new do |opt|
         o_deregister = true
     end
     opt.on("-j JOBS", "--jobs JOBS","Maximum number of parallel jobs") do |jobs|
-        o_max_parallel_jobs = jobs
+        o_max_parallel_jobs = jobs.to_i
     end
 end
 
@@ -197,8 +197,11 @@ build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir
 else
-    Autoproj::Packaging.warn "Patch directory: #{o_patch_dir} does not exist"
-    exit 0
+    # no need to have a valid patch_dir for prepare, register or deregister
+    if !o_prepare_local_build && !o_register && !o_deregister
+        Autoproj::Packaging.warn "Patch directory: #{o_patch_dir} does not exist"
+        exit 0
+    end
 end
 
 package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
@@ -306,8 +309,8 @@ rock_pkginfos = all_rock_packages[:pkginfos]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
 
-# create a custom meta package from the package that are listed on the
-# command line including they gem dependencies
+# create a custom meta package from the packages that are listed on the
+# command line including their gem dependencies
 meta_packages = {}
 if o_custom_meta
     meta_packages[o_custom_meta] =
@@ -524,7 +527,8 @@ while !pending_jobs.empty? || !running_jobs.empty?
                     job[:success] = true
                 rescue SignalException => e
                     puts "Package building aborted by user"
-                    exit 2
+                    puts e.message
+                    puts e.backtrace.join("\n")
                 rescue Exception => e
                     puts "    package: #{pkg} building failed"
                     puts e.message
@@ -563,6 +567,20 @@ while !pending_jobs.empty? || !running_jobs.empty?
             # we don't really care, we just want to wait until something happens
             # or needs to be done, then we check what/if something happened and
             # do the deed.
+        rescue Interrupt
+            # we want to get all our threads stopped in a reasonable way.
+            # but first, clear out pending_jobs
+            puts "Aborting."
+            puts "Packages waiting for build to start: #{pending_jobs.keys}"
+            pending_jobs.clear
+            running_jobs.each do |pkg,job|
+                puts "Killing worker for #{pkg}"
+                job[:thread].raise Interrupt
+                job[:thread].join
+            end
+            running_jobs.clear
+            puts "Exiting."
+            exit 2
         end
         system("sudo","-v")
     end
