@@ -17,7 +17,8 @@ Depends: ${shlibs:Depends}
 Depends: ${shlibs:Depends}, <%= runtime_dependencies.join(", ") %>
 <% end %>
 Description: <%= short_documentation.split("\n").join(" ").strip %>
-% docs = documentation.split("\n").map do |l|
+% docs = (documentation.empty?)?"No documentation in manifest":
+%   documentation.split("\n").map do |l|
 %      l = l.strip
 %      if l.empty?
 %        l = "."
