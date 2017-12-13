@@ -350,11 +350,16 @@ module Autoproj
                     cmd << "--logfile" << pbuilder_log_file
                     cmdopts[[:out, :err]] = log_file
                 end
-                if !system(*cmd, cmdopts)
-                    Installer.warn "Failed to build package for #{dsc_file} using: #{cmd}" +
-                                   if build_options[:log_file]
-                                       " &> #{build_options[:log_file]}"
-                                   end
+                begin
+                    if !system(*cmd, cmdopts)
+                        Installer.warn "Failed to build package for #{dsc_file} using: \"#{cmd.join("\" \"")}\"" +
+                                       if build_options[:log_file]
+                                           " &> #{build_options[:log_file]}"
+                                       end
+                    end
+                rescue Exception
+                    puts "Exception during package build using for #{dsc_file} using: \"#{cmd.join("\" \"")}\""
+                    raise
                 end
             end
         end

@@ -527,7 +527,8 @@ while !pending_jobs.empty? || !running_jobs.empty?
                     job[:success] = true
                 rescue SignalException => e
                     puts "Package building aborted by user"
-                    exit 2
+                    puts e.message
+                    puts e.backtrace.join("\n")
                 rescue Exception => e
                     puts "    package: #{pkg} building failed"
                     puts e.message
@@ -566,6 +567,20 @@ while !pending_jobs.empty? || !running_jobs.empty?
             # we don't really care, we just want to wait until something happens
             # or needs to be done, then we check what/if something happened and
             # do the deed.
+        rescue Interrupt
+            # we want to get all our threads stopped in a reasonable way.
+            # but first, clear out pending_jobs
+            puts "Aborting."
+            puts "Packages waiting for build to start: #{pending_jobs.keys}"
+            pending_jobs.clear
+            running_jobs.each do |pkg,job|
+                puts "Killing worker for #{pkg}"
+                job[:thread].raise Interrupt
+                job[:thread].join
+            end
+            running_jobs.clear
+            puts "Exiting."
+            exit 2
         end
         system("sudo","-v")
     end
