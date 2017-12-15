@@ -75,11 +75,11 @@ integrated into rock_osdeps:
     
 1. Generating .dsc source package description and orig.tar.gz
 
-    `deb_package --architectures amd64 --distributions xenial --release-name master-17.11 --package tools/service_discovery`
+    deb_package --architectures amd64 --distributions xenial --release-name master-17.11 --package tools/service_discovery
     
 1. Generate osdeps description file for use in rock_osdeps package set
 
-    `deb_local --update-osdeps-lists rock.core`
+    deb_package --update-osdeps-lists rock.core --release-name master-17.11
 
 ### deb_package
 
@@ -95,7 +95,7 @@ integrated into rock_osdeps:
     deb_package --meta NAME [--patch-dir DIR] [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--rebuild] [--build-dir DIR] [--package-set-dir DIR] [--rock-base-install-dir DIR] SELECTION
     deb_package --build-local [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--dest-dir DIR] [--build-dir DIR] [--rock-base-install-dir DIR] SELECTION
     deb_package --install [--build-dir DIR] [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--rock-base-install-dir DIR] SELECTION
-    deb_package --update-osdeps-lists DIR [--package-version VERSION] SELECTION
+    deb_package --update-osdeps-lists DIR --release-name NAME [--package-version VERSION] SELECTION
     deb_package --exists TUPLE
     deb_package --activation-status [--architectures ARCHS] [--distributions DISTS]
 
