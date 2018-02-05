@@ -64,6 +64,9 @@ DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
 echo "COMPONENTS: $COMPONENTS"
 
+# Enable network in pbuilder, otherwise embedded bootstrap scripts will fail
+USENETWORK=yes
+
 
 ###   ORIGINAL VERSION   #####
 
