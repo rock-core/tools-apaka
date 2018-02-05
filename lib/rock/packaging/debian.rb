@@ -1871,26 +1871,31 @@ END
                 cmake_prefix_path   = "CMAKE_PREFIX_PATH="
                 orogen_plugin_path  = "OROGEN_PLUGIN_PATH="
                 rock_library_dirs = ""
+                envsh = ""
 
                 rock_release_hierarchy.each do |release_name|
                     install_dir = File.join(rock_base_install_directory, release_name)
-                    path_env    += "#{File.join(install_dir, "bin")}:"
+                    install_dir_varname = "#{release_name.gsub(/\./,'').gsub(/-/,'')}_install_dir"
+                    install_dir_var ="$(#{install_dir_varname})"
+                    envsh += "#{install_dir_varname} = #{install_dir}\n"
+
+                    path_env    += "#{File.join(install_dir_var, "bin")}:"
 
                     # Update execution path for orogen, so that it picks up ruby-facets (since we don't put much effort into standardizing facets it installs in
                     # vendor_ruby/standard and vendory_ruby/core) -- from Ubuntu 13.04 ruby-facets will be properly packaged
-                    rubylib_env += "#{File.join(install_dir, "$(rockruby_libdir)")}:"
-                    rubylib_env += "#{File.join(install_dir, "$(rockruby_archdir)")}:"
-                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/standard")}:"
-                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby/core")}:"
-                    rubylib_env += "#{File.join(install_dir, "lib/ruby/vendor_ruby")}:"
+                    rubylib_env += "#{File.join(install_dir_var, "$(rockruby_libdir)")}:"
+                    rubylib_env += "#{File.join(install_dir_var, "$(rockruby_archdir)")}:"
+                    rubylib_env += "#{File.join(install_dir_var, "lib/ruby/vendor_ruby/standard")}:"
+                    rubylib_env += "#{File.join(install_dir_var, "lib/ruby/vendor_ruby/core")}:"
+                    rubylib_env += "#{File.join(install_dir_var, "lib/ruby/vendor_ruby")}:"
 
-                    pkgconfig_env += "#{File.join(install_dir,"lib/pkgconfig")}:"
-                    pkgconfig_env += "#{File.join(install_dir,"lib/$(arch)/pkgconfig")}:"
-                    rock_dir_env += "#{File.join(install_dir,"share/rock/cmake")}:"
-                    ld_library_path_env += "#{File.join(install_dir,"lib")}:#{File.join(install_dir,"lib/$(arch)")}:"
-                    cmake_prefix_path += "#{install_dir}:"
-                    orogen_plugin_path += "#{File.join(install_dir,"share/orogen/plugins")}:"
-                    rock_library_dirs += "#{File.join(install_dir,"lib")}:#{File.join(install_dir,"lib/$(arch)")}:"
+                    pkgconfig_env += "#{File.join(install_dir_var,"lib/pkgconfig")}:"
+                    pkgconfig_env += "#{File.join(install_dir_var,"lib/$(arch)/pkgconfig")}:"
+                    rock_dir_env += "#{File.join(install_dir_var, "share/rock/cmake")}:"
+                    ld_library_path_env += "#{File.join(install_dir_var,"lib")}:#{File.join(install_dir_var,"lib/$(arch)")}:"
+                    cmake_prefix_path += "#{install_dir_var}:"
+                    orogen_plugin_path += "#{File.join(install_dir_var,"share/orogen/plugins")}:"
+                    rock_library_dirs += "#{File.join(install_dir_var,"lib")}:#{File.join(install_dir_var,"lib/$(arch)")}:"
                 end
 
                 pkgconfig_env       += "/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:"
@@ -1903,7 +1908,7 @@ END
                 cmake_prefix_path   += "$(CMAKE_PREFIX_PATH)"
                 orogen_plugin_path  += "$(OROGEN_PLUGIN_PATH)"
 
-                envsh =  "env_setup =  #{path_env}\n"
+                envsh +=  "env_setup =  #{path_env}\n"
                 envsh += "env_setup += #{rubylib_env}\n"
                 envsh += "env_setup += #{pkgconfig_env}\n"
                 envsh += "env_setup += #{rock_dir_env}\n"
