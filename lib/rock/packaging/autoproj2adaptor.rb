@@ -228,7 +228,7 @@ module Autoproj
                         @pkg_manifest_cache[package_name] = Autoproj.manifest.load_package_manifest(package_name)
                     rescue Exception => e
                         @pkg_manifest_cache[package_name] = nil
-                        Packaging.debug "Autoproj::Packaging::Autoproj2Adaptor: failed to load manifest for '#{package_name}' -- #{e}"
+                        Packaging.warn "Autoproj::Packaging::Autoproj2Adaptor: failed to load manifest for '#{package_name}' -- #{e}"
                     end
                 end
                 @pkg_manifest_cache[package_name]
