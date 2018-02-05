@@ -454,7 +454,8 @@ module Autoproj
             def generate_debian_dir(pkginfo, dir, options)
                 options, unknown_options = Kernel.filter_options options,
                     :distribution => nil,
-                    :override_existing => true
+                    :override_existing => true,
+                    :patch_dir => nil
 
                 distribution = options[:distribution]
                 Dir.chdir(dir) do
@@ -545,6 +546,13 @@ module Autoproj
                     FileUtils.mkdir_p File.dirname(target_path)
                     File.open(target_path, "w") do |io|
                         io.write(rendered)
+                    end
+                end
+
+                if options[:patch_dir] && File.exists?(options[:patch_dir])
+                    whitelist = [ "debian/rules","debian/control","debian/install" ]
+                    if patch_pkg_dir(pkginfo.name, options[:patch_dir], whitelist, pkginfo.srcdir)
+                        Packager.warn "Overlay patch applied to debian folder of #{pkginfo.name}"
                     end
                 end
             end
