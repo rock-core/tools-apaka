@@ -86,7 +86,8 @@ def build_locally(packager, pkg_name, options)
         puts "Registering debian package: #{deb_file}"
         packager.register_debian_package(deb_file,
                                         options[:release_name],
-                                        distribution)
+                                        distribution,
+                                        options[:rebuild])
     end
 
     if options[:install]
