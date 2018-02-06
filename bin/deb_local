@@ -18,7 +18,8 @@ def build_locally(packager, pkg_name, options)
         :debian_package_name => pkg_name.gsub("/",'-'),
         :meta_depends => nil,
         :rebuild => false,
-        :install => false
+        :install => false,
+        :config_file => nil
 
     arguments = []
     if options[:release_name]
@@ -32,6 +33,9 @@ def build_locally(packager, pkg_name, options)
     end
     if options[:package_version]
         arguments << "--package-version" << options[:package_version]
+    end
+    if options[:config_file]
+        arguments << "--config-file" << options[:config_file]
     end
     distribution = packager.target_platform.distribution_release_name
     architecture = packager.target_platform.architecture
@@ -143,6 +147,8 @@ options = OptionParser.new do |opt|
     end
     opt.on("--release-name NAME", String, "Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir") do |name|
         build_options[:release_name] = name
+    opt.on("--config-file NAME", "Configuration file that shall be used for packaging") do |name|
+        build_options[:config_file] = name
     end
     opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of the local debian packages") do |dir|
         require 'pathname'
