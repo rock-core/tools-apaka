@@ -63,6 +63,11 @@ module Autoproj
         #    transterra:
         #        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
         #        depends_on: master, trusty
+        #
+        # The configuration can be extended/overridden via the environmental variable
+        # ROCK_DEB_RELEASE_HIERARCHY using the pattern <release-name-0>:<url-0>;<release-name-1>:<url-1>;
+        #     export ROCK_DEB_RELEASE_HIERARCHY="master-18.01:http://rock-releases/master-18.01;dependant-18.01:http://rock-releases/dependant-18.01;"
+        #
         class Config
             include Singleton
 
@@ -138,6 +143,22 @@ module Autoproj
                     end
                     @rock_releases[key] = options
                 end
+
+                if hierarchy = ENV['ROCK_DEB_RELEASE_HIERARCHY']
+                    Packager.warn "Autoproj::Packaging::Configuration::reload_config: extending release hierarchy from env: ROCK_DEB_RELEASE_HIERARCHY" \
+                        "    hierarchy: #{hierarchy}"
+
+                    release_hierarchy = []
+                    hierarchy.scan(/([^:]*):([^;]*);/).each do |tuple|
+                         h_release_name = tuple[0]
+                         h_release_path = tuple[1]
+                         @rock_releases[h_release_name] ||= Hash.new
+                         @rock_releases[h_release_name][:url] = h_release_path
+                         @rock_releases[h_release_name][:depends_on] = release_hierarchy.dup
+                         release_hierarchy << tuple[0]
+                    end
+                end
+                self
             end
 
             def initialize
