@@ -135,7 +135,6 @@ module Autoproj
             # (=distribution)
             # using reprepro
             def register_debian_package(debian_pkg_file, release_name, codename, force = false)
-                @reprepro_lock.lock
                 begin
 
                     reprepro_dir = File.join(deb_repository, release_name)
@@ -149,6 +148,7 @@ module Autoproj
                         deregister_debian_package(debian_pkg_name, release_name, codename, true)
                     end
 
+                    @reprepro_lock.lock
                     Dir.chdir(debian_package_dir) do
                         debfile = Dir.glob("*.deb").first
                         cmd = [reprepro_bin]
