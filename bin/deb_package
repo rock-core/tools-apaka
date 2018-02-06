@@ -51,6 +51,7 @@ o_recursive = false
 o_show_config = false
 o_create_cleanup_jobs = false
 o_activation_status=false
+o_config_file = nil
 
 if ARGV.empty?
     ARGV << "--help"
@@ -206,7 +207,7 @@ options = OptionParser.new do |opt|
         o_recursive = true
     end
     opt.on("--config-file CONFIG",String, "Read configuration file") do |file|
-        Autoproj::Packaging::Config.reload_config(file)
+        o_config_file = file
     end
 
     opt.on("--show-config", "Show the current configuration") do
@@ -220,6 +221,8 @@ end
 # The remaining arguments are the packages that have been selected on console
 # only these ones should be considered
 o_selected_packages = options.parse(ARGV)
+
+Autoproj::Packaging::Config.reload_config(o_config_file, o_rock_release_name)
 
 if o_show_config
     Autoproj::Packaging::Config

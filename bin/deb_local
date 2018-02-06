@@ -212,6 +212,9 @@ else
     end
 end
 
+# Making sure configuration is properly initialized
+Autoproj::Packaging::Config.reload_config(build_options[:config_file], build_options[:release_name])
+
 package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 Autoproj::Packaging.root_dir = package_info_ask.root_dir
 Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
