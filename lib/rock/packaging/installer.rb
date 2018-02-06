@@ -301,33 +301,43 @@ module Autoproj
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
                         f.write("set -ex\n")
-                        release_repo = File.join(DEB_REPOSITORY,release_prefix)
-                        if File.exists?(release_repo)
-                            f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+
+                        # First check if the url for the repository is given and that is what is preferably used for consistency
+                        # If the url should not be used, then it should not be provided in the configuration file
+                        # Otherwise the locally found repository will be used -- for this bindmount options need to be set correctly see build_package_from_dsc
+                        url = Autoproj::Packaging::Config.release_url(release_prefix)
+                        if url
+                            Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release #{release_prefix}"
+                            f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
                         else
-                           url = Autoproj::Packaging::Conf.release_url(release_prefix)
-                           Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release #{release_prefix}"
-                           if url
-                               f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
-                           else
-                               raise ArgumentError, "Autoproj::Packaging::Installer.image_prepare_hookdir: failed to identify release url for #{release_name} - please update the configuration file"
-                           end
+                            release_repo = File.join(DEB_REPOSITORY,release_prefix)
+                            if File.exists?(release_repo)
+                                Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using local repositories #{release_repo} for release #{release_prefix}"
+                                f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                            else
+                                raise RuntimeError, "Autoproj::Packaging::Installer.image_prepare_hookdir: failed to identify repository for #{release_name}\n" \
+                                             "     - no url found in configuration\n" \
+                                             "     - no local repository #{release_repo} found"
+
+                            end
                         end
 
                         rock_release_platform.ancestors.each do |ancestor_name|
                             if TargetPlatform::isRock(ancestor_name)
-                                release_repo = File.join(DEB_REPOSITORY,ancestor_name)
-                                if File.exists?(release_repo)
-                                    f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                                url = Autoproj::Packaging::Config.release_url(ancestor_name)
+                                if url
+                                    Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release ancestor #{ancestor_name}"
+                                    f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
                                 else
-                                   url = Autoproj::Packaging::Conf.release_url(ancestor_name)
-                                   Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release ancestor #{ancestor_name}"
-                                   if url
-                                       f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
-                                   else
-                                       raise ArgumentError, "Autoproj::Packaging::Installer.image_prepare_hookdir: failed to identify release url\n" \
-                                           "    for ancestor release #{release_name} - please update the configuration file"
-                                   end
+                                    release_repo = File.join(DEB_REPOSITORY,ancestor_name)
+                                    if File.exists?(release_repo)
+                                        Installer.warn "Autoproj::Packaging::Installer.image_prepare_hookdir -- using local repositories #{release_repo} for ancestor release #{ancestor_name}"
+                                        f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                                    else
+                                        raise RuntimeError, "Autoproj::Packaging::Installer.image_prepare_hookdir: failed to identify repository for #{ancestor_name}\n" \
+                                             "     - no url found in configuration\n" \
+                                             "     - no local repository #{release_repo} found"
+                                    end
                                 end
                             end
                         end
@@ -360,7 +370,10 @@ module Autoproj
                 bindmounts = [File.join(DEB_REPOSITORY, release_prefix)]
                 rock_release_platform.ancestors.each do |ancestor_name|
                     if TargetPlatform::isRock(ancestor_name)
-                        bindmounts << File.join(DEB_REPOSITORY, ancestor_name)
+                        # Check if url will be used, otherwise the local repository has to be mounted
+                        if !Autoproj::Packaging::Config.release_url(ancestor_name)
+                            bindmounts << File.join(DEB_REPOSITORY, ancestor_name)
+                        end
                     end
                 end
 
