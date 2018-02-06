@@ -116,26 +116,53 @@ def build_locally(packager, pkg_name, options)
     end
 end
 
+o_architecture = nil
+o_build_meta = false
+o_custom_meta = nil
+o_deregister = false
+o_distribution = nil
+o_dry_run = false
+o_max_parallel_jobs = 1
+o_meta_only = false
+o_no_deps = false
+o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
+o_prepare_local_build = false
+o_register = false
 o_skip = false
 o_verbose = false
-o_no_deps = false
-o_prepare_local_build = false
-o_custom_meta = nil
-o_meta_only = false
-o_build_meta = false
-o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
-o_distribution = nil
-o_architecture = nil
-o_dry_run = false
-o_register = false
-o_deregister = false
-o_max_parallel_jobs = 1
 
 build_options = Hash.new
 options = OptionParser.new do |opt|
     opt.banner = "Usage: deb_local [options]"
-    opt.on('--verbose', 'Display output') do
-        o_verbose = true
+    opt.on("--architecture NAME", "Target architecture to build for") do |arch|
+        build_options[:architecture] = arch
+    end
+    opt.on("--build-meta", "Build meta packages from autoproj meta packages found on the command line") do
+        o_build_meta = true
+    end
+    opt.on("--config-file NAME", "Configuration file that shall be used for packaging") do |name|
+        build_options[:config_file] = name
+    end
+    opt.on("--custom-meta NAME", "Build a meta package for all packages on the command line") do |name|
+        o_custom_meta = name
+    end
+    opt.on("--distribution NAME","Target distribution release to build for, e.g. trusty") do |dist|
+        build_options[:distribution] = dist
+    end
+    opt.on("--dry-run", "Show the packages that will be build") do
+        o_dry_run = true
+    end
+    opt.on("--deregister", "Deregister/remove a package") do
+        o_deregister = true
+    end
+    opt.on("-j JOBS", "--jobs JOBS","Maximum number of parallel jobs") do |jobs|
+        o_max_parallel_jobs = jobs.to_i
+    end
+    opt.on("--meta-only", "Build only meta packages(from --custom-meta and --build-meta)") do
+        o_meta_only = true
+    end
+    opt.on("--no-deps","Ignore building dependencies") do
+        o_no_deps = true
     end
     opt.on("--patch-dir DIR", String, "Overlay directory to patch existing packages (and created gems) during the packaging process") do |dir|
         patch_dir = File.expand_path(dir)
@@ -145,10 +172,20 @@ options = OptionParser.new do |opt|
         end
         o_patch_dir = patch_dir
     end
+    opt.on("--prepare", "Prepare the local building of packages") do
+        o_prepare_local_build = true
+    end
+    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used)") do
+        build_options[:rebuild] = true
+    end
+    opt.on("--register", "Register a package") do
+        o_register = true
+    end
+    opt.on("--reinstall", "Reinstall already installed packages") do
+        build_options[:reinstall] = true
+    end
     opt.on("--release-name NAME", String, "Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir") do |name|
         build_options[:release_name] = name
-    opt.on("--config-file NAME", "Configuration file that shall be used for packaging") do |name|
-        build_options[:config_file] = name
     end
     opt.on("--rock-base-install-dir DIR", String, "Rock base installation directory (prefix) for deployment of the local debian packages") do |dir|
         require 'pathname'
@@ -157,44 +194,8 @@ options = OptionParser.new do |opt|
         end
         build_options[:rock_base_install_dir] = dir
     end
-    opt.on("--rebuild","Rebuild package (otherwise the existing packaged deb will be used)") do
-        build_options[:rebuild] = true
-    end
-    opt.on("--no-deps","Ignore building dependencies") do
-        o_no_deps = true
-    end
-    opt.on("--custom-meta NAME", "Build a meta package for all packages on the command line") do |name|
-        o_custom_meta = name
-    end
-    opt.on("--build-meta", "Build meta packages from autoproj meta packages found on the command line") do
-        o_build_meta = true
-    end
-    opt.on("--meta-only", "Build only meta packages(from --custom-meta and --build-meta)") do
-        o_meta_only = true
-    end
-    opt.on("--prepare", "Prepare the local building of packages") do
-        o_prepare_local_build = true
-    end
-    opt.on("--reinstall", "Reinstall already installed packages") do
-        build_options[:reinstall] = true
-    end
-    opt.on("--architecture NAME", "Target architecture to build for") do |arch|
-        build_options[:architecture] = arch
-    end
-    opt.on("--distribution NAME","Target distribution release to build for, e.g. trusty") do |dist|
-        build_options[:distribution] = dist
-    end
-    opt.on("--dry-run", "Show the packages that will be build") do
-        o_dry_run = true
-    end
-    opt.on("--register", "Register a package") do
-        o_register = true
-    end
-    opt.on("--deregister", "Deregister/remove a package") do
-        o_deregister = true
-    end
-    opt.on("-j JOBS", "--jobs JOBS","Maximum number of parallel jobs") do |jobs|
-        o_max_parallel_jobs = jobs.to_i
+    opt.on('--verbose', 'Display output') do
+        o_verbose = true
     end
 end
 
