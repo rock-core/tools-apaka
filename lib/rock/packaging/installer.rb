@@ -23,6 +23,7 @@ module Autoproj
                 end
             end
 
+            # Create the webserver configuration required to host the reprepro repositories
             def self.create_webserver_config(document_root, packages_subfolder,
                                              release_prefix, target_path)
 
@@ -44,8 +45,12 @@ module Autoproj
                 Installer.debug "Written config file: #{target_path}"
             end
 
+            # Install the webserver configuration required to host the reprepro repositories
+            # @param config_path [String]
+            # @param release_prefix [String]
+            # @return [String] path the generated and installed configuration
             def self.install_webserver_config(config_path, release_prefix)
-                target_config_file = "100_jenkins-#{release_prefix}.conf"
+                target_config_file = "100_reprepro-#{release_prefix}.conf"
                 apache_config = File.join("/etc","apache2","sites-available",target_config_file)
                 system("sudo", "cp", config_path, apache_config, :close_others => true)
                 if $?.exitstatus == 0
@@ -59,8 +64,11 @@ module Autoproj
                 else
                     Installer.warn "#{cmd} failed -- could not install site #{config_path} as #{apache_config}"
                 end
+                apache_config
             end
 
+            # Install all required packages to build
+            # debian packages and host them using apache and reprepro
             def self.install_all_requirements
                 install_pbuilder_conf
 
@@ -68,12 +76,16 @@ module Autoproj
                 install_package_list WEBSERVER_DEBS
             end
 
+            # Install a given list of packages
+            # @param list [Array] Array of packages to install
             def self.install_package_list(list = Array.new)
                 list.each do |pkg_name|
                     install_package pkg_name
                 end
             end
 
+            # Install a package with the given name
+            # @param package_name [String] package name
             def self.install_package(package_name)
                 if !installed?(package_name)
                     Installer.info "Installing '#{package_name}'"
@@ -81,6 +93,9 @@ module Autoproj
                 end
             end
 
+            # Check with dpkg if a package with the given name is already installed
+            # @param package_name [String] name of the package
+            # @return [Bool] true if package is already installed, false otherwise
             def self.installed?(package_name)
                 if !system("dpkg", "-l", package_name, :close_others => true)
                     Installer.info "'#{package_name}' is not yet installed"
@@ -91,13 +106,20 @@ module Autoproj
                 end
             end
 
+            # Install the pbuilder configuration from the existing template
+            # @return [String] path to the pbuilder configuration file
             def self.install_pbuilder_conf
                 pbuilder_conf = File.join(TEMPLATES_DIR,"etc-pbuilderrc")
                 system("sudo", "cp", pbuilder_conf, "/etc/pbuilderrc", :close_others => true)
                 Installer.info "Installed #{pbuilder_conf} as /etc/pbuilderrc"
+                return "/etc/pbuilderrc"
             end
 
             # Setup an image/chroot
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
+            # @param release_prefix [String] name of the release that is being generated
+            # @param options [Hash] list of options, currently allowed: patch_dir: path to the patch directories
             def self.image_setup(distribution, architecture, release_prefix, options = Hash.new)
                 options, unknown_options = Kernel.filter_options options,
                     :patch_dir => nil
@@ -125,6 +147,10 @@ module Autoproj
                 end
             end
 
+            # Install a particular package into a chroot using 'apt'
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
+            # @param pkg [String] name of the package to install
             def self.image_install_pkg(distribution, architecture, pkg)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
@@ -133,6 +159,11 @@ module Autoproj
                 chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
+
+            # Install a particular package into a chroot using 'dpkg'
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
+            # @param debfile [String] name of the debian package file to install
             def self.image_install_debfile(distribution, architecture, debfile)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
@@ -153,6 +184,8 @@ module Autoproj
 
             # Get the base path to an image, e.g.
             #  base-trusty-amd64.cow
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
             def self.image_basepath(distribution, architecture)
                 name="base-#{distribution}-#{architecture}.cow"
                 File.join(PBUILDER_CACHE_DIR, name)
@@ -160,6 +193,8 @@ module Autoproj
 
             # Prepare the chroot/image in order to build for different target
             # architectures
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
             def self.image_prepare(distribution, architecture)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
@@ -185,6 +220,8 @@ module Autoproj
             end
 
             # Update the chroot/image using `cowbuilder --update`
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
             def self.image_update(distribution, architecture)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
@@ -213,7 +250,7 @@ module Autoproj
                 end
             end
 
-            # Execute a command in the given chroot 
+            # Execute a command in the given chroot
             def self.chroot_cmd(basepath, cmd)
                 #todo: can we get this to be somewhat more safe, like
                 #passing all arguments as actual arguments
@@ -230,7 +267,13 @@ module Autoproj
             end
 
             # Update the gem2deb version if a patched version is available
-            #
+            # An update is typically required, since the standard versions of gem2deb do not support
+            # the installation into custom directories, such as /opt instead of /usr
+            # As such corresponding updated debs can be installed and put into a folder named
+            # <gem2deb_debs_basedir>/<distribution>-all/
+            # @param distribution [String] name of the distribution, e.g., xenial
+            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
+            # @param gem2deb_debs_basedir [String] base-directory where the precompiled gem2deb packages are located
             def self.image_update_gem2deb(distribution, architecture, gem2deb_debs_basedir)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
@@ -278,6 +321,8 @@ module Autoproj
                 end
             end
 
+            # Construct the name of the pbuild hook directory from the distribution name, architecture
+            # and the release prefix
             def self.pbuilder_hookdir(distribution, architecture, release_prefix)
                 base_hook_dir = File.join(Autoproj::Packaging::build_dir,"pbuilder-hookdir")
                 hook_dir = File.join(base_hook_dir,"#{distribution}-#{architecture}-#{release_prefix}")
@@ -286,7 +331,7 @@ module Autoproj
 
             # Prepare the hook file to allow inclusion of the already generated
             # packages
-            #
+            # This also takes care of the inclusion of dependant releases
             def self.image_prepare_hookdir(distribution,architecture, release_prefix)
                 if !@base_image_lock.owned?
                     raise ThreadError.new
