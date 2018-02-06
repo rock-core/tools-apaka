@@ -72,6 +72,7 @@ module Autoproj
             include Singleton
 
             attr_accessor :config_file
+            attr_accessor :current_release_name
 
             attr_reader :linux_distribution_releases
             attr_reader :preferred_ruby_version
@@ -85,12 +86,14 @@ module Autoproj
             attr_reader :packages_enforce_build
 
 
-            def reload_config(file)
+            def reload_config(file, current_release_name = nil)
                 if !file
                     file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
                 end
                 configuration = YAML.load_file(file)
                 @config_file = File.absolute_path(file)
+                @current_release_name = current_release_name
+
                 @linux_distribution_releases = Hash.new
                 @preferred_ruby_version = Hash.new
                 @rock_releases = Hash.new
@@ -144,20 +147,8 @@ module Autoproj
                     @rock_releases[key] = options
                 end
 
-                if hierarchy = ENV['ROCK_DEB_RELEASE_HIERARCHY']
-                    Packager.warn "Autoproj::Packaging::Configuration::reload_config: extending release hierarchy from env: ROCK_DEB_RELEASE_HIERARCHY" \
-                        "    hierarchy: #{hierarchy}"
+                update_hierarchy_from_env
 
-                    release_hierarchy = []
-                    hierarchy.scan(/([^:]*):([^;]*);/).each do |tuple|
-                         h_release_name = tuple[0]
-                         h_release_path = tuple[1]
-                         @rock_releases[h_release_name] ||= Hash.new
-                         @rock_releases[h_release_name][:url] = h_release_path
-                         @rock_releases[h_release_name][:depends_on] = release_hierarchy.dup
-                         release_hierarchy << tuple[0]
-                    end
-                end
                 self
             end
 
@@ -165,12 +156,43 @@ module Autoproj
                 reload_config(config_file)
             end
 
+            # Extract hierarchy from the enviroment variable ROCK_DEB_RELEASE_HIERARCHY
+            def self.hierarchy_from_env
+                release_hierarchy = []
+                if hierarchy = ENV['ROCK_DEB_RELEASE_HIERARCHY']
+                    hierarchy.scan(/([^:]*):([^;]*);/).each do |tuple|
+                         release_hierarchy << tuple
+                    end
+                end
+                release_hierarchy
+            end
+
+            def update_hierarchy_from_env
+                if hierarchy = ENV['ROCK_DEB_RELEASE_HIERARCHY']
+                    Packager.warn "Autoproj::Packaging::Configuration::reload_config: extending release hierarchy from env: ROCK_DEB_RELEASE_HIERARCHY" \
+                        "    hierarchy: #{hierarchy}"
+
+                    release_hierarchy = []
+                    Config.hierarchy_from_env.each do |h_release_name, h_release_path|
+                         @rock_releases[h_release_name] ||= Hash.new
+                         @rock_releases[h_release_name][:url] = h_release_path
+                         @rock_releases[h_release_name][:depends_on] = release_hierarchy.dup
+                         release_hierarchy << h_release_name
+                    end
+                    if @current_release_name
+                        Packager.warn "Autoproj::Packaging::Configuration::reload_config: current release #{@current_release_name} depends on #{release_hierarchy}"
+                        @rock_releases[@current_release_name] = Hash.new
+                        @rock_releases[@current_release_name][:depends_on] = release_hierarchy
+                    end
+                end
+            end
+
             def self.config_file
                 instance.config_file
             end
 
-            def self.reload_config(file)
-                instance.reload_config(file)
+            def self.reload_config(file, current_release_name = nil)
+                instance.reload_config(file, current_release_name)
             end
 
             def self.linux_distribution_releases
