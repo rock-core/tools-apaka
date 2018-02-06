@@ -10,8 +10,8 @@ module Autoproj
         DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
         TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
 
-        EXCLUDED_DIRS_PREFIX = [".travis","build","tmp","debian",".autobuild",".orogen"]
-        EXCLUDED_FILES_PREFIX = [".git",".travis",".orogen",".autobuild"]
+        EXCLUDED_DIRS_PREFIX = ["**/.travis","build","tmp","debian","**/.autobuild","**/.orogen"]
+        EXCLUDED_FILES_PREFIX = ["**/.git","**/.travis","**/.orogen","**/.autobuild"]
 
         extend Logger::Root("Packaging", Logger::INFO)
 
@@ -230,7 +230,7 @@ module Autoproj
             def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_dirs.each do |excluded_dir|
-                        Dir.glob("**/#{excluded_dir}*/").each do |remove_dir|
+                        Dir.glob("#{excluded_dir}*/").each do |remove_dir|
                             if File.directory?(remove_dir)
                                 Packager.info "Removing excluded directory: #{remove_dir}"
                                 FileUtils.rm_r remove_dir
@@ -242,7 +242,7 @@ module Autoproj
             def remove_excluded_files(target_dir, excluded_files = EXCLUDED_FILES_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_files.each do |excluded_file|
-                        Dir.glob("**/#{excluded_file}*").each do |excluded_file|
+                        Dir.glob("#{excluded_file}*").each do |excluded_file|
                             if File.file?(excluded_file)
                                 Packager.info "Removing excluded file: #{excluded_file}"
                                 FileUtils.rm excluded_file
