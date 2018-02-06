@@ -313,6 +313,8 @@ module Autoproj
                 pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
                 if support_local_import && existing_source_dir = options[:existing_source_dir]
                     import_from_local_src_dir(pkginfo, existing_source_dir, pkg_target_importdir)
+                    # update to the new srcdir
+                    pkginfo.srcdir = pkg_target_importdir
                 else
                     pkginfo.import(pkg_target_importdir)
                 end
