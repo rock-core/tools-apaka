@@ -1,6 +1,7 @@
 require 'erb'
 require 'optparse'
 require_relative 'packager'
+require_relative 'config'
 
 module Autoproj
     module Packaging
@@ -300,11 +301,34 @@ module Autoproj
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
                         f.write("set -ex\n")
-                        #todo: add the ancestor distributions
-                        f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,release_prefix)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                        release_repo = File.join(DEB_REPOSITORY,release_prefix)
+                        if File.exists?(release_repo)
+                            f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                        else
+                           url = Rock::Packaging::Configuration.release_url(release_prefix)
+                           Installer.warn "Rock::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release #{release_prefix}"
+                           if url
+                               f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
+                           else
+                               raise ArgumentError, "Rock::Packaging::Installer.image_prepare_hookdir: failed to identify release url for #{release_name} - please update the configuration file"
+                           end
+                        end
+
                         rock_release_platform.ancestors.each do |ancestor_name|
                             if TargetPlatform::isRock(ancestor_name)
-                                f.write("echo \"deb [trusted=yes] file://#{File.join(DEB_REPOSITORY,ancestor_name)} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                                release_repo = File.join(DEB_REPOSITORY,ancestor_name)
+                                if File.exists?(release_repo)
+                                    f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                                else
+                                   url = Rock::Packaging::Configuration.release_url(ancestor_name)
+                                   Installer.warn "Rock::Packaging::Installer.image_prepare_hookdir -- using package url #{url} for release ancestor #{ancestor_name}"
+                                   if url
+                                       f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
+                                   else
+                                       raise ArgumentError, "Rock::Packaging::Installer.image_prepare_hookdir: failed to identify release url\n" \
+                                           "    for ancestor release #{release_name} - please update the configuration file"
+                                   end
+                                end
                             end
                         end
                         f.write("/usr/bin/apt-get update\n")

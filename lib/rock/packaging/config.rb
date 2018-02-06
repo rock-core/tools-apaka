@@ -237,6 +237,11 @@ module Autoproj
                 instance.rock_releases
             end
 
+            def self.release_url(release_name)
+                if instance.rock_releases.has_key?(release_name)
+                    instance.rock_releases[release_name][:url]
+                end
+            end
 
             def self.to_s
                 s = "packager configuration file: #{config_file}\n"
