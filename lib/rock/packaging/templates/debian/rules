@@ -10,6 +10,15 @@ export DEB_BUILD_OPTIONS=nocheck
 # Setup of paths: PATH,PKG_CONFIG_PATH,RUBYLIB,...
 <%= env_setup %>
 
+# Check if a python command is available and identify the version
+# and identify the setup.py file
+python_cmd=$(shell command -v python 2> /dev/null)
+ifneq ("$(python_cmd)","")
+python_version=$(shell python -c 'import sys; print "{0}.{1}".format(sys.version_info[0],sys.version_info[1])')
+# Get dirname a setup.py match
+python_setup_dir=$(shell find $(DEB_SRCDIR) -name setup.py | tail -n 1 | xargs dirname)
+endif
+
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
 extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
@@ -127,11 +136,19 @@ debian/stamp-rock-doc:
 	-+$(DEB_MAKE_INVOKE) doc
 	touch $@
 
-common-install-arch common-install-indep:: common-install-rock-doc
+common-install-arch common-install-indep:: common-install-rock-doc install-extensions
 common-install-rock-doc::
 	mkdir -p $(DEB_DESTDIR)$(rock_doc_install_dir)
 	$(if $(wildcard $(DEB_SRCDIR)/doc/html),-cp -r "$(DEB_SRCDIR)/doc/html" "$(DEB_DESTDIR)$(rock_doc_install_dir)",$(if $(wildcard $(DEB_SRCDIR)/doc),-cp -r "$(DEB_SRCDIR)/doc" "$(DEB_DESTDIR)$(rock_doc_install_dir)"))
 	$(if $(wildcard $(DEB_BUILDDIR)/doc/html),-cp -r "$(DEB_BUILDDIR)/doc/html" "$(DEB_DESTDIR)$(rock_doc_install_dir)",$(if $(wildcard $(DEB_BUILDDIR)/doc),-cp -r "$(DEB_BUILDDIR)/doc" "$(DEB_DESTDIR)$(rock_doc_install_dir)"))
+
+install-extensions:: install-python
+install-python::
+ifneq ("$(python_setup_dir)","")
+	echo "Installing python extension in $(python_setup_dir)"
+	mkdir -p $(DEB_DESTDIR)$(rock_install_dir)/lib/python$(python_version)/site-packages
+	cd $(python_setup_dir); $(python_cmd) setup.py build; PYTHONPATH=$(DEB_DESTDIR)$(rock_install_dir)/lib/python$(python_version)/site-packages/ $(python_cmd) setup.py install --prefix=$(DEB_DESTDIR)$(rock_install_dir); cd -
+endif
 
 clean::
 	rm -f debian/stamp-rock-doc
