@@ -141,7 +141,7 @@ options = OptionParser.new do |opt|
         o_build_meta = true
     end
     opt.on("--config-file NAME", "Configuration file that shall be used for packaging") do |name|
-        build_options[:config_file] = name
+        build_options[:config_file] = File.absolute_path(name)
     end
     opt.on("--custom-meta NAME", "Build a meta package for all packages on the command line") do |name|
         o_custom_meta = name

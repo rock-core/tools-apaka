@@ -207,7 +207,7 @@ options = OptionParser.new do |opt|
         o_recursive = true
     end
     opt.on("--config-file CONFIG",String, "Read configuration file") do |file|
-        o_config_file = file
+        o_config_file = File.expand_path(file)
     end
 
     opt.on("--show-config", "Show the current configuration") do
