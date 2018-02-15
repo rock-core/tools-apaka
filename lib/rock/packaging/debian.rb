@@ -1583,7 +1583,8 @@ module Autoproj
                         end
 
                         options[:deps][:rock_pkginfo].each do |pkginfo|
-                            all_deps << debian_name(pkginfo)
+                            depname, is_osdeps = native_dependency_name(pkginfo.name)
+                            all_deps << depname
                         end
 
                         # Add actual gem dependencies
