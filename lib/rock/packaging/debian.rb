@@ -1606,11 +1606,6 @@ module Autoproj
                         end
                         deps = all_deps.uniq
 
-                        if not deps.empty?
-                            Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
-                            #`sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
-                        end
-
                         if options.has_key?(:recursive_deps)
                             recursive_deps = options[:recursive_deps]
                         else
@@ -1651,7 +1646,9 @@ module Autoproj
                                 depends = Array.new
                             end
                             depends.concat deps
+                            depends.delete("")
                             pkg["Depends"] = depends.uniq.join(", ") unless depends.empty?
+                            Packager.info "Depends: #{debian_ruby_name}: injecting dependencies: '#{pkg["Depends"]}'"
                         end
 
                         # parse and filter build dependencies
