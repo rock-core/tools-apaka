@@ -89,6 +89,8 @@ module Autoproj
             def reload_config(file, current_release_name = nil)
                 if !file
                     file = File.join(File.expand_path(File.dirname(__FILE__)), 'deb_package-default.yml')
+                elsif !File.exists?(file)
+                    raise ArgumentError, "Autoproj::Packaging::Config.reload_config: #{file} does not exist"
                 end
                 configuration = YAML.load_file(file)
                 @config_file = File.absolute_path(file)

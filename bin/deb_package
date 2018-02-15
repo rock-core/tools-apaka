@@ -208,6 +208,10 @@ options = OptionParser.new do |opt|
     end
     opt.on("--config-file CONFIG",String, "Read configuration file") do |file|
         o_config_file = File.expand_path(file)
+	if !File.exists?(o_config_file)
+            puts "--config-file option incorrect: file '#{file}' does not exist"
+            exit 1
+	end
     end
 
     opt.on("--show-config", "Show the current configuration") do
