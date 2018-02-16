@@ -240,4 +240,27 @@ class TestTargetPlatform < Minitest::Test
             assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
         end
     end
+
+    def test_rock_release_name
+        d = Autoproj::Packaging::Debian.new
+        valid_names = ["master-18.01","master","master-18-01.1"]
+        valid_names.each do |name|
+            begin
+                d.rock_release_name = name
+                assert(true, "Valid release names #{valid_names.join(',')} detected")
+            rescue ArgumentError => e
+                assert(false, "Valid release names #{valid_names.join(',')} detected")
+            end
+        end
+
+        invalid_names = ["1-master","master_18.01"]
+        invalid_names.each do |name|
+            begin
+                d.rock_release_name = name
+	        assert(false, "Invalid release name #{name} is detected")
+	    rescue ArgumentError => e
+	        assert(true, "Invalid release name #{name} is detected")
+	    end
+        end
+    end
 end
