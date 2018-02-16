@@ -205,10 +205,10 @@ build_options[:release_name] ||= 'local'
 if File.exists? o_patch_dir
     build_options[:patch_dir] = o_patch_dir
 else
-    # no need to have a valid patch_dir for prepare, register or deregister
+    # no need to have a valid patch_dir for prepare, register or deregister,
+    # but likely needed for other options
     if !o_prepare_local_build && !o_register && !o_deregister
-        Autoproj::Packaging.warn "Patch directory: #{o_patch_dir} does not exist"
-        exit 0
+        Autoproj::Packaging.info "No patch directory: #{o_patch_dir} given"
     end
 end
 
