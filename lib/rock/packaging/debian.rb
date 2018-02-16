@@ -186,6 +186,12 @@ module Autoproj
             end
 
             def rock_release_name=(name)
+                if name !~ /^[a-zA-Z][a-zA-Z0-9\-\.]\+$/
+		    raise ArgumentError, "Debian: given release name '#{name}' has an " \
+				"invalid pattern.\nPlease start with single letter followed by " \
+				"alphanumeric characters and dash(-) and dot(.), e.g., my-release-18.01"
+                end
+
                 @rock_release_name = name
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
                 @rock_release_hierarchy = [name]
