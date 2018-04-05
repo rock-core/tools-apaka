@@ -497,7 +497,9 @@ end
 wait_queue = Queue.new
 
 #validate sudo credentials while we are still single threaded
-system("sudo","-v")
+if !o_dry_run
+    system("sudo","-v")
+end
 
 while !pending_jobs.empty? || !running_jobs.empty?
     #first, remove all jobs depending on failed jobs
@@ -593,7 +595,9 @@ while !pending_jobs.empty? || !running_jobs.empty?
             puts "Exiting."
             exit 2
         end
-        system("sudo","-v")
+        if !o_dry_run
+            system("sudo","-v")
+        end
     end
     running_jobs.delete_if do |pkg,job|
         if !job[:thread].alive?
