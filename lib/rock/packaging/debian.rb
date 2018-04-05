@@ -97,17 +97,21 @@ module Autoproj
             # and the release-name can be avoided by setting
             # with_rock_release_prefix to false
             #
-            def debian_name(pkginfo, with_rock_release_prefix = true)
+            def debian_name(pkginfo, with_rock_release_prefix = true, release_name = nil)
                 if pkginfo.kind_of?(String)
                     raise ArgumentError, "method debian_name expects a PackageInfo as argument, got: #{pkginfo.class} '#{pkginfo}'"
                 end
                 name = pkginfo.name
 
                 if pkginfo.build_type == :ruby
-                    debian_ruby_name(name, with_rock_release_prefix)
+                    if with_rock_release_prefix
+                        rock_release_prefix(release_name) + "ruby-" + canonize(name)
+                    else
+                        "rock-ruby-" + canonize(name)
+                    end
                 else
                     if with_rock_release_prefix
-                        rock_release_prefix + canonize(name)
+                        rock_release_prefix(release_name) + canonize(name)
                     else
                         "rock-" + canonize(name)
                     end
@@ -138,6 +142,11 @@ module Autoproj
                 rock_release_prefix(release_name) + "ruby-"
             end
 
+            # The debian name of a package
+            # [rock-<release-name>-]ruby-<canonized-package-name>
+            # and the release-name prefix can be avoided by setting
+            # with_rock_release_prefix to false
+            #
             def debian_ruby_name(name, with_rock_release_prefix = true, release_name = nil)
                 if with_rock_release_prefix
                     rock_ruby_release_prefix(release_name) + canonize(name)
