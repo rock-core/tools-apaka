@@ -1349,14 +1349,16 @@ module Autoproj
                          end
                      else
                         require 'tempfile'
-                        whitelist.each do |f|
-                            files = Dir["#{patch_dir}/#{f}"]
-                            if files.size == 1 && File.exists?(files.first)
-                                tmpfile = Tempfile.new(File.basename(f))
-                                FileUtils.cp_r(files.first, tmpfile)
-                                prepare_patch_file(tmpfile.path)
-                                FileUtils.cp_r(tmpfile, "#{target_dir}/#{f}")
-                                Packager.warn "Patch target with #{tmpfile.path}"
+                        whitelist.each do |pattern|
+                            files = Dir["#{patch_dir}/#{pattern}"]
+                            files.each do |f|
+                                if File.exists?(f)
+                                    tmpfile = Tempfile.new(File.basename(f))
+                                    FileUtils.cp_r(f, tmpfile)
+                                    prepare_patch_file(tmpfile.path)
+                                    FileUtils.cp_r(tmpfile, "#{target_dir}/#{File.basename(f)}")
+                                    Packager.warn "Patch target (#{target_dir}/#{f}) with #{tmpfile.path}"
+                                end
                             end
                         end
                      end
