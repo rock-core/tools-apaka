@@ -127,12 +127,12 @@ module Autoproj
 
             def releasedInAncestor(package_name, cache_results = true)
                 TargetPlatform.ancestors(distribution_release_name).each do |ancestor_release_name|
-                    package_name = package_name.gsub(distribution_release_name, ancestor_release_name)
+                    pkg_name = package_name.gsub(distribution_release_name, ancestor_release_name)
                     platform = TargetPlatform.new(ancestor_release_name, architecture)
-                    if platform.contains(package_name)
+                    if platform.contains(pkg_name)
                         return ancestor_release_name
                     else
-                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{package_name}"
+                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{pkg_name}"
                     end
                 end
                 return ""
