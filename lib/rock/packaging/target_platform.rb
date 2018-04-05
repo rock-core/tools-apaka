@@ -185,6 +185,10 @@ module Autoproj
             # This method relies on the launchpad website for Ubuntu packages
             # and the packages.debian.org/source website for Debian packages
             def contains(package, cache_results = true)
+                # packages with "/" in their name are not valid for debian
+                if package =~ /\//
+                    return false
+                end
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
                     Autoproj::Packaging.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
