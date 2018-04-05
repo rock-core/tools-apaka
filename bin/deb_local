@@ -105,7 +105,7 @@ def build_locally(packager, pkg_name, options)
             cmd = [ "deb_package", "--install" ]
             cmd.concat arguments
             cmd << pkg_name
-            cmd = "deb_package --install #{arguments} #{pkg_name} > #{install_log}"
+
             puts "Execution of: #{cmd.join(" ")} &> #{install_log}"
             if !system(*cmd, [:out, :err] => install_log, :close_others => true)
                 raise RuntimeError, "Local install of pkg #{pkg_name} failed -- see #{install_log}"
