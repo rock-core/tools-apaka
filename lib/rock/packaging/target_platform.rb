@@ -55,6 +55,14 @@ module Autoproj
                 @osdeps_release_tags = tags
             end
             
+            def self.ancestor_blacklist
+                @ancestor_blacklist || Set.new
+            end
+
+            def self.ancestor_blacklist= (bl)
+                @ancestor_blacklist = bl
+            end
+
             # Autodetect the linux distribution release
             # require the general allow identification tag to be present in the
             # configuration file
@@ -126,6 +134,10 @@ module Autoproj
             end
 
             def releasedInAncestor(package_name, cache_results = true)
+                pkg_name = package_name.gsub("#{distribution_release_name}-", "")
+                if Autoproj::Packaging::TargetPlatform::ancestor_blacklist.include?(pkg_name)
+                    return ""
+                end
                 TargetPlatform.ancestors(distribution_release_name).each do |ancestor_release_name|
                     pkg_name = package_name.gsub(distribution_release_name, ancestor_release_name)
                     platform = TargetPlatform.new(ancestor_release_name, architecture)

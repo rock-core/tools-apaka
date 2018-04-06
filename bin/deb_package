@@ -52,6 +52,7 @@ o_show_config = false
 o_create_cleanup_jobs = false
 o_activation_status=false
 o_config_file = nil
+o_ancestor_blacklist_pkgs = Set.new
 
 if ARGV.empty?
     ARGV << "--help"
@@ -217,8 +218,12 @@ options = OptionParser.new do |opt|
     opt.on("--show-config", "Show the current configuration") do
         o_show_config = true
     end
-    opt.on("--activation-status","Check the configuration setting for building thi particualr distribution and release combination") do
+    opt.on("--activation-status","Check the configuration setting for building thi particular distribution and release combination") do
         o_activation_status = true
+    end
+
+    opt.on("--ancestor-blacklist-package PACKAGENAME","Add a package to the ancestor blacklist, i.E. if needed as dependency, use a package from current release name instead of an ancestor release") do |pkgname|
+        o_ancestor_blacklist_pkgs << pkgname
     end
 end
 
@@ -383,6 +388,11 @@ end
 if o_rock_release_name
     packager.rock_release_name = o_rock_release_name
 end
+
+Autoproj::Packaging::TargetPlatform::ancestor_blacklist = o_ancestor_blacklist_pkgs.map do |pkg_name|
+    pkginfo = package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name(pkg_name))
+    packager.debian_name(pkginfo, false)
+end.to_set
 
 # Make sure that when we request a package build we only get this one,
 # and not the pattern matched to other packages, e.g. for orogen
