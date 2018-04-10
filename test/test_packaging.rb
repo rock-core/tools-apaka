@@ -93,10 +93,10 @@ class TestDebian < Minitest::Test
 
     def test_recursive_dependencies
         test_set = { "utilrb" => ["bundler", "ruby-facets"],
-                     "rtt"  => ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
+                     "rtt"  => ["cmake","build-essential","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
-                                "libboost-iostreams-dev","libxml-xpath-perl"]
+                                "libboost-iostreams-dev","libboost-system-dev","libxml-xpath-perl"]
         }
 
         test_set.each do |pkg_name, expected_deps|
