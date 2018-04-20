@@ -54,7 +54,7 @@ packages:
     enforce_build: rgl
 rock_releases:
     master:
-        url: http://rimres-gcs2-u/rock-releases/master-16.06
+        url: http://localhost/master/
     transterra:
-        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
+        url: http://localhost/transterra/
         depends_on: master, trusty

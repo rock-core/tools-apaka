@@ -97,17 +97,21 @@ module Autoproj
             # and the release-name can be avoided by setting
             # with_rock_release_prefix to false
             #
-            def debian_name(pkginfo, with_rock_release_prefix = true)
+            def debian_name(pkginfo, with_rock_release_prefix = true, release_name = nil)
                 if pkginfo.kind_of?(String)
                     raise ArgumentError, "method debian_name expects a PackageInfo as argument, got: #{pkginfo.class} '#{pkginfo}'"
                 end
                 name = pkginfo.name
 
                 if pkginfo.build_type == :ruby
-                    debian_ruby_name(name, with_rock_release_prefix)
+                    if with_rock_release_prefix
+                        rock_release_prefix(release_name) + "ruby-" + canonize(name)
+                    else
+                        "rock-ruby-" + canonize(name)
+                    end
                 else
                     if with_rock_release_prefix
-                        rock_release_prefix + canonize(name)
+                        rock_release_prefix(release_name) + canonize(name)
                     else
                         "rock-" + canonize(name)
                     end
@@ -138,6 +142,11 @@ module Autoproj
                 rock_release_prefix(release_name) + "ruby-"
             end
 
+            # The debian name of a package
+            # [rock-<release-name>-]ruby-<canonized-package-name>
+            # and the release-name prefix can be avoided by setting
+            # with_rock_release_prefix to false
+            #
             def debian_ruby_name(name, with_rock_release_prefix = true, release_name = nil)
                 if with_rock_release_prefix
                     rock_ruby_release_prefix(release_name) + canonize(name)
@@ -186,6 +195,12 @@ module Autoproj
             end
 
             def rock_release_name=(name)
+                if name !~ /^[a-zA-Z][a-zA-Z0-9\-\.]+$/
+		    raise ArgumentError, "Debian: given release name '#{name}' has an " \
+				"invalid pattern.\nPlease start with single letter followed by " \
+				"alphanumeric characters and dash(-) and dot(.), e.g., my-release-18.01"
+                end
+
                 @rock_release_name = name
                 @rock_release_platform = TargetPlatform.new(name, target_platform.architecture)
                 @rock_release_hierarchy = [name]
@@ -420,35 +435,54 @@ module Autoproj
 
             # Check if the plain package name exists in the target (ubuntu/debian) distribution or any ancestor (rock) distributions
             # and identify the correct package name
-            # return [String,bool] Name of the dependency and whether this is an os dependency or not
+            # return [String,bool] Name of the dependency and whether this is an osdep dependency or not
             def native_dependency_name(name, selected_platform = nil)
-                platforms = Set.new
                 if !selected_platform
                     selected_platform = target_platform
                 end
-                platforms << selected_platform
 
                 # Identify this rock release and its ancestors
                 this_rock_release = TargetPlatform.new(rock_release_name, selected_platform.architecture)
-                this_rock_release.ancestors.each do |ancestor|
-                    platforms << TargetPlatform.new(ancestor, selected_platform.architecture)
-                end
 
-                # Check for 'plain' name, the 'unprefixed' name and for the 'release' name
-                platforms.each do |platform|
-                    if platform.contains(name)
+                if name.is_a? String
+                    # Check for 'plain' name, the 'unprefixed' name and for the 'release' name
+                    if this_rock_release.ancestorContains(name) ||
+                       selected_platform.contains(name)
+                        # direct name match always is an os dependency
+                        # it can never be in a rock release
                         return [name, true]
-                    elsif platform.contains(debian_ruby_name(name, false))
-                        return [debian_ruby_name(name, false), true]
-                    else
-                        pkg_name = debian_ruby_name(name, true, platform.distribution_release_name)
-                        if platform.contains(pkg_name)
-                            return [pkg_name, true]
-                        end
                     end
+
+                    # try debian naming scheme for ruby
+                    if this_rock_release.ancestorContains("ruby-#{canonize(name)}") ||
+                       selected_platform.contains("ruby-#{canonize(name)}")
+                        return ["ruby-#{canonize(name)}", true]
+                    end
+
+                    # otherwise, ask for the ancestor that contains a rock ruby
+                    # package
+                    ancestor_release_name = this_rock_release.releasedInAncestor(
+                        debian_ruby_name(name, true, this_rock_release.distribution_release_name)
+                    )
+                    if !ancestor_release_name.empty?
+                        return [debian_ruby_name(name, true, ancestor_release_name), false]
+                    end
+
+                    # Return the 'release' name, since no other source provides this package
+                    [debian_ruby_name(name, true), false]
+                else
+                    # ask for the ancestor that contains a rock ruby
+                    # package
+                    ancestor_release = this_rock_release.releasedInAncestor(
+                        debian_name(name, true, this_rock_release.distribution_release_name)
+                    )
+                    if !ancestor_release.empty?
+                        return [debian_name(name, true, ancestor_release_name), false]
+                    end
+
+                    # Return the 'release' name, since no other source provides this package
+                    [debian_name(name, true), false]
                 end
-                # Return the 'release' name, since no other source provides this package
-                [debian_ruby_name(name, true), false]
             end
 
             def generate_debian_dir(pkginfo, dir, options)
@@ -1334,14 +1368,16 @@ module Autoproj
                          end
                      else
                         require 'tempfile'
-                        whitelist.each do |f|
-                            files = Dir["#{patch_dir}/#{f}"]
-                            if files.size == 1 && File.exists?(files.first)
-                                tmpfile = Tempfile.new(File.basename(f))
-                                FileUtils.cp_r(files.first, tmpfile)
-                                prepare_patch_file(tmpfile.path)
-                                FileUtils.cp_r(tmpfile, "#{target_dir}/#{f}")
-                                Packager.warn "Patch target with #{tmpfile.path}"
+                        whitelist.each do |pattern|
+                            files = Dir["#{patch_dir}/#{pattern}"]
+                            files.each do |f|
+                                if File.exists?(f)
+                                    tmpfile = Tempfile.new(File.basename(f))
+                                    FileUtils.cp_r(f, tmpfile)
+                                    prepare_patch_file(tmpfile.path)
+                                    FileUtils.cp_r(tmpfile, "#{target_dir}/#{File.basename(f)}")
+                                    Packager.warn "Patch target (#{target_dir}/#{f}) with #{tmpfile.path}"
+                                end
                             end
                         end
                      end
@@ -1583,7 +1619,8 @@ module Autoproj
                         end
 
                         options[:deps][:rock_pkginfo].each do |pkginfo|
-                            all_deps << debian_name(pkginfo)
+                            depname, is_osdep = native_dependency_name(pkginfo)
+                            all_deps << depname
                         end
 
                         # Add actual gem dependencies
@@ -1600,15 +1637,10 @@ module Autoproj
                         # since then is it is either part of the flow job
                         # or an os dependency
                         gem_deps = gem_deps.keys.each do |k|
-                            depname, is_osdeps = native_dependency_name(k)
+                            depname, is_osdep = native_dependency_name(k)
                             all_deps << depname
                         end
                         deps = all_deps.uniq
-
-                        if not deps.empty?
-                            Packager.info "#{debian_ruby_name}: injecting gem dependencies: #{deps.join(",")}"
-                            #`sed -i "s#^\\(^Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
-                        end
 
                         if options.has_key?(:recursive_deps)
                             recursive_deps = options[:recursive_deps]
@@ -1650,7 +1682,9 @@ module Autoproj
                                 depends = Array.new
                             end
                             depends.concat deps
+                            depends.delete("")
                             pkg["Depends"] = depends.uniq.join(", ") unless depends.empty?
+                            Packager.info "Depends: #{debian_ruby_name}: injecting dependencies: '#{pkg["Depends"]}'"
                         end
 
                         # parse and filter build dependencies

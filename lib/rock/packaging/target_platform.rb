@@ -55,6 +55,14 @@ module Autoproj
                 @osdeps_release_tags = tags
             end
             
+            def self.ancestor_blacklist
+                @ancestor_blacklist || Set.new
+            end
+
+            def self.ancestor_blacklist= (bl)
+                @ancestor_blacklist = bl
+            end
+
             # Autodetect the linux distribution release
             # require the general allow identification tag to be present in the
             # configuration file
@@ -126,13 +134,17 @@ module Autoproj
             end
 
             def releasedInAncestor(package_name, cache_results = true)
+                pkg_name = package_name.gsub("#{distribution_release_name}-", "")
+                if Autoproj::Packaging::TargetPlatform::ancestor_blacklist.include?(pkg_name)
+                    return ""
+                end
                 TargetPlatform.ancestors(distribution_release_name).each do |ancestor_release_name|
-                    package_name = package_name.gsub(distribution_release_name, ancestor_release_name)
+                    pkg_name = package_name.gsub(distribution_release_name, ancestor_release_name)
                     platform = TargetPlatform.new(ancestor_release_name, architecture)
-                    if platform.contains(package_name)
+                    if platform.contains(pkg_name)
                         return ancestor_release_name
                     else
-                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{package_name}"
+                        Autoproj::Packaging::info "#{self} ancestor #{platform} does not contain #{pkg_name}"
                     end
                 end
                 return ""
@@ -185,6 +197,10 @@ module Autoproj
             # This method relies on the launchpad website for Ubuntu packages
             # and the packages.debian.org/source website for Debian packages
             def contains(package, cache_results = true)
+                # packages with "/" in their name are not valid for debian
+                if package =~ /\//
+                    return false
+                end
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
                     Autoproj::Packaging.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
