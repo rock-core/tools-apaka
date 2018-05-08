@@ -2,6 +2,7 @@ require 'rubygems/requirement'
 require 'set'
 require 'autoproj'
 require 'rock/packaging/packager'
+require 'open3'
 
 module Autoproj
     module Packaging
@@ -25,10 +26,14 @@ module Autoproj
                     end
                 end
                 gem_dependency_cmd = "gem dependency #{gem_name}"
-                gem_dependency = `#{gem_dependency_cmd}`
-                if $?.exitstatus != 0
+                if version && !version.empty?
+                    gem_dependency_cmd += " -v\"#{version_requirements.join(',')}\""
+                end
+                stdcout, stdcerr, status = Open3.capture3(gem_dependency_cmd)
+                if !status.success?
                     gem_dependency = nil
                 else
+                    gem_dependency = stdcout
                     # do a quick check to verify we actually found our gem
                     found = false
                     gem_dependency.split("\n").each do |line|
@@ -51,11 +56,10 @@ module Autoproj
                         if version_requirements.size != 1
                             raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
                         end
-                        binding.pry
                         bundler_manager.install([gem_name+version_requirements.first])
                     end
-                    gem_dependency = `#{gem_dependency_cmd}`
-                    if $?.exitstatus != 0
+                    gem_dependency, stdcerr, status = Open3.capture3(gem_dependency_cmd)
+                    if !status.success?
                         raise RuntimeError, "GemDependencies::resolve_by_name could not find '#{gem_name}', even though we tried to install it"
                     end
                 end
