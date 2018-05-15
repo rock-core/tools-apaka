@@ -1,5 +1,5 @@
 <package>
-  <description brief="Automage packaging for autoproj" />
+  <description brief="Automage packaging for autoproj">
   This Ruby library perform an automated packaging for repositories, which have been defined withing autoproj
   </description>
   <author>Thomas Roehr/thomas.roehr@dfki.de</author>
