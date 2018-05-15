@@ -1,8 +1,7 @@
 #! /usr/bin/env ruby
 require 'find'
 require 'optparse'
-require 'rock/packaging'
-require 'rock/packaging/packageinfoask'
+require 'apaka'
 require 'tempfile'
 require 'yaml'
 require 'thread'

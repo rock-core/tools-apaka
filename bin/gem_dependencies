@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-require 'rock/packaging/debian'
+require 'apaka'
 
 if ARGV.size < 1
     puts "usage: gem_dependencies <gem_name> [<version-string>]"

@@ -1,5 +1,5 @@
 #! /usr/bin/env ruby
-require 'rock/packaging'
+require 'apaka'
 
 if ARGV.size < 2
     puts "usage: deb_package-available <package_name> <distribution> [<architecture>]"

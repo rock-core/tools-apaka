@@ -1,8 +1,6 @@
 #! /usr/bin/env ruby
 # coding: utf-8
-require 'rock/packaging'
-require 'rock/packaging/packager'
-require 'rock/packaging/packageinfoask'
+require 'apaka'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
