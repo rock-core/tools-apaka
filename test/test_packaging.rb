@@ -13,6 +13,7 @@ require_relative '../lib/apaka'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
+Autoproj.root_dir = File.join(__dir__,"workspace")
 $autoprojadaptor = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 
 def autoprojadaptor

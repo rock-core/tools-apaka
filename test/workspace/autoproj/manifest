@@ -1,0 +1,12 @@
+#
+# Informations about the manifest of autoproj can be found here:
+# http://www.rock-robotics.org/documentation/autoproj/customization.html
+#
+
+package_sets:
+   - github: rock-core/rock-package_set
+
+# Layout. Note that the rock.base and orocos.toolchain sets are
+# imported by other rock sets.
+layout:
+   - base/cmake
