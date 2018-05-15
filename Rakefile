@@ -6,15 +6,18 @@ begin
 
     Hoe::RUBY_FLAGS.gsub! /-w/, ''
 
-    hoe_spec = Hoe.spec 'admin_scripts' do
-        developer 'Sylvain Joyeux', 'sylvain.joyeux@m4x.org'
+    hoe_spec = Hoe.spec 'apaka' do
         developer 'Thomas Roehr', 'thomas.roehr@dfki.de'
+        developer 'Pierre Willenbrock', 'pierre.willenbrock@dfki.de'
+        developer 'Sylvain Joyeux', 'sylvain.joyeux@m4x.org'
         self.version = 0.1
-        self.description = 'General scripts for administration of a Rock installation'
-        self.urls        = ["https://github.com/rock-core/base-admin_scripts"]
+        self.summary = "This library provided automated packaging facilities for" \
+            "projects managed with autoproj"
+        self.description = 'Automated packaging for autoproj'
+        self.urls        = ["https://github.com/rock-core/apaka"]
         self.readme_file = FileList['README*'].first
         self.history_file = "History.txt"
-        licenses << 'GPLv2+'
+        licenses << "LGPL-2.0+"
 
         extra_deps <<
             ['hoe'] <<

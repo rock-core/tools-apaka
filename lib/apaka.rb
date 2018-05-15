@@ -1,0 +1,8 @@
+require_relative 'apaka/packaging/jenkins'
+require_relative 'apaka/packaging/config'
+require_relative 'apaka/packaging/obs'
+require_relative 'apaka/packaging/packager'
+require_relative 'apaka/packaging/target_platform'
+require_relative 'apaka/packaging/debian'
+require_relative 'apaka/packaging/installer'
+require_relative 'apaka/packaging/packageinfoask'

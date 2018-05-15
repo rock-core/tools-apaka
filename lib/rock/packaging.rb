@@ -1,8 +1,0 @@
-require_relative 'packaging/jenkins'
-require_relative 'packaging/config'
-require_relative 'packaging/obs'
-require_relative 'packaging/packager'
-require_relative 'packaging/target_platform'
-require_relative 'packaging/debian'
-require_relative 'packaging/installer'
-require_relative 'packaging/packageinfoask'

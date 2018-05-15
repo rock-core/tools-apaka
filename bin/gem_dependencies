@@ -12,5 +12,5 @@ if ARGV.size == 2
     version = ARGV[1]
 end
 
-resolved = Autoproj::Packaging::GemDependencies::resolve_by_name(ARGV[0],version)
+resolved = Apaka::Packaging::GemDependencies::resolve_by_name(ARGV[0],version)
 puts resolved

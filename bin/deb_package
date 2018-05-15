@@ -7,14 +7,14 @@ require 'rock/packaging/packageinfoask'
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
 lock_file = File.open("/tmp/deb_package.lock",File::CREAT)
-Autoproj::Packaging.debug "deb_package: waiting for execution lock"
+Apaka::Packaging.debug "deb_package: waiting for execution lock"
 lock_time = Time.now
 lock_file.flock(File::LOCK_EX)
 lock_wait_time_in_s = Time.now - lock_time
-Autoproj::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
+Apaka::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
 
-package_info_ask = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
-Autoproj::Packaging.root_dir = package_info_ask.root_dir
+package_info_ask = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+Apaka::Packaging.root_dir = package_info_ask.root_dir
 
 o_architectures = []
 o_distributions = []
@@ -231,18 +231,18 @@ end
 # only these ones should be considered
 o_selected_packages = options.parse(ARGV)
 
-Autoproj::Packaging::Config.reload_config(o_config_file, o_rock_release_name)
+Apaka::Packaging::Config.reload_config(o_config_file, o_rock_release_name)
 
 if o_show_config
-    Autoproj::Packaging::Config
+    Apaka::Packaging::Config
 end
 
 if o_activation_status
     distribution = o_distributions.first
     architecture = o_architectures.first
 
-    if Autoproj::Packaging::Config.architectures.include?(architecture) &&
-        Autoproj::Packaging::Config.architectures[architecture].include?(distribution)
+    if Apaka::Packaging::Config.architectures.include?(architecture) &&
+        Apaka::Packaging::Config.architectures[architecture].include?(distribution)
         puts "active"
         exit 0
     else
@@ -257,33 +257,33 @@ end
 ################################################################################
 
 if o_create_cleanup_jobs
-    Autoproj::Packaging::Debian.create_cleanup_jobs
+    Apaka::Packaging::Debian.create_cleanup_jobs
     exit 0
 end
 
 if o_job_cleanup && o_job_name
-    Autoproj::Packaging::Debian.cleanup_job(o_job_name)
+    Apaka::Packaging::Debian.cleanup_job(o_job_name)
     exit 0
 end
 
 if o_job_cleanup_all
-    Autoproj::Packaging::Debian.cleanup_all_jobs
+    Apaka::Packaging::Debian.cleanup_all_jobs
     exit 0
 end
 
 if o_job_remove && o_job_name
-    Autoproj::Packaging::Debian.remove_job(o_job_name)
+    Apaka::Packaging::Debian.remove_job(o_job_name)
     exit 0
 end
 
 if o_job_remove_all
-    Autoproj::Packaging::Debian.remove_all_jobs
+    Apaka::Packaging::Debian.remove_all_jobs
     exit 0
 end
 
 if o_exists
     begin
-        if Autoproj::Packaging::Distribution::containsPackage(o_exists[0], o_exists[1])
+        if Apaka::Packaging::Distribution::containsPackage(o_exists[0], o_exists[1])
             puts "Package #{o_exists[1]} exists in distribution #{o_exists[0]}"
             exit 0
         else
@@ -311,20 +311,20 @@ selection = result | selection # -> union
 
 options = Hash.new
 
-puts "Using configuration:\n#{Autoproj::Packaging::Config}"
+puts "Using configuration:\n#{Apaka::Packaging::Config}"
 
 if o_distributions.size == 1
     distribution = o_distributions[0]
     operating_system = []
     preferred_ruby_version = nil
-    if Autoproj::Packaging::Config.linux_distribution_releases.has_key?(distribution)
-        operating_system = Autoproj::Packaging::Config.linux_distribution_releases[ distribution ]
+    if Apaka::Packaging::Config.linux_distribution_releases.has_key?(distribution)
+        operating_system = Apaka::Packaging::Config.linux_distribution_releases[ distribution ]
     else
         raise InvalidArgument, "Custom setting of operating system to: #{distribution} is not supported"
     end
 
-    if Autoproj::Packaging::Config.preferred_ruby_version.has_key?(distribution)
-        preferred_ruby_version = Autoproj::Packaging::Config.preferred_ruby_version[ distribution ]
+    if Apaka::Packaging::Config.preferred_ruby_version.has_key?(distribution)
+        preferred_ruby_version = Apaka::Packaging::Config.preferred_ruby_version[ distribution ]
     end
 
     if !operating_system.empty?
@@ -343,8 +343,8 @@ end
 if !o_architectures.empty?
     options[:architecture] = o_architectures.first
 end
-Autoproj::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
-packager = Autoproj::Packaging::Debian.new(options)
+Apaka::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
+packager = Apaka::Packaging::Debian.new(options)
 
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
@@ -361,10 +361,10 @@ end
 selected_gems = []
 selected_rock_packages = o_selected_packages.select do |name|
     if package_info_ask.package(name)
-        Autoproj::Packaging.warn "Package: #{name} is a known rock package"
+        Apaka::Packaging.warn "Package: #{name} is a known rock package"
         true
-    elsif Autoproj::Packaging::GemDependencies::is_gem?(name)
-        Autoproj::Packaging.warn "Package: #{name} is a gem"
+    elsif Apaka::Packaging::GemDependencies::is_gem?(name)
+        Apaka::Packaging.warn "Package: #{name} is a gem"
         selected_gems << [name, o_package_version]
         false
     else
@@ -372,7 +372,7 @@ selected_rock_packages = o_selected_packages.select do |name|
     end
 end
 
-Autoproj::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
+Apaka::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packages: #{selected_rock_packages}, gems: #{selected_gems}"
 selection = package_info_ask.autoproj_init_and_load(selected_rock_packages)
 selection = package_info_ask.resolve_user_selection_packages(selection)
 
@@ -389,7 +389,7 @@ if o_rock_release_name
     packager.rock_release_name = o_rock_release_name
 end
 
-Autoproj::Packaging::TargetPlatform::ancestor_blacklist = o_ancestor_blacklist_pkgs.map do |pkg_name|
+Apaka::Packaging::TargetPlatform::ancestor_blacklist = o_ancestor_blacklist_pkgs.map do |pkg_name|
     pkginfo = package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name(pkg_name))
     packager.debian_name(pkginfo, false)
 end.to_set
@@ -398,7 +398,7 @@ end.to_set
 # and not the pattern matched to other packages, e.g. for orogen
 selection = selection.select do |pkg_name, i|
     if o_selected_packages.empty? or o_selected_packages.include?(pkg_name)
-        Autoproj::Packaging.info "Package: #{pkg_name} is in selection"
+        Apaka::Packaging.info "Package: #{pkg_name} is in selection"
         true
     else
         false
@@ -413,7 +413,7 @@ Dir.chdir(packager.build_dir) do
         Autobuild.do_update = true
 
         selected_gems.each do |pkg_name, version|
-            Autoproj::Packaging.info "Converting ruby gem: '#{pkg_name}'"
+            Apaka::Packaging.info "Converting ruby gem: '#{pkg_name}'"
             # Fails to be detected as normal package
             # so we assume it is a ruby gem
             packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir})
@@ -425,16 +425,16 @@ Dir.chdir(packager.build_dir) do
         selection.each_with_index do |pkg_name, i|
             if pkg = package_info_ask.package(pkg_name)
                 pkg = pkg.autobuild
-                Autoproj::Packaging.warn "Package: #{pkg_name} is a known rock package"
+                Apaka::Packaging.warn "Package: #{pkg_name} is a known rock package"
             else
-                Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
 
             pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
 
             if o_skip && o_obs_dir
-                pkg_obs_dir = File.join(o_obs_dir, Autoproj::Packaging::Packager.obs_package_name(pkginfo))
+                pkg_obs_dir = File.join(o_obs_dir, Apaka::Packaging::Packager.obs_package_name(pkginfo))
                 if File.directory?(pkg_obs_dir)
                     puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
                     next
@@ -486,9 +486,9 @@ Dir.chdir(packager.build_dir) do
         selection.each do |pkg_name|
             if pkg = package_info_ask.package(pkg_name)
                 pkg = pkg.autobuild
-                Autoproj::Packaging.warn "Package: #{pkg_name} is a known rock package"
+                Apaka::Packaging.warn "Package: #{pkg_name} is a known rock package"
             else
-                Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                 next
             end
 
@@ -545,7 +545,7 @@ Dir.chdir(packager.build_dir) do
         # allow general parametrization for jobs
         packager.rock_release_name = "$release"
 
-        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
+        jenkins = Apaka::Packaging::Jenkins.new(packager, package_info_ask)
 
         packages = package_info_ask.all_required_rock_packages(selection, selected_gems)
         if packager.rock_release_name
@@ -574,7 +574,7 @@ Dir.chdir(packager.build_dir) do
     end
 
     if o_flow
-        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
+        jenkins = Apaka::Packaging::Jenkins.new(packager, package_info_ask)
 
         puts "Creating FLOW-Job"
         options = { :force => o_overwrite }
@@ -586,13 +586,13 @@ Dir.chdir(packager.build_dir) do
     if o_control_job
         puts "Creating Control-Job (0_)"
         options = { :force => o_overwrite }
-        Autoproj::Packaging::Jenkins.create_control_job("0_" + o_control_job, options)
+        Apaka::Packaging::Jenkins.create_control_job("0_" + o_control_job, options)
     end
 
     if o_all_control_jobs
         puts "Creating all Control-Jobs (0_)"
         options = { :force => o_overwrite }
-        Autoproj::Packaging::Jenkins.create_control_jobs options
+        Apaka::Packaging::Jenkins.create_control_jobs options
     end
 
     # Updating the osdeps files in a given directory
@@ -637,7 +637,7 @@ Dir.chdir(packager.build_dir) do
         selected_gems.uniq!
         all_gems  = all_packages[:gems]
 
-        jenkins = Autoproj::Packaging::Jenkins.new(packager, package_info_ask)
+        jenkins = Apaka::Packaging::Jenkins.new(packager, package_info_ask)
         puts "Creating Gem-Jobs for #{all_gems}"
 
         all_gems.each do |gem_name|
@@ -693,7 +693,7 @@ Dir.chdir(packager.build_dir) do
                 if pkg = package_info_ask.package(pkg_name)
                     pkg = pkg.autobuild
                 else
-                    Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                    Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                     next
                 end
 
@@ -707,7 +707,7 @@ Dir.chdir(packager.build_dir) do
                 end
             end
         rescue Exception => e
-            Autoproj::Packaging.warn "Local build failed: #{e}"
+            Apaka::Packaging.warn "Local build failed: #{e}"
             puts e.backtrace
             exit 10
         end
@@ -730,7 +730,7 @@ Dir.chdir(packager.build_dir) do
                 if pkg = package_info_ask.package(pkg_name)
                     pkg = pkg.autobuild
                 else
-                    Autoproj::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                    Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
                     next
                 end
                 pkginfo = package_info_ask.pkginfo_from_pkg(pkg)

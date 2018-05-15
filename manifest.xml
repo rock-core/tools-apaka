@@ -1,8 +1,15 @@
 <package>
-  <description brief="scripts that are specific to the administration of the
-      Rock project">
+  <description brief="Automage packaging for autoproj" />
+  This Ruby library perform an automated packaging for repositories, which have been defined withing autoproj
   </description>
+  <author>Thomas Roehr/thomas.roehr@dfki.de</author>
+  <author>Pierre Willenbrock/pierre.willenbrock@dfki.de</author>
   <author>Sylvain Joyeux/sylvain.joyeux@dfki.de</author>
-  <license>GPLv2 or later</license>
-
+  <maintainer>Thomas Roehr/thomas.roehr@dfki.de</maintainer>
+  <copyright>
+      DFKI/robotik@dfki.de
+  </copyright>
+  <license>LGPLv3 or later</license>
+  <depend package="autoproj" />
+  <depend package="utilrb" />
 </package>

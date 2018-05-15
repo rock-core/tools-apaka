@@ -13,7 +13,7 @@ architecture = nil
 if ARGV.size == 3
     architecture = ARGV[2]
 end
-tp = Autoproj::Packaging::TargetPlatform.new(distribution, architecture)
+tp = Apaka::Packaging::TargetPlatform.new(distribution, architecture)
 if tp.contains(package_name)
     puts "Distribution '#{tp}' does contain #{package_name}"
     exit 0

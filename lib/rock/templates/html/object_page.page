@@ -1,6 +1,0 @@
----
-title: <%= object.name %>
-routed_title: <%= object.name %>
-sort_info: <%= index + 1 %>
----
-<%= fragment %>

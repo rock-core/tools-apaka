@@ -1,5 +1,5 @@
 require 'minitest/autorun'
-require 'rock/packaging'
+require_relative '../lib/apaka'
 
 # TODO Testcases
 #
@@ -13,22 +13,22 @@ require 'rock/packaging'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
-$autoprojadaptor = Autoproj::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+$autoprojadaptor = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 
 def autoprojadaptor
     $autoprojadaptor
 end
 
-Autoproj::Packaging.root_dir = autoprojadaptor.root_dir
+Apaka::Packaging.root_dir = autoprojadaptor.root_dir
 
-Autoproj::Packaging::TargetPlatform.osdeps_release_tags= autoprojadaptor.osdeps_release_tags
+Apaka::Packaging::TargetPlatform.osdeps_release_tags= autoprojadaptor.osdeps_release_tags
 
 class TestDebian < Minitest::Test
 
     attr_reader :packager
 
     def setup
-        @packager = Autoproj::Packaging::Debian.new
+        @packager = Apaka::Packaging::Debian.new
         @packager.rock_release_name = "master"
         @packager.build_dir = File.join(Autoproj.root_dir, "build/test-rock-packager")
     end
@@ -173,20 +173,20 @@ class TestTargetPlatform < Minitest::Test
 
     def setup
         @platforms = Array.new
-        @platforms << Autoproj::Packaging::TargetPlatform.new("jessie","amd64")
-        @platforms << Autoproj::Packaging::TargetPlatform.new("trusty","amd64")
-        @platforms << Autoproj::Packaging::TargetPlatform.new("xenial","amd64")
+        @platforms << Apaka::Packaging::TargetPlatform.new("jessie","amd64")
+        @platforms << Apaka::Packaging::TargetPlatform.new("trusty","amd64")
+        @platforms << Apaka::Packaging::TargetPlatform.new("xenial","amd64")
 
         @rock_platforms = Array.new
-        @rock_platforms << Autoproj::Packaging::TargetPlatform.new("master","amd64")
+        @rock_platforms << Apaka::Packaging::TargetPlatform.new("master","amd64")
     end
 
     def test_distribution
         ["jessie","sid"].each do |name|
-            assert(Autoproj::Packaging::TargetPlatform::isDebian(name), "'#{name}' is debian distribution")
+            assert(Apaka::Packaging::TargetPlatform::isDebian(name), "'#{name}' is debian distribution")
         end
         ["trusty","vivid","wily","xenial","yakkety"].each do |name|
-            assert(Autoproj::Packaging::TargetPlatform::isUbuntu(name), "'#{name}' is ubuntu distribution")
+            assert(Apaka::Packaging::TargetPlatform::isUbuntu(name), "'#{name}' is ubuntu distribution")
         end
     end
 
@@ -229,20 +229,20 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_rock_all_parents
-        assert( Autoproj::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra boostrap contains master" )
-        assert( Autoproj::Packaging::TargetPlatform.ancestors("master").empty?, "Ancestors of master release do not exist" )
+        assert( Apaka::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra boostrap contains master" )
+        assert( Apaka::Packaging::TargetPlatform.ancestors("master").empty?, "Ancestors of master release do not exist" )
     end
 
     def test_rock_parent_contains
-        Autoproj::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
-        transterra = Autoproj::Packaging::TargetPlatform.new("transterra","amd64")
+        Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
+        transterra = Apaka::Packaging::TargetPlatform.new("transterra","amd64")
         ["rock-master-base-cmake"].each do |pkg|
             assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
         end
     end
 
     def test_rock_release_name
-        d = Autoproj::Packaging::Debian.new
+        d = Apaka::Packaging::Debian.new
         valid_names = ["master-18.01","master","master-18-01.1"]
         valid_names.each do |name|
             begin
