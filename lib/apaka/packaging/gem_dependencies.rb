@@ -235,7 +235,7 @@ module Apaka
                 # Check if this is a gem or not
                 Dir.chdir("/tmp") do
                     outfile = "/tmp/gem-fetch-#{gem_name}"
-                    if not File.exists?(outfile)
+                    if not File.exist?(outfile)
                         if !system("gem", "fetch", gem_name, [ :out, :err] => outfile)
                             return false
                         end

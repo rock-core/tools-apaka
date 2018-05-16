@@ -67,11 +67,11 @@ module Apaka
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
 
-                if not File.exists?(local_tmp_dir)
+                if not File.exist?(local_tmp_dir)
                     FileUtils.mkdir_p local_tmp_dir
                 end
 
-                if not File.exists?(log_dir)
+                if not File.exist?(log_dir)
                     FileUtils.mkdir_p log_dir
                 end
             end
@@ -217,7 +217,7 @@ module Apaka
             # package
             def update_osdeps_lists(pkginfo, osdeps_files_dir)
                 Packager.info "Update osdeps lists in #{osdeps_files_dir} for #{pkginfo}"
-                if !File.exists?(osdeps_files_dir)
+                if !File.exist?(osdeps_files_dir)
                     Packager.debug "Creating #{osdeps_files_dir}"
                     FileUtils.mkdir_p osdeps_files_dir
                 else
@@ -583,7 +583,7 @@ module Apaka
                     end
                 end
 
-                if options[:patch_dir] && File.exists?(options[:patch_dir])
+                if options[:patch_dir] && File.exist?(options[:patch_dir])
                     whitelist = [ "debian/rules","debian/control","debian/install" ]
                     if patch_pkg_dir(pkginfo.name, options[:patch_dir], whitelist, pkginfo.srcdir)
                         Packager.warn "Overlay patch applied to debian folder of #{pkginfo.name}"
@@ -862,7 +862,7 @@ module Apaka
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
-                    if options[:patch_dir] && File.exists?(options[:patch_dir])
+                    if options[:patch_dir] && File.exist?(options[:patch_dir])
                         if patch_pkg_dir(pkginfo.name, options[:patch_dir], nil, pkginfo.srcdir)
                             Packager.warn "Overlay patch applied to #{pkginfo.name}"
                         end
@@ -1040,10 +1040,10 @@ module Apaka
 
                 begin
                     FileUtils.chdir File.join(build_dir, debian_pkg_name, target_platform.to_s.gsub("/","-")) do
-                        if File.exists? "debian"
+                        if File.exist? "debian"
                             FileUtils.rm_rf "debian"
                         end
-                        if File.exists? versioned_build_dir
+                        if File.exist? versioned_build_dir
                             FileUtils.rm_rf versioned_build_dir
                         end
                         FileUtils.mkdir versioned_build_dir
@@ -1186,7 +1186,7 @@ module Apaka
 
             # Prepare the build directory, i.e. cleanup and obsolete file
             def prepare
-                if not File.exists?(build_dir)
+                if not File.exist?(build_dir)
                     FileUtils.mkdir_p build_dir
                 end
                 cleanup
@@ -1195,7 +1195,7 @@ module Apaka
             # Cleanup an existing local tmp folder in the build dir
             def cleanup
                 tmpdir = File.join(build_dir,local_tmp_dir)
-                if File.exists?(tmpdir)
+                if File.exist?(tmpdir)
                     FileUtils.rm_rf(tmpdir)
                 end
             end
@@ -1332,7 +1332,7 @@ module Apaka
                         raise ArgumentError, "DebianPackager::patch_pkg_dir: package name is required, but was nil"
                     end
                     pkg_patch_dir = File.join(global_patch_dir, package_name)
-                    if File.exists?(pkg_patch_dir)
+                    if File.exist?(pkg_patch_dir)
                         return patch_directory(pkg_dir, pkg_patch_dir, whitelist)
                     end
                 end
@@ -1371,7 +1371,7 @@ module Apaka
                         whitelist.each do |pattern|
                             files = Dir["#{patch_dir}/#{pattern}"]
                             files.each do |f|
-                                if File.exists?(f)
+                                if File.exist?(f)
                                     tmpfile = Tempfile.new(File.basename(f))
                                     FileUtils.cp_r(f, tmpfile)
                                     prepare_patch_file(tmpfile.path)
@@ -1492,7 +1492,7 @@ module Apaka
                             checksums_file = files.first
                         end
 
-                        if File.exists? checksums_file
+                        if File.exist? checksums_file
                             Packager.info "Pre-packaging cleanup: removing #{checksums_file}"
                             FileUtils.rm checksums_file
                         else
@@ -1760,7 +1760,7 @@ module Apaka
                         ################
                         # debian/package.postinst
                         ################
-                        if File.exists?("debian/package.postinst")
+                        if File.exist?("debian/package.postinst")
                             FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
                             dpkg_commit_changes("add_postinst_script")
                         end
@@ -1768,7 +1768,7 @@ module Apaka
                         ################
                         # debian/install
                         ################
-                        if File.exists?("debian/install")
+                        if File.exist?("debian/install")
                             system("sed", "-i", "s#/usr##{rock_install_directory}#g", "debian/install")
                             dpkg_commit_changes("install_to_rock_specific_directory")
                             # the above may fail when we patched debian/control

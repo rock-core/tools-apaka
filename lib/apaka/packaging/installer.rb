@@ -356,7 +356,7 @@ module Apaka
                             f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
                         else
                             release_repo = File.join(DEB_REPOSITORY,release_prefix)
-                            if File.exists?(release_repo)
+                            if File.exist?(release_repo)
                                 Installer.warn "Apaka::Packaging::Installer.image_prepare_hookdir -- using local repositories #{release_repo} for release #{release_prefix}"
                                 f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{release_prefix}.list\n")
                             else
@@ -375,7 +375,7 @@ module Apaka
                                     f.write("echo \"deb [trusted=yes] #{url} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
                                 else
                                     release_repo = File.join(DEB_REPOSITORY,ancestor_name)
-                                    if File.exists?(release_repo)
+                                    if File.exist?(release_repo)
                                         Installer.warn "Apaka::Packaging::Installer.image_prepare_hookdir -- using local repositories #{release_repo} for ancestor release #{ancestor_name}"
                                         f.write("echo \"deb [trusted=yes] file://#{release_repo} #{distribution} main\" > /etc/apt/sources.list.d/rock-#{ancestor_name}.list\n")
                                     else

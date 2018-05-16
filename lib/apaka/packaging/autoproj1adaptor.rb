@@ -93,7 +93,7 @@ module Apaka
                 #first, we need to make sure the package is imported. otherwise,
                 #there is no useful manifest, thus no dependencies,
                 #latest_commit_time does not work, and more.
-                if not File.exists?(pkg.srcdir)
+                if not File.exist?(pkg.srcdir)
                     Packaging.debug "Retrieving remote git repository of '#{pkg.name}'"
                     pkg.importer.import(pkg)
                 end

@@ -55,7 +55,7 @@ module Apaka
                 # Add the new unchanged files
                 files.each do |path|
                     target_file = File.join(pkg_obs_dir, File.basename(path))
-                    exists = File.exists?(target_file)
+                    exists = File.exist?(target_file)
                     if exists
                         if File.read(path) == File.read(target_file)
                             Packager.info "OBS: #{target_file} is unchanged, skipping"

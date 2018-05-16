@@ -177,7 +177,7 @@ module Apaka
                     FileUtils.mkdir_p Apaka::Packaging.cache_dir
                 end
                 outfile = cacheFilename(package, distribution_release_name, architecture)
-                if !File.exists?(outfile)
+                if !File.exist?(outfile)
                     cmd = ["dcontrol"]
                     cmd << "#{package}@#{architecture}/#{distribution_release_name}"
                     Apaka::Packaging.info "TargetPlatform::debianContains: #{cmd.join(" ")} &> #{outfile}"
@@ -242,7 +242,7 @@ module Apaka
                     # persistance
                     outfile = cacheFilename(package, distribution_release_name, architecture)
                     errorfile="#{outfile}.error"
-                    if cache_results && (File.exists?(outfile) || File.exists?(errorfile))
+                    if cache_results && (File.exist?(outfile) || File.exist?(errorfile))
                         # query already done sometime before
                     else
                         cmd = ["wget"]
@@ -281,7 +281,7 @@ module Apaka
 
                 # Leave files as cache
                 [outfile, errorfile].each do |file|
-                    if file && File.exists?(file)
+                    if file && File.exist?(file)
                         if !cache_results
                             FileUtils.rm(file)
                         else

@@ -67,7 +67,7 @@ module Apaka
                 end
 
                 distributions_file = File.join(conf_dir, "distributions")
-                if !File.exists?(distributions_file)
+                if !File.exist?(distributions_file)
                     File.open(distributions_file,"w") do |f|
                         Config.linux_distribution_releases.each do |release_name, release|
                             f.write("Codename: #{release_name}\n")
