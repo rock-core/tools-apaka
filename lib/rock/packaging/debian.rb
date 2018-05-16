@@ -1988,6 +1988,7 @@ END
                     envsh += "export TYPELIB_CXX_LOADER=castxml\n"
                 end
                 envsh += "export DEB_CPPFLAGS_APPEND=-std=c++11\n"
+                envsh += "export npm_config_cache=/tmp/npm\n"
                 envsh += "rock_library_dirs=#{rock_library_dirs}\n"
                 envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
