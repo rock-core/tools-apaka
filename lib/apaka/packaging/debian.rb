@@ -5,6 +5,7 @@ require 'timeout'
 require 'time'
 require 'apaka/packaging/debiancontrol'
 require 'apaka/packaging/packageinfo'
+require 'open3'
 
 module Apaka
     module Packaging
@@ -788,6 +789,18 @@ module Apaka
 
                             # Allowed gem creation alternatives
                             gem_creation_success = false
+
+                            # Gemspec often use the 'git ls -z' listings, which
+                            # might break if hidden files will be removed
+                            # without commiting -- so temporarily add and revert
+                            # again, to maintain the original commit id
+                            # TBD: or leave the commit and list the last N commits in the changelog
+                            Packager.info "Debian: temporarily commit changes in #{Dir.pwd}"
+                            _,_,git_add_status = Open3.capture3("git add -A")
+                            msg,git_commit_status = Open3.capture2("git commit -m 'Apaka: gem creation' --author 'Apaka Packager, <apaka@autocommit>'")
+                            if !git_commit_status.success?
+                                Packager.info "Debian: commit failed: #{msg}"
+                            end
                             @gem_creation_alternatives.each do |target|
                                 if !system(pkginfo.env, "rake", target, [ :out, :err ] => [ File.join(log_dir, logname), "a"], :close_others => true)
                                     Packager.info "Debian: failed to create gem using target '#{target}'"
@@ -796,6 +809,11 @@ module Apaka
                                     gem_creation_success = true
                                     break
                                 end
+                            end
+                            if git_commit_status.success?
+                                Packager.info "Debian: git package status"
+                                msg, git_revert = Open3.capture2("git reset --soft HEAD~1")
+                                Packager.info "Debian: reversion of temporary commit failed"
                             end
                             if not gem_creation_success
                                 raise RuntimeError, "Debian: failed to create gem from RubyPackage #{pkginfo.name}"
