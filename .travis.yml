@@ -8,7 +8,7 @@ matrix:
 
 cache: bundler
 
-prepare_install:
+before_install:
     - sudo apt-get -qq update
     - sudo apt-get install -y gem2deb reprepro apache2 pbuilder cowbuilder cowdancer
 install:
