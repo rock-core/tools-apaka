@@ -1,4 +1,5 @@
 require 'apaka/packaging/packager'
+require 'open3'
 
 module Apaka
     module Packaging
@@ -247,7 +248,11 @@ module Apaka
                         cmd = ["wget"]
                         cmd << "-O" << outfile << "-o" << errorfile << url
                         Apaka::Packaging.info "TargetPlatform::contains: query with #{cmd.join(" ")}"
-                        system(*cmd, :close_others => true)
+                        _,_, status = Open3.capture3(cmd.join(" "))
+                        if !status.success?
+                            Apaka::Packaging.info "TargetPlatform::contains: wget failed"
+                            next
+                        end
                     end
 
                     if TargetPlatform::isUbuntu(release_name)
