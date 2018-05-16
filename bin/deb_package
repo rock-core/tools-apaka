@@ -35,7 +35,10 @@ o_package = false
 o_meta = nil
 o_overwrite = false
 o_osdeps_list_dir = nil
-o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
+o_flavor="master"
+if ENV.has_key?('AUTOPROJ_CURRENT_ROOT')
+    o_flavor = ENV['AUTOPROJ_CURRENT_ROOT'].split('/')[-1]
+end
 o_rock_base_install_dir=nil
 o_parallel_builds = false
 o_control_job = false
