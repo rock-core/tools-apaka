@@ -8,6 +8,9 @@ matrix:
 
 cache: bundler
 
+prepare_install:
+    - sudo apt-get -qq update
+    - sudo apt-get install -y gem2deb reprepro apache2 pbuilder cowbuilder cowdancer
 install:
     - git config --global user.name "Apaka on Travis CI"
     - git config --global user.email "apaka@travis"

@@ -128,13 +128,16 @@ class TestDebian < Minitest::Test
     end
 
     def test_orig_tgz
-        gems= ['rice','websocket','state_machine','rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus','grape','grape_logging']
+        gems= ['rice']
+
+        # only package rice as basic test
+        extended_gems = ['websocket',['state_machine',"1.1.0"],'rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus','grape','grape_logging']
 
         require 'digest'
 
         gems.each do |gem, version|
-            if gem =~ /concurrent/
-                # skip specially handled gems
+            if gem =~ /concurrent/ || gem =~ /grape/
+                # skip specially handled gems which require patching
                 next
             end
             if version
@@ -208,6 +211,10 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_rock_package_available
+        Dir.chdir(Autoproj.root_dir) do
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --rebuild --release-name master base/cmake"
+            msg, status = Open3.capture2(cmd)
+        end
         ["rock-master-base-cmake"].each do |pkg|
             @rock_platforms.each do |platform|
                 assert( platform.contains(pkg), "'#{pkg}' is available for #{platform}" )
@@ -230,11 +237,15 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_rock_all_parents
-        assert( Apaka::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra boostrap contains master" )
+        assert( Apaka::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra bootstrap contains master" )
         assert( Apaka::Packaging::TargetPlatform.ancestors("master").empty?, "Ancestors of master release do not exist" )
     end
 
     def test_rock_parent_contains
+        Dir.chdir(Autoproj.root_dir) do
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --release-name master base/cmake"
+            msg, status = Open3.capture2(cmd)
+        end
         Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
         transterra = Apaka::Packaging::TargetPlatform.new("transterra","amd64")
         ["rock-master-base-cmake"].each do |pkg|
@@ -250,7 +261,7 @@ class TestTargetPlatform < Minitest::Test
                 d.rock_release_name = name
                 assert(true, "Valid release names #{valid_names.join(',')} detected")
             rescue ArgumentError => e
-                assert(false, "Valid release names #{valid_names.join(',')} detected")
+                assert(false, "Valid release names #{valid_names.join(',')} detected - #{e}")
             end
         end
 
@@ -260,7 +271,7 @@ class TestTargetPlatform < Minitest::Test
                 d.rock_release_name = name
 	        assert(false, "Invalid release name #{name} is detected")
 	    rescue ArgumentError => e
-	        assert(true, "Invalid release name #{name} is detected")
+	        assert(true, "Invalid release name #{name} is detected - #{e}")
 	    end
         end
     end
