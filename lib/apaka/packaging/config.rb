@@ -140,7 +140,7 @@ module Apaka
 
                 configuration["rock_releases"].each do |key, values|
                     options = Hash.new
-                    options[:url] = values["url"].strip
+                    options[:url] = Config::resolve_localhost( values["url"].strip )
                     if values["depends_on"]
                         options[:depends_on] = values["depends_on"].gsub(' ','').split(",")
                     else
@@ -156,6 +156,11 @@ module Apaka
 
             def initialize
                 reload_config(config_file)
+            end
+
+            def self.resolve_localhost(url)
+                hostname = `hostname`.strip
+                url.gsub("localhost",hostname)
             end
 
             # Extract hierarchy from the enviroment variable ROCK_DEB_RELEASE_HIERARCHY
