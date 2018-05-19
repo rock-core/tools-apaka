@@ -1,5 +1,4 @@
 sudo: true
-dist: xenial
 language: ruby
 rvm:
   - 2.3.6
@@ -17,6 +16,7 @@ install:
     - git config --global user.email "apaka@travis"
     - gem install bundler
     - gem install autoproj
+    - gem install rake
     # Some tests expect gems to be present in vendor/bundle
     - bundle install --path vendor/bundle
 script:
