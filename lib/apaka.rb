@@ -1,3 +1,4 @@
+require 'autoproj'
 require_relative 'apaka/packaging/jenkins'
 require_relative 'apaka/packaging/config'
 require_relative 'apaka/packaging/obs'

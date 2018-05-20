@@ -235,6 +235,11 @@ module Apaka
                     FileUtils.mkdir_p Apaka::Packaging.cache_dir
                 end
 
+                if TargetPlatform::isRock(release_name)
+                    # do not cache for rock releases
+                    cache_results = false
+                end
+
                 urls.each do |url|
                     puts "URL: #{url}"
                     result = false
