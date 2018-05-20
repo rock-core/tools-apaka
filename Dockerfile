@@ -18,6 +18,7 @@ ENV LANG de_DE.UTF-8
 ENV LANG de_DE:de
 ENV LC_ALL de_DE.UTF-8
 ENV GEM_HOME=/home/docker/apaka/.gems/ruby/2.3.0
+ENV PATH=$GEM_HOME/bin:$PATH
 
 RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
