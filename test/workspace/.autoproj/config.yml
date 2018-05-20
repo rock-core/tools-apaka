@@ -1,5 +1,5 @@
 ---
-gems_install_path: temp_gem_install_dir
+gems_install_path: ../../.gems
 prefer_indep_over_os_packages: false
 osdeps_mode: all
 reused_autoproj_installations: []

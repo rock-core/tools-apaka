@@ -1,4 +1,6 @@
-sudo: true
+sudo: required
+services:
+  - docker
 language: ruby
 rvm:
   - 2.3.6
@@ -9,16 +11,10 @@ matrix:
 cache: bundler
 
 before_install:
-    - sudo apt-get -qq update
-    - sudo apt-get install -y gem2deb reprepro apache2 pbuilder cowbuilder cowdancer
-install:
-    - git config --global user.name "Apaka on Travis CI"
-    - git config --global user.email "apaka@travis"
-    - gem install bundler
-    - gem install autoproj
-    - gem install rake
-    # Some tests expect gems to be present in vendor/bundle
-    - bundle install --path vendor/bundle
+    - docker build -t 2maz/apaka .
+    - docker run -d 2maz/apaka tail -f /dev/null
+    - docker ps -a
+    - docker run 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; bundle exec rake test"
+
 script:
-    - bundle exec rake
     - bundle exec rake test
