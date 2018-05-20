@@ -20,8 +20,8 @@ ENV LC_ALL de_DE.UTF-8
 ENV GEM_HOME=/home/docker/apaka/.gems/ruby/2.3.0
 ENV PATH=$GEM_HOME/bin:$PATH
 
+RUN git clone https://github.com/2maz/apaka /home/docker/apaka
 RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
 RUN gem install autoproj
-#RUN git clone https://github.com/2maz/apaka /home/docker/apaka
