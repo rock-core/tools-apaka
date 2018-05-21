@@ -1,3 +1,5 @@
+require_relative 'packageinfo'
+
 module Apaka
     module Packaging
         class PackageInfoAsk
@@ -152,17 +154,3 @@ module Apaka
         end # class PackageInfoAsk
     end # module Packaging
 end # module Apaka
-
-begin
-    require 'apaka/packaging/autoproj1adaptor'
-rescue LoadError
-    # in case the adaptors require fails, not so much that this require fails
-rescue
-    # if one of the backends does not load, we should still be fine.
-end
-
-begin
-    require 'apaka/packaging/autoproj2adaptor'
-rescue LoadError
-rescue
-end

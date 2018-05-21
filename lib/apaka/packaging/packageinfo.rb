@@ -69,6 +69,6 @@ module Apaka
             def required_rock_packages
                 raise "#{self.class} needs to overwrite required_rock_packages"
             end
-        end #PackageInfo
-    end #Packaging
-end #Autoproj
+        end # PackageInfo
+    end # Packaging
+end # Apaka
