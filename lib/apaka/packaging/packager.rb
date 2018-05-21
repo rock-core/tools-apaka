@@ -62,7 +62,7 @@ module Apaka
                     Packager.info "Initializing reprepo repository in #{conf_dir}"
                     system("sudo", "mkdir", "-p", conf_dir, :close_others => true)
 
-                    user = Etc.getlogin
+                    user = Etc.getpwuid(Process.uid).name
                     system("sudo", "chown", "-R", user, deb_repository, :close_others => true)
                     system("sudo", "chmod", "-R", "755", conf_dir, :close_others => true)
                 end
