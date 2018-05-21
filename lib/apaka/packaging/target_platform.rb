@@ -309,5 +309,5 @@ module Apaka
             end
         end # TargetPlatform
     end # Packaging
-end # Autoproj
+end # Apaka
 

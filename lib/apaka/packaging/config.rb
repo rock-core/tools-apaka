@@ -307,6 +307,5 @@ module Apaka
             end
         end # end Config
     end # Packaging
-end # Autoproj
-
+end # Apaka
 

@@ -273,4 +273,4 @@ module Apaka
             end
         end # GemDependencies
     end # Packaging
-end # Autoproj
+end # Apaka

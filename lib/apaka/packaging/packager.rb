@@ -331,5 +331,5 @@ module Apaka
             end
         end # Packager
     end # Packaging
-end #Autoproj
+end # Apaka
 
