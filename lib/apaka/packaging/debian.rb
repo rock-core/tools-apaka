@@ -3,9 +3,10 @@ require 'tmpdir'
 require 'utilrb'
 require 'timeout'
 require 'time'
-require 'apaka/packaging/debiancontrol'
-require 'apaka/packaging/packageinfo'
 require 'open3'
+require_relative 'debiancontrol'
+require_relative 'packageinfo'
+require_relative 'gem_dependencies'
 
 module Apaka
     module Packaging
@@ -31,6 +32,8 @@ module Apaka
             # install directory if not given set to /opt/rock
             attr_accessor :rock_base_install_directory
             attr_reader :rock_release_name
+            # The pkg prefix base name, e.g., rock in rock-ruby-master-18.01,
+            attr_reader :pkg_prefix_base
 
             # List of alternative rake target names to clean a gem
             attr_accessor :gem_clean_alternatives
@@ -56,6 +59,7 @@ module Apaka
 
                 @debian_version = Hash.new
                 @rock_base_install_directory = "/opt/rock"
+                @pkg_prefix_base = "rock"
 
                 # Rake targets that will be used to clean and create
                 # gems
@@ -108,13 +112,13 @@ module Apaka
                     if with_rock_release_prefix
                         rock_release_prefix(release_name) + "ruby-" + canonize(name)
                     else
-                        "rock-ruby-" + canonize(name)
+                        pkg_prefix_base + "-ruby-" + canonize(name)
                     end
                 else
                     if with_rock_release_prefix
                         rock_release_prefix(release_name) + canonize(name)
                     else
-                        "rock-" + canonize(name)
+                        pkg_prefix_base + "-" + canonize(name)
                     end
                 end
             end
@@ -128,14 +132,14 @@ module Apaka
                 if with_rock_release_prefix
                     rock_release_prefix + canonize(name)
                 else
-                    "rock-" + canonize(name)
+                    pkg_prefix_base + "-" + canonize(name)
                 end
             end
 
             # Get the current rock-release-based prefix for rock packages
             def rock_release_prefix(release_name = nil)
                 release_name ||= rock_release_name
-                "rock-#{release_name}-"
+                pkg_prefix_base + "-#{release_name}-"
             end
 
             # Get the current rock-release-based prefix for rock-(ruby) packages
@@ -803,7 +807,7 @@ module Apaka
                             end
                             @gem_creation_alternatives.each do |target|
                                 if !system(pkginfo.env, "rake", target, [ :out, :err ] => [ File.join(log_dir, logname), "a"], :close_others => true)
-                                    Packager.info "Debian: failed to create gem using target '#{target}'"
+                                    Packager.info "Debian: failed to create gem using target '#{target}' -- #{pkginfo.env}"
                                 else
                                     Packager.info "Debian: succeeded to create gem using target '#{target}'"
                                     gem_creation_success = true

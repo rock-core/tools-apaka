@@ -7,7 +7,7 @@ module Apaka
         # Directory for temporary data to
         # validate obs_packages
         WWW_ROOT = File.join("/var/www")
-        DEB_REPOSITORY=File.join(WWW_ROOT,"rock-reprepro")
+        DEB_REPOSITORY=File.join(WWW_ROOT,"apaka-releases")
         TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
 
         EXCLUDED_DIRS_PREFIX = ["**/.travis","build","tmp","debian","**/.autobuild","**/.orogen"]
@@ -24,7 +24,7 @@ module Apaka
         end
 
         def self.build_dir
-            File.join(root_dir, "build", "rock-packager")
+            File.join(root_dir, "build", "apaka-packager")
         end
         
         def self.cache_dir
@@ -43,7 +43,7 @@ module Apaka
             def initialize
                 @build_dir = Apaka::Packaging.build_dir
                 @log_dir = File.join(@build_dir, "logs")
-                @local_tmp_dir = File.join(@build_dir, ".rock_packager")
+                @local_tmp_dir = File.join(@build_dir, ".apaka_packager")
                 @deb_repository = DEB_REPOSITORY
                 @reprepro_lock = Mutex.new
             end
@@ -88,7 +88,7 @@ module Apaka
 
                     initialize_reprepro_conf_dir(release_prefix)
 
-                    # Check if Packages file exists: /var/www/rock-reprepro/local/dists/jessie/main/binary-amd64/Packages
+                    # Check if Packages file exists: /var/www/apaka-releases/local/dists/jessie/main/binary-amd64/Packages
                     # other initialize properly
                     packages_file = File.join(deb_repository,release_prefix,"dists",target_platform.distribution_release_name,"main",
                                               "binary-#{target_platform.architecture}","Packages")
