@@ -17,10 +17,11 @@ WORKDIR /home/docker
 ENV LANG de_DE.UTF-8
 ENV LANG de_DE:de
 ENV LC_ALL de_DE.UTF-8
-ENV GEM_HOME=/home/docker/apaka/.gems/ruby/2.3.0
+ENV GEM_HOME=/home/docker/.gems/ruby/2.3.0
 ENV PATH=$GEM_HOME/bin:$PATH
 
 RUN git clone https://github.com/2maz/apaka /home/docker/apaka
+RUN sed -i 's#gems_install_path.*#gems_install_path: /home/docker/.gems#' /home/docker/apaka/test/workspace/.autoproj/config.yml
 RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
