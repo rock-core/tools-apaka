@@ -1,6 +1,6 @@
 require 'rubygems/requirement'
 require 'set'
-require 'autoproj'
+require 'autoproj/package_managers/gem_manager'
 require 'apaka/packaging/packager'
 
 module Apaka
@@ -29,7 +29,7 @@ module Apaka
 
                 if $?.exitstatus != 0
                     Apaka::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
-                    gem_manager = ::Autoproj::PackageManagers::GemManager.new
+                    gem_manager = ::Autoproj::PackageManagers::GemManager.new(Autoproj.workspace)
                     if version_requirements.empty?
                         gem_manager.install([[gem_name]])
                     else
