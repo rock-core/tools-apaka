@@ -2,6 +2,7 @@ require 'erb'
 require 'optparse'
 require_relative 'packager'
 require_relative 'config'
+require 'open3'
 
 module Apaka
     module Packaging
@@ -23,6 +24,16 @@ module Apaka
                 end
             end
 
+            def self.ensure_webserver_running
+                msg, status = Open3.capture2("sudo service apache2 status")
+                if !status.success?
+                    msg, status = Open3.capture2e("sudo service apache2 start")
+                    if !status.success?
+                        raise RuntimeError, "Apaka::Packaging::Installer: failed to start webserver -- #{msg}"
+                    end
+                end
+            end
+
             # Create the webserver configuration required to host the reprepro repositories
             def self.create_webserver_config(document_root, packages_subfolder,
                                              release_prefix, target_path)
@@ -34,7 +45,7 @@ module Apaka
                     "    target_path: #{target_path}"
 
                 template_dir = File.expand_path(File.join(File.dirname(__FILE__),"templates","webserver"))
-                apache_config_template = File.join(template_dir, "jenkins.conf")
+                apache_config_template = File.join(template_dir, "apaka.conf")
 
                 template = ERB.new(File.read(apache_config_template), nil, "%<>")
                 rendered = template.result(binding)

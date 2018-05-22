@@ -32,6 +32,14 @@ class TestDebian < Minitest::Test
         @packager = Apaka::Packaging::Debian.new
         @packager.rock_release_name = "master"
         @packager.build_dir = File.join(Autoproj.root_dir, "build/test-rock-packager")
+        Dir.chdir(Autoproj.root_dir) do
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
+            msg, status = Open3.capture2(cmd)
+            if !status.success?
+                raise RuntimeError, "Failed to prepare system for apaka -- #{msg}"
+            end
+        end
+
     end
 
     def test_release_name

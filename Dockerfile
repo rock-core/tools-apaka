@@ -6,6 +6,7 @@ RUN apt-get update
 RUN apt-get install -y --force-yes ruby ruby-dev git locales tzdata
 RUN apt-get install -y --force-yes wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer
 RUN apt-file update
+RUN service apache2 start
 RUN echo "Europe/Berlin" > /etc/timezone; dpkg-reconfigure -f noninteractive tzdata
 RUN export LANGUAGE=de_DE.UTF-8; export LANG=de_DE.UTF-8; export LC_ALL=de_DE.UTF-8; locale-gen de_DE.UTF-8; DEBIAN_FRONTEND=noninteractive dpkg-reconfigure locales
 
