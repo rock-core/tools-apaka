@@ -54,7 +54,7 @@ packages:
     enforce_build: rgl
 rock_releases:
     master:
-        url: http://localhost/rock-reprepro/master/
+        url: http://localhost/apaka-releases/master/
     transterra:
-        url: http://localhost/rock-reprepro/transterra/
+        url: http://localhost/apaka-releases/transterra/
         depends_on: master, trusty
