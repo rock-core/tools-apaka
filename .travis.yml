@@ -15,6 +15,3 @@ before_install:
     - docker run --privileged -d 2maz/apaka tail -f /dev/null
     - docker ps -a
     - docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; rake test"
-
-script:
-    - rake test
