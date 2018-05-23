@@ -224,7 +224,18 @@ module Apaka
             def pkgmanifest_by_name(package_name)
                 if !@pkg_manifest_cache[package_name]
                     begin
-                        puts "Loading manifest for #{package_name}"
+                        if !Autoproj.workspace.all_present_packages.include?(package_name)
+                            Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: package '#{package_name}' is not present in workspace -- trying to load package"
+                            ps = Autoproj::PackageSelection.new
+                            ps.select(ps, package_name)
+                            Autoproj.workspace.load_packages(ps)
+                        end
+                    rescue Exception => e
+                        Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: failed to load package '#{package_name}' -- #{e}"
+                    end
+
+                    begin
+                        Packaging.info "Loading manifest for #{package_name}"
                         @pkg_manifest_cache[package_name] = Autoproj.manifest.load_package_manifest(package_name)
                     rescue Exception => e
                         @pkg_manifest_cache[package_name] = nil
