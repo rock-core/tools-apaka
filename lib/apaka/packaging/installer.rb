@@ -108,12 +108,18 @@ module Apaka
             # @param package_name [String] name of the package
             # @return [Bool] true if package is already installed, false otherwise
             def self.installed?(package_name)
-                if !system("dpkg", "-l", package_name, :close_others => true)
-                    Installer.info "'#{package_name}' is not yet installed"
-                    return false
+                msg, status = Open3.capture2("dpkg-query -W -f='${db:Status-Want}' #{package_name}")
+                if status.success?
+                    if msg == "install"
+                        Installer.info "'#{package_name}' is properly installed"
+                        return true
+                    else
+                        Installer.info "'#{package_name}' is not installed, dpkg-query status is #{msg}"
+                        return false
+                    end
                 else
-                    Installer.info "'#{package_name}' is already installed"
-                    return true
+                    Installer.info "'#{package_name}' is not installed"
+                    return false
                 end
             end
 
