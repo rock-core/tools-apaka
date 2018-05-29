@@ -35,13 +35,13 @@ module Apaka
             end
 
             # Create the webserver configuration required to host the reprepro repositories
-            def self.create_webserver_config(document_root, packages_subfolder,
-                                             release_prefix, target_path)
+            def self.create_webserver_config(document_root,
+                                             packages_subfolder,
+                                             target_path)
 
                 Installer.info "Creating webserver configuration: \n" \
                     "    document root: #{document_root}\n" \
                     "    packages_subfolder: #{packages_subfolder}\n" \
-                    "    release_prefix: #{release_prefix}\n" \
                     "    target_path: #{target_path}"
 
                 template_dir = File.expand_path(File.join(File.dirname(__FILE__),"templates","webserver"))
@@ -60,8 +60,8 @@ module Apaka
             # @param config_path [String]
             # @param release_prefix [String]
             # @return [String] path the generated and installed configuration
-            def self.install_webserver_config(config_path, release_prefix)
-                target_config_file = "100_reprepro-#{release_prefix}.conf"
+            def self.install_webserver_config(config_path)
+                target_config_file = "100_apaka-reprepro.conf"
                 apache_config = File.join("/etc","apache2","sites-available",target_config_file)
                 system("sudo", "cp", config_path, apache_config, :close_others => true)
                 if $?.exitstatus == 0
