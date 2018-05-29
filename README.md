@@ -13,6 +13,7 @@ Clone the repository into an existing autoproj installation
 ```
 call
 ```
+    aup apaka
     amake apaka
 ```
 
