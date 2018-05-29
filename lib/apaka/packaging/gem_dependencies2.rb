@@ -7,7 +7,7 @@ require 'open3'
 module Apaka
     module Packaging
         class GemDependencies2
-            # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
+            # Resolve the dependency of a gem using `gem dependency <gem_name>`
             # This will only work if the local installation is update to date
             # regarding the gems
             # return [:deps => , :version =>  ]

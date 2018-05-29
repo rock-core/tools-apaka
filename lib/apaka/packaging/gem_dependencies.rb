@@ -6,7 +6,7 @@ require 'apaka/packaging/packager'
 module Apaka
     module Packaging
         class GemDependencies
-            # Resolve the dependency of a gem using # `gem dependency #{gem_name}`
+            # Resolve the dependency of a gem using `gem dependency <gem_name>`
             # This will only work if the local installation is update to date
             # regarding the gems
             # return [:deps => , :version =>  ]

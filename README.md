@@ -2,26 +2,91 @@
 
 * https://github.com/rock-core/apaka
 
-## Available Scripts
+Apaka allows you to create Debian packages for a given autoproj based workspace.
+A description of the general architecture is part for the following publication:
 
- * deb_package
- * deb_package-available
- * deb_local
- * gem_dependencies
+## Installation
 
-## Debian Packaging
+Clone the repository into an existing autoproj installation
+```
+    git clone https://github.com/rock-core/apaka
+```
+call
+```
+    amake apaka
+```
 
-`deb_local` provides a way to generate debian packages from autoproj information
+Start a new shell and source the env.sh.
+
+
+## Creating an new Rock release with Apaka
+
+The command line tool `deb_local` provides a way to generate debian packages from autoproj information
 for use with the rock_osdeps package set.
 
 When creating a new release, the reprepro repository and build environment need
-to be prepared:
+to be prepared first, i.e. required dependencies will be installed, including among others pbuilder, cowdancer, and apache2.
+A new site will be added to your apache2 configuration under /etc/apache/sites-enabled/100_apaka-reprepro.conf
 
-    deb_local --prepare --architecture amd64 --distribution xenial --release-name master-17.09
+```
+    deb_local --prepare
+```
 
-Creating a new rock_osdeps release requires the packages to be built using:
+Creating a new Rock release requires some adaption to existing packages, so that an overlay can be applied, here using the
+optional `--patch-dir`. The current recipes for Rock can be found in [deb_patches](https://github.com/2maz/deb_patches).
+To build all packages that are bootstrapped with a currently active autoproj manifest:
 
-    deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-17.09 <packages, package sets>
+```
+    deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-18.01
+```
+
+To build only a particular package or package_set add it as parameter, e.g., here for base/cmake:
+
+```
+    deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-18.01 base/cmake
+```
+
+The package respository can be browsed under:
+```
+    http://<hostname>/apaka-releases
+```
+
+As a final step, the yaml descriptions known as *.osdeps file can be generated and
+integrated into a packages set such as [rock-osdeps](https://github.com/rock-core/rock-osdeps)
+
+    dep_package --architectures amd64 --distributions xenial --release-name master-18.01 --update-osdeps-lists <rock_osdeps yaml dir>
+
+
+### Examples:
+
+1. Deregistration of a package in reprepro
+
+    `deb_local --deregister --distribution xenial --release-name master-18.01 *orocos.rb*`
+
+1. Registration of a debian package using the dsc file, which needs to be in the same folder as the deb and orig.tar.gz
+
+    `deb_local --register --distribution xenial --release-name master-18.01 build/rock-packager/rock-master-18.01-ruby-tools-orocos.rb/xenial-amd64/rock-master-18.01-ruby-tools-orocos.rb_0.1.0-1~xenial.dsc`
+
+1. Preparing for building
+
+    `deb_local --architecture amd64 --distribution xenial --release-name master-18.01 --prepare`
+
+1. Building a set of packages
+
+    `deb_local --architecture amd64 --distribution xenial --release-name master-18.01 control/visp`
+
+    This includes creating the .dsc file and orig.tar.gz using deb_package,
+    building using cowbuilder and registering the package in reprepro.
+
+1. Generating .dsc source package description and orig.tar.gz
+
+    deb_package --architectures amd64 --distributions xenial --release-name master-18.01 --package tools/service_discovery
+
+1. Generate osdeps description file for use in rock_osdeps package set
+
+    deb_package --update-osdeps-lists rock.core --release-name master-18.01
+
+### Meta package support
 
 If autoproj meta packages should be represented as debian meta packages, add
 `--build-meta`. This will only create meta packages of packages it finds on
@@ -29,40 +94,117 @@ the commandline, not any that may be referenced through package sets or
 similar. The resulting packages are automatically added to the local reprepro
 repository.
 
-As a final step, the yaml descriptions for rock_osdeps need to be generated and
-integrated into rock_osdeps:
-
-    dep_package --architectures amd64 --distributions xenial --release-name master-17.11 --update-osedps-lists <rock_osdeps yaml dir>
 
 
-### Examples:
 
-1. Deregistration of a package in reprepro
+## How to use an Apaka release in combination with Rock
+Either start with a fresh bootstrap:
 
-    `deb_local --deregister --distribution xenial --release-name master-17.04 *orocos.rb*`
-    
-1. Registration of a debian package using the dsc file, which needs to be in the same folder as the deb and orig.tar.gz
+```
+    sudo apt install ruby ruby-dev wget
+    wget http://www.rock-robotics.org/autoproj...
+    ruby autoproj_bootstrap
+```
+If you want to use an already defined build configuration then replace the last step with something like:
 
-    `deb_local --register --distribution xenial --release-name master-17.04 build/rock-packager/rock-master-17.04-ruby-tools-orocos.rb/xenial-amd64/rock-master-17.04-ruby-tools-orocos.rb_0.1.0-1~xenial.dsc`
-    
-1. Preparing for building
+```
+    ruby autoproj_bootstrap git git://github.com/yourownproject/yours...
+```
+or remove the install folder in order to get rid of old packages.
 
-    `deb_local --architecture amd64 --distribution xenial --release-name master-17.09 --prepare`
-    
-1. Building a set of packages
+If a release has been created with default settings all its Debian Packages
+install their files into /opt/rock/release-name and now to activate debian
+packages for your autoproj workspace:
 
-    `deb_local --architecture amd64 --distribution xenial --release-name master-17.09 control/visp`
-    
-    This includes creating the .dsc file and orig.tar.gz using deb_package,
-    building using cowbuilder and registering the package in reprepro.
-    
-1. Generating .dsc source package description and orig.tar.gz
+adapt the autoproj/manifest to contain only the packages in the layout that you require as source packages. However, the layout section should not be empty, e.g. to bootstrap all precompiled packages of the rock-core package set add:
 
-    deb_package --architectures amd64 --distributions xenial --release-name master-17.11 --package tools/service_discovery
-    
-1. Generate osdeps description file for use in rock_osdeps package set
+```
+layout:
+- rock.core
 
-    deb_package --update-osdeps-lists rock.core --release-name master-17.11
+```
+
+After the package_sets that you would require for a normal bootstrap, you require a package set that contains the overrides for
+your release.
+You can find an example at http://github.com/2maz/rock-osdeps
+The package set has to contains the required osdeps definition and setup of environment variables:
+Hence, a minimal package set could look like the following:
+
+```
+    package_sets:
+    - github: rock-core/package_set
+    - github: rock-core/rock-osdeps
+    layout:
+    - rock.core
+```
+
+After adding the package set use autoproj as usual:
+
+```
+    source env.sh
+    autoproj update
+```
+
+Follow the questions for configuration and select your prepared release for the debian packages.
+Finally start a new shell, reload the env.sh and call amake.
+This should finall install all required Debian packages and remaining required packages, which might have not been packaged.
+
+### Features
+
+* multiple autoproj workspace can reuse the existing set of Rock Debian packages
+* multiple releases of the Rock Debian packages can be installed in parallel, the target folder is typically /opt/rock/release-name
+* in order to enforce the usage of a source package in a workspace create a file autoproj/deb_blacklist.yml containing the name of the particular package. This will disable automatically the use of this debian package and all that depend on that package, e.g., to disable base/types and all packages that start with simulation/ create a deb_blacklist.yml with the following content:
+
+```
+    ---
+    - base/types
+    - simulation/*
+```
+
+You will be informed about the disabled packages:
+
+Triggered regeneration of rock-osdeps.osdeps: /opt/workspace/rock_autoproj_v2/.autoproj/remotes git_git_github_com_2maz_rock_osdeps_git/lib/../rock-osdeps.osdeps, blacklisted packages: ["base/types"]
+Disabling osdeps: ["base/types", "tools/service_discovery", "tools/pocolog_cpp", ...
+
+### Known Issues
+1.  If you get a message like
+    ```
+        error loading "/opt/rock/master-18.01/lib/ruby/vendor_ruby/hoe/yard.rb": yard is not part of the bundle. Add it to Gemfile.. skipping...
+    ```
+
+    Then add the following to install/gems/Gemfile (in the corresponding autoproj installation)
+    ```
+       gem 'yard'
+    ```
+
+
+
+## Autogenerate the API Documentation
+You can call
+
+```
+   rake doc
+```
+
+to autogenerate the documentation, which can then
+be found in a doc/ subfolder.
+
+## Running the test suite
+To run the test suite you can either call
+```
+    rake test
+```
+or
+```
+    ruby -Ilib test/test_packaging.rb
+```
+To run only individual tests, use the -n option, e.g.,
+for the test_canonize
+```
+    ruby -Ilib test/test_packaging.rb -n test_canonize
+```
+
+## Script interface description
 
 ### deb_package
 
@@ -178,7 +320,7 @@ default | Build all packages in SELECTION
 `--deregister` | Deregister/remove a package. SELECTION also allows wildcards: "*".
 
 #### General options
-Option | Description
+Option | Descriptioncopyright
 -------|------------
 `--architecture NAME` | Target architecture to build for
 `--distribution NAME` | Target distribution release to build for, e.g. trusty
@@ -204,86 +346,23 @@ Option | Description
 `--no-deps` | Ignore building dependencies
 
 
-## Creating an Apaka release
-
-
-## How to use an Apaka release
-Either start with a fresh bootstrap:
+## References and Publications
+Please refer to the following publication when citing Apaka:
 
 ```
-    sudo apt install ruby ruby-dev wget
-    wget http://www.rock-robotics.org/autoproj...
-    ruby autoproj_bootstrap
-```
-If you want to use an already defined build configuration then replace the last step with something like:
-
-```
-    ruby autoproj_bootstrap git git://github.com/yourownproject/yours...
-```
-or remove the install folder in order to get rid of old packages.
-
-If a release has been created with default settings all its Debian Packages
-install their files into /opt/rock/release-name and now to activate debian
-packages for your autoproj workspace:
-
-adapt the autoproj/manifest to contain only the packages in the layout that you require as source packages. However, the layout section should not be empty, e.g. to bootstrap all precompiled packages of the rock-core package set add:
-
-```
-layout: 
-- rock.core 
-
-```
-After the package_sets that you would require for a normal bootstrap, you require a package set that contains the overrides for 
-your release.
-You can find an example at http://github.com/2maz/rock-osdeps
-The package set has to contains the required osdeps definition and setup of environment variables: 
-Hence, a minimal package set could look like the following:
-
-```
-    package_sets:
-    - github: rock-core/package_set 
-    - github: 2maz/rock-osdeps 
-    layout: 
-    - rock.core 
+    Binary software packaging for the Robot Construction Kit
+    Thomas M. Roehr, Pierre Willenbrock
+    In Proceedings of the 14th International Symposium on Artificial Intelligence, (iSAIRAS-2018), 04.6.-06.6.2018, Madrid, ESA, Jun/2018.
 ```
 
-After adding the package set use autoproj as usual:
+## Merge Request and Issue Tracking
 
-```
-    source env.sh
-    autoproj update 
-```
+Github will be used for pull requests and issue tracking: https://github.com/rock-core/apaka
 
-Follow the questions for configuration and select your prepared release for the debian packages.
-Finally start a new shell, reload the env.sh and call amake.
-This should finall install all required Debian packages and remaining required packages, which might have not been packaged.
+## License
 
-### Features
+This software is distributed under the [New/3-clause BSD license](https://opensource.org/licenses/BSD-3-Clause)
 
-* multiple autoproj workspace can reuse the existing set of Rock Debian packages
-* multiple releases of the Rock Debian packages can be installed in parallel, the target folder is typically /opt/rock/release-name
-* in order to enforce the usage of a source package in a workspace create a file autoproj/deb_blacklist.yml containing the name of the particular package. This will disable automatically the use of this debian package and all that depend on that package, e.g., to disable base/types and all packages that start with simulation/ create a deb_blacklist.yml with the following content:
+## Copyright
 
-```
-    ---
-    - base/types 
-    - simulation/*
-```
-
-You will be informed about the disabled packages:
-
-Triggered regeneration of rock-osdeps.osdeps: /opt/workspace/rock_autoproj_v2/.autoproj/remotes git_git_github_com_2maz_rock_osdeps_git/lib/../rock-osdeps.osdeps, blacklisted packages: ["base/types"]
-Disabling osdeps: ["base/types", "tools/service_discovery", "tools/pocolog_cpp", ...
-
-### Known Issues
-1.  If you get a message like 
-    ```
-        error loading "/opt/rock/master-17.11/lib/ruby/vendor_ruby/hoe/yard.rb": yard is not part of the bundle. Add it to Gemfile.. skipping... 
-    ```
-
-    Then add the following to install/gems/Gemfile (in the corresponding autoproj installation)
-    ```
-       gem 'yard'
-    ```
-
-
+(c) Copyright 2014-2018, DFKI GmbH Robotics Innovation Center

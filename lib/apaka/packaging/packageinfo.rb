@@ -58,7 +58,8 @@ module Apaka
 
             # environment for using external utilities on an imported
             # version of this package
-            # {"VARIABLE" => "VALUE"}
+            # @example
+            #     {"VARIABLE" => "VALUE"}
             def env
                 raise "#{self.class} needs to overwrite env"
             end
