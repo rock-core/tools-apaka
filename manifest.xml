@@ -1,6 +1,6 @@
 <package>
   <description brief="Automage packaging for autoproj">
-  This Ruby library perform an automated packaging for repositories, which have been defined withing autoproj
+  This Ruby library performs automated packaging for repositories, which have been defined with the help of autoproj
   </description>
   <author>Thomas Roehr/thomas.roehr@dfki.de</author>
   <author>Pierre Willenbrock/pierre.willenbrock@dfki.de</author>
@@ -9,7 +9,7 @@
   <copyright>
       DFKI/robotik@dfki.de
   </copyright>
-  <license>LGPLv3 or later</license>
+  <license>BSD</license>
   <depend package="autoproj" />
   <depend package="utilrb" />
 </package>

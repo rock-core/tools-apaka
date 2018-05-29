@@ -10,10 +10,10 @@ Gem::Specification.new do |s|
     s.version = Apaka::VERSION
     s.authors = ["Thomas Roehr", "Pierre Willenbrock", "Sylvain Joyeux"]
     s.email = "thomas.roehr@dfki.de"
-    s.summary = "Automated package creating based on autoproj"
+    s.summary = "Automated package creation based on autoproj"
     s.description = "autoproj is a manager for sets of software packages. It allows the user to import and build packages from source. apaka build upon autoproj's functionality and enables the creation of packages: currently only Debian package are supported"
     s.homepage = "http://github.com/rock-core/apapa"
-    s.licenses = ["BSD"]
+    s.licenses = ["BSD-3-Clause"]
 
     s.required_ruby_version = '>= 2.1.0'
     s.bindir = 'bin'
