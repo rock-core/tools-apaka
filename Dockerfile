@@ -27,3 +27,4 @@ RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
 RUN gem install autoproj
+RUN gem install yard
