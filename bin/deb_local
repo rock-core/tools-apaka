@@ -377,7 +377,7 @@ while pkgs_added
             next
         end
 
-        if ancestor_blacklist_patterns.select do |pat|
+        if ancestor_blacklist_patterns.any? do |pat|
                if pat[-2..-1] == "/*"
                    pkginfo.name =~ /^#{pat[0..-3]}\//
                else

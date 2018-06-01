@@ -250,11 +250,7 @@ module Autoproj
                     pkg_name = pkginfo
                     release_name, is_osdep = native_dependency_name(pkg_name, selected_platform)
                     Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                    if is_osdep
-                        dependency_debian_name = release_name
-                    else
-                        dependency_debian_name = debian_ruby_name(pkg_name)
-                    end
+                    dependency_debian_name = release_name
                 else
                     pkg_name = pkginfo.name
                     # Handling of rock packages
@@ -1663,11 +1659,7 @@ module Autoproj
                                         pkg_name = $1
                                         release_name, is_osdep = native_dependency_name(pkg_name)
                                         Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                                        if is_osdep
-                                            dep.replace(release_name)
-                                        else
-                                            dep.replace(debian_ruby_name(pkg_name))
-                                        end
+                                        dep.replace(release_name)
                                     end
                                     if !recursive_deps.nil?
                                         dep =~ /^(\S+)/
@@ -1695,11 +1687,7 @@ module Autoproj
                                     pkg_name = $1
                                     release_name, is_osdep = native_dependency_name(pkg_name)
                                     Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                                    if is_osdep
-                                        bdep.replace(release_name)
-                                    else
-                                        bdep.replace(debian_ruby_name(pkg_name))
-                                    end
+                                    bdep.replace(release_name)
                                 end
                                 if !recursive_deps.nil?
                                     bdep =~ /^(\S+)/
