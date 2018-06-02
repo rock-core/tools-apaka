@@ -255,11 +255,7 @@ module Apaka
                     pkg_name = pkginfo
                     release_name, is_osdep = native_dependency_name(pkg_name, selected_platform)
                     Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                    if is_osdep
-                        dependency_debian_name = release_name
-                    else
-                        dependency_debian_name = debian_ruby_name(pkg_name)
-                    end
+                    dependency_debian_name = release_name
                 else
                     pkg_name = pkginfo.name
                     # Handling of rock packages
@@ -1685,11 +1681,7 @@ module Apaka
                                         pkg_name = $1
                                         release_name, is_osdep = native_dependency_name(pkg_name)
                                         Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                                        if is_osdep
-                                            dep.replace(release_name)
-                                        else
-                                            dep.replace(debian_ruby_name(pkg_name))
-                                        end
+                                        dep.replace(release_name)
                                     end
                                     if !recursive_deps.nil?
                                         dep =~ /^(\S+)/
@@ -1717,11 +1709,7 @@ module Apaka
                                     pkg_name = $1
                                     release_name, is_osdep = native_dependency_name(pkg_name)
                                     Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                                    if is_osdep
-                                        bdep.replace(release_name)
-                                    else
-                                        bdep.replace(debian_ruby_name(pkg_name))
-                                    end
+                                    bdep.replace(release_name)
                                 end
                                 if !recursive_deps.nil?
                                     bdep =~ /^(\S+)/
@@ -2010,6 +1998,7 @@ END
                     envsh += "export TYPELIB_CXX_LOADER=castxml\n"
                 end
                 envsh += "export DEB_CPPFLAGS_APPEND=-std=c++11\n"
+                envsh += "export npm_config_cache=/tmp/npm\n"
                 envsh += "rock_library_dirs=#{rock_library_dirs}\n"
                 envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
