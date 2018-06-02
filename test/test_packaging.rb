@@ -191,6 +191,13 @@ class TestTargetPlatform < Minitest::Test
 
         @rock_platforms = Array.new
         @rock_platforms << Apaka::Packaging::TargetPlatform.new("master","amd64")
+        Dir.chdir(Autoproj.root_dir) do
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
+            msg, status = Open3.capture2(cmd)
+            if !status.success?
+                raise RuntimeError, "Failed to prepare system for apaka -- #{msg}"
+            end
+        end
     end
 
     def test_distribution

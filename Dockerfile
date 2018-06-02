@@ -2,9 +2,10 @@ FROM ubuntu:16.04
 
 MAINTAINER 2maz "https://github.com/2maz"
 
-RUN apt-get update
-RUN apt-get install -y --force-yes ruby ruby-dev git locales tzdata
-RUN apt-get install -y --force-yes wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer
+RUN apt update
+RUN apt upgrade -y
+RUN apt install -y ruby ruby-dev git locales tzdata vim
+RUN apt install -y wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer
 RUN apt-file update
 RUN service apache2 start
 RUN echo "Europe/Berlin" > /etc/timezone; dpkg-reconfigure -f noninteractive tzdata
