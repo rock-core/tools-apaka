@@ -94,7 +94,11 @@ module Apaka
                                               "binary-#{target_platform.architecture}","Packages")
                     if !File.exist?(packages_file)
                         reprepro_dir = File.join(deb_repository, release_prefix)
-                        logfile = File.join(log_dir,target_platform.to_s("-"),"reprepro-init.log")
+                        dirname = File.join(log_dir,target_platform.to_s("-"))
+                        if !File.directory?(dirname)
+                            FileUtils.mkdir_p dirname
+                        end
+                        logfile = File.join(dirname,"reprepro-init.log")
                         cmd = [reprepro_bin]
                         cmd << "-V" << "-b" << reprepro_dir <<
                             "export" << target_platform.distribution_release_name
