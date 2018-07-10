@@ -363,7 +363,7 @@ module Apaka
                 non_native_dependencies = pkginfo.dependencies[:nonnative].dup
                 if target_platform.distribution_release_name
                     # CASTXML vs. GCCXML in typelib
-                    if pkginfo.name =~ /typelib/
+                    if pkginfo.name =~ /typelib$/
                         # add/remove the optional dependencies on the
                         # rock-package depending on the target platform
                         # there are typelib versions with and without the
@@ -372,11 +372,14 @@ module Apaka
                         deps_rock_pkginfos.delete_if do |pkginfo|
                             pkginfo.name == "castxml" || pkginfo.name == "gccxml"
                         end
-                        if ["xenial"].include?(target_platform.distribution_release_name)
+
+                        if target_platform.contains("castxml")
                             deps_osdeps_packages.push("castxml")
-                        else
+                        elsif target_platform.contains("gccxml")
                             #todo: these need to checked on the other platforms
                             deps_osdeps_packages.push("gccxml")
+                        else
+                            raise ArgumentError, "TargetPlatform: #{target_platform} does neither support castxml nor gccml - cannot build typelib"
                         end
                     end
 
@@ -1994,8 +1997,16 @@ END
                 envsh += "env_setup += #{cmake_prefix_path}\n"
                 envsh += "env_setup += #{orogen_plugin_path}\n"
 
-                if ["xenial"].include?(target_platform.distribution_release_name)
-                    envsh += "export TYPELIB_CXX_LOADER=castxml\n"
+                typelib_cxx_loader = nil
+                if target_platform.contains("castxml")
+                    typelib_cxx_loader = "castxml"
+                elsif target_platform.contains("gccxml")
+                    typelib_cxx_loader = "gccxml"
+                else
+                    raise ArgumentError, "TargetPlatform: #{target_platform} does neither support castxml nor gccml - cannot build typelib"
+                end
+                if typelib_cxx_loader
+                    envsh += "export TYPELIB_CXX_LOADER=#{typelib_cxx_loader}\n"
                 end
                 envsh += "export DEB_CPPFLAGS_APPEND=-std=c++11\n"
                 envsh += "export npm_config_cache=/tmp/npm\n"
