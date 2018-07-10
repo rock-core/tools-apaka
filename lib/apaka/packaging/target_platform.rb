@@ -33,8 +33,8 @@ module Apaka
                 [ distribution_release_name, architecture ].hash
             end
 
-            def to_s
-                "#{distribution_release_name}/#{architecture}"
+	    def to_s(separator = "/")
+                "#{distribution_release_name}#{separator}#{architecture}"
             end
 
             # Autodetect the currently active architecture using 'dpkg'
