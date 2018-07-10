@@ -1,6 +1,6 @@
 # apaka: Automated PAcKaging for Autoproj
 
-* https://github.com/rock-core/apaka
+* https://github.com/rock-core/tools-apaka
 
 Apaka allows you to create Debian packages for a given autoproj based workspace.
 A description of the general architecture is part for the following publication:
@@ -9,7 +9,7 @@ A description of the general architecture is part for the following publication:
 
 Clone the repository into an existing autoproj installation
 ```
-    git clone https://github.com/rock-core/apaka
+    git clone https://github.com/rock-core/tools-apaka
 ```
 call
 ```
@@ -358,7 +358,7 @@ Please refer to the following publication when citing Apaka:
 
 ## Merge Request and Issue Tracking
 
-Github will be used for pull requests and issue tracking: https://github.com/rock-core/apaka
+Github will be used for pull requests and issue tracking: https://github.com/rock-core/tools-apaka
 
 ## License
 
