@@ -1,4 +1,6 @@
 # apaka: Automated PAcKaging for Autoproj
+[![Build Status](https://travis-ci.org/rock-core/tools-apaka.svg?brach=master)](https:///travis-ci.org/rock-core/tools-apaka)
+
 
 * https://github.com/rock-core/tools-apaka
 
