@@ -24,6 +24,15 @@ distributions:
     yakkety:
         type: ubuntu,debian
         labels: 16.10,yakkety,yak,default
+    zesty:
+        type: ubuntu,debian
+        labels: 17.04,zesty,zapus,default
+    artful:
+        type: ubuntu,debian
+        labels: 17.10,artful,aardvark,default
+    bionic:
+        type: ubuntu,debian
+        labels: 18.04,bionic,beaver,default
     squeeze:
         type: debian
         labels: 6.0,squeeze,default
@@ -34,15 +43,20 @@ distributions:
         type: debian
         labels: 8.1,jessie,default
         ruby_version: ruby21
+    stretch:
+        type: debian
+        labels: 9.4,stretch,default
+        ruby_version: ruby23
     sid:
         type: debian
-        labels: 9.0,sid,default
+        labels: 10.0,sid,default
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial,jessie
-    i386:  trusty,xenial,jessie
-    armel: jessie
-    armhf: jessie
+    amd64: trusty,xenial,jessie,stretch,bionic
+    i386:  trusty,xenial,jessie,stretch,bionic
+    armel: jessie,stretch
+    armhf: jessie,stretch
+    arm64: xenial,bionic
 packages:
     aliases:
         tools/rtt: rtt
@@ -50,6 +64,7 @@ packages:
         tools/typelib: typelib
         tools/utilrb: utilrb
         tools/utilrb-ext: utilrb-ext
+        tools/orogen: orogen
     optional: llvm,clang
     enforce_build: rgl
 rock_releases:
