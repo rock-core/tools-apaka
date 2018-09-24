@@ -99,6 +99,11 @@ module Apaka
                 if @pkginfo_cache.has_key?(pkg.name)
                     return @pkginfo_cache[pkg.name]
                 end
+                if pkg.failed?
+                    raise ArgumentError, "Apaka::Packaging::Autoproj2Adaptor: cannot retrieve" \
+                        " package information for '#{pkg.name}' -- " \
+                        " package is in failed state."
+                end
                 #first, we need to make sure the package is imported. otherwise,
                 #there is no useful manifest, thus no dependencies,
                 #latest_commit_time does not work, and more.
@@ -393,27 +398,32 @@ module Apaka
 
                 # Add the ruby requirements for the current rock selection
                 #todo: this used to work an all_packages without the already installed packages
+                all_pkginfos = []
+                failed_pkgs = []
                 all_packages.each do |pkg|
-                    deps = dependencies(pkg, with_rock_release_prefix)
-                    # Update global list
-                    extra_osdeps.concat deps[:osdeps]
-                    extra_gems.concat deps[:extra_gems]
+                    begin
+                        deps = dependencies(pkg, with_rock_release_prefix)
+                        # Update global list
+                        extra_osdeps.concat deps[:osdeps]
+                        extra_gems.concat deps[:extra_gems]
 
-                    deps[:nonnative].each do |dep, version|
-                        gem_versions[dep] ||= Array.new
-                        if version
-                            gem_versions[dep] << version
+                        deps[:nonnative].each do |dep, version|
+                            gem_versions[dep] ||= Array.new
+                            if version
+                                gem_versions[dep] << version
+                            end
                         end
+                        all_pkginfos << pkginfo_from_pkg(pkg)
+                    rescue Exception => e
+                        Packager.warn "Apaka::Packaging::Autoproj2Adaptor: failed to process package " \
+                            " '#{pkg.name}' -- #{e.message}"
+                        failed_pkgs << pkg.name
                     end
                 end
 
                 required_gems = all_required_gems(gem_versions)
-                
-                all_pkginfos = all_packages.map do |pkg|
-                    pkginfo_from_pkg(pkg)
-                end
 
-                {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems }.merge required_gems
+                {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_pkgs }.merge required_gems
             end
 
             # resolve the required gems of a list of gems and their versions
