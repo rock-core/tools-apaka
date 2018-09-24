@@ -192,6 +192,32 @@ module Apaka
                 return false
             end
 
+            # Retrieve the section of this particular package
+            # by querying information from apt cache
+            #
+            # return content of named field
+            def self.aptShow(package, field_name)
+                msg, status = Open3.capture2e("apt-cache show #{package}")
+                if status.success?
+                    msg.split("\n").each do |line|
+                        if line =~ /#{field_name}: (.*)/
+                            return $1.strip()
+                        end
+                    end
+                end
+                return ""
+            end
+
+            # Retrieve content of section field from apt
+            def self.aptShowSection(package)
+                return aptShow(package, "Section");
+            end
+
+            # Check is package is a ruby package
+            def self.isRuby(package)
+                return "universe/ruby" == aptShow(package, "Section")
+            end
+
             # Check if the given release contains
             # a package of the given name
             #
@@ -267,11 +293,23 @@ module Apaka
                         if system("grep -i -A1 -m1 -e '[0-9]\\{4\\}-[0-9]\\{2\\}-[0-9]\\{2\\}' #{outfile} | grep -i 'published' > /dev/null 2>&1", :close_others => true)
                             result = true
                         end
+                        if Packaging::Config.packages_enforce_build.include?('gems')
+                            if TargetPlatform::isRuby(package)
+                                Apaka::Packaging.info "TargetPlatform::contains returns false -- since configuration is set to forced manual build for all ruby packages: #{package}"
+                                result = false
+                            end
+                        end
                     elsif TargetPlatform::isDebian(release_name)
                         # If file contains a response, then check for
                         # 'No such package'
                         if !system("grep", "-i", "No such package", :in => outfile, [:out, :err] => "/dev/null", :close_others => true) && system("grep", "-i", "[a-zA-z]", :in => outfile, [:out, :err] => "/dev/null", :close_others => true)
                             result = true
+                        end
+                        if Packaging::Config.packages_enforce_build.include?('gems')
+                            if TargetPlatform::isRuby(package)
+                                Apaka::Packaging.info "TargetPlatform::contains returns false -- since configuration is set to forced manual build for all ruby packages: #{package}"
+                                result = false
+                            end
                         end
                     elsif TargetPlatform::isRock(release_name)
                         if !system("grep", "-i", " 404", :in => errorfile, [:out, :err] => "/dev/null", :close_others => true)

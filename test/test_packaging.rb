@@ -290,4 +290,14 @@ class TestTargetPlatform < Minitest::Test
 	    end
         end
     end
+
+    def test_apt_show
+        package_type = Apaka::Packaging::TargetPlatform.aptShow("yard","Section")
+        expected_package_type = "universe/ruby"
+        assert(expected_package_type == package_type , "Yard" \
+               " correctly extracted section information: expected '#{expected_package_type}', was '" + package_type + "'")
+
+        assert(Apaka::Packaging::TargetPlatform::isRuby("yard"), "Yard" \
+               " correctly identified as ruby package")
+    end
 end
