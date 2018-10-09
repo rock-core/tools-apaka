@@ -26,6 +26,7 @@ module Apaka
             TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
             TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), File.dirname(__FILE__))
             DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
+            DEBHELPER_DEFAULT_COMPAT_LEVEL = 9
 
             attr_reader :existing_debian_directories
 
@@ -579,6 +580,11 @@ module Apaka
                         Packager.warn "Overlay patch applied to debian folder of #{pkginfo.name}"
                     end
                 end
+
+                ########################
+                # debian/compat
+                ########################
+		set_compat_level(DEBHELPER_DEFAULT_COMPAT_LEVEL, File.join(pkginfo.srcdir,"debian/compat"))
             end
 
             def generate_debian_dir_meta(name, depends, options)
@@ -1875,6 +1881,11 @@ END
 
                             #FileUtils.cp "debian/changelog","/tmp/test-changelog"
                         end
+
+                        ########################
+                        # debian/compat
+                        ########################
+                        set_compat_level(DEBHELPER_DEFAULT_COMPAT_LEVEL, "debian/compat")
                     end
 
 
@@ -1999,6 +2010,15 @@ END
                 envsh += "rock_library_dirs=#{rock_library_dirs}\n"
                 envsh += "rock_install_dir=#{rock_install_directory}"
                 envsh
+            end
+
+            def set_compat_level(compatlevel = DEBHELPER_DEFAULT_COMPAT_LEVEL, compatfile = "debian/compat")
+                if !File.exist?(compatfile)
+                    raise ArgumentError, "Apaka::Packaging::Debian::set_compat_level: could not find file '#{compatfile}', working directory is: '#{Dir.pwd}'"
+                end
+                existing_compatlevel = `cat #{compatfile}`.strip
+                Packager.info "Setting debian compat level to: #{compatlevel} (previous setting was #{existing_compatlevel})"
+                `echo #{compatlevel} > #{compatfile}`
             end
         end #end Debian
     end
