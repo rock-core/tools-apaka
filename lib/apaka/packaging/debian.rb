@@ -23,8 +23,8 @@ module Apaka
         # * http://www.debian.org/doc/manuals/maint-guide/dreq.en.html
         # * http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml
         class Debian < Packager
-            TEMPLATES = File.expand_path(File.join("templates", "debian"), File.dirname(__FILE__))
-            TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), File.dirname(__FILE__))
+            TEMPLATES = File.expand_path(File.join("templates", "debian"), __dir__)
+            TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), __dir__)
             DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
             DEBHELPER_DEFAULT_COMPAT_LEVEL = 9
 
