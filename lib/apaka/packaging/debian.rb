@@ -883,6 +883,7 @@ module Apaka
 
                     # Check first if actual source contains newer information than existing
                     # orig.tar.gz -- only then we create a new debian package
+                    package_with_update = false
                     if package_updated?(pkginfo)
 
                         Packager.warn "Package: #{pkginfo.name} requires update #{pkginfo.srcdir}"
@@ -890,7 +891,14 @@ module Apaka
                         if !tar_gzip(File.basename(pkginfo.srcdir), tarball, pkginfo.latest_commit_time, distribution)
                             raise RuntimeError, "Debian: #{pkginfo.name} failed to create archive"
                         end
+                        package_with_update = true
+                    end
 
+                    dsc_files = reprepro_registered_files(versioned_name(pkginfo, distribution),
+                                              rock_release_name,
+                                              "*#{target_platform.distribution_release_name}.dsc")
+
+                    if package_with_update || dsc_files.empty?
                         # Generate the debian directory
                         generate_debian_dir(pkginfo, pkginfo.srcdir, options)
 
@@ -965,6 +973,7 @@ module Apaka
 
                     # Check first if actual source contains newer information than existing
                     # orig.tar.gz -- only then we create a new debian package
+                    package_with_update = false
                     if package_updated?(pkginfo)
 
                         Packager.warn "Package: #{pkginfo.name} requires update #{pkginfo.srcdir}"
@@ -973,7 +982,14 @@ module Apaka
                         if !tar_gzip(source_package_dir, tarball, pkginfo.latest_commit_time)
                             raise RuntimeError, "Package: failed to tar directory #{source_package_dir}"
                         end
+                        package_with_update = true
+                    end
 
+                    dsc_files = reprepro_registered_files(versioned_name(pkginfo, distribution),
+                                              rock_release_name,
+                                              "*#{target_platform.distribution_release_name}.dsc")
+
+                    if package_with_update || dsc_files.empty?
                         # Generate the debian directory
                         generate_debian_dir(pkginfo, pkginfo.srcdir, options)
 
@@ -1167,6 +1183,17 @@ module Apaka
             #
             # Using 'diff' allows us to apply this test to all kind of packages
             def package_updated?(pkginfo)
+                # append underscore to make sure version definition follows
+                registered_orig_tar_gz = reprepro_registered_files(debian_name(pkginfo) + "_",
+                                             rock_release_name,
+                                             "*.orig.tar.gz")
+                if registered_orig_tar_gz.empty?
+                    Packager.info "Apaka::Packaging::Debian::package_updated?: ro existing orig.tar.gz found in reprepro"
+                else
+                    Packager.info "Apaka::Packaging::Debian::package_updated?: existing orig.tar.gz found in reprepro: #{registered_orig_tar_gz}"
+                    FileUtils.cp registered_orig_tar_gz.first, Dir.pwd
+                end
+
                 # Find an existing orig.tar.gz in the build directory
                 # ignoring the current version-timestamp
                 orig_file_name = Dir.glob("#{debian_name(pkginfo)}*.orig.tar.gz")
@@ -1462,119 +1489,135 @@ module Apaka
 
 
                     ############
-                    # Step 1: calling gem2tgz
+                    # Step 0: check if the gem has already been registered, e.g. as result of building for 
+                    # another architecture
                     ############
-                    Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
-                    # Convert .gem to .tar.gz
-                    cmd = ["gem2tgz", gem_file_name]
-                    if not system(*cmd, :close_others => true)
-                        raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
+                    # append underscore to make sure version definition follows
+                    registered_orig_tar_gz = reprepro_registered_files(debian_ruby_name(gem_base_name) + "_",
+                                             rock_release_name,
+                                             "*.orig.tar.gz")
+                    if registered_orig_tar_gz.empty?
+                        Packager.info "Apaka::Packaging::Debian::convert_gem: no existing orig.tar.gz found in reprepro"
                     else
-                        # Unpack and repack the orig.tar.gz to
-                        # (1) remove timestamps to create consistent checksums
-                        # (2) remove gem2deb residues that should not be there, e.g. checksums.yaml.gz
-                        # (3) guarantee consisted gem naming, e.g. ruby-concurrent turn in ruby-concurrent-0.7.2-x64-86-linux,
-                        #     but we require ruby-concurrent-0.7.2
-                        #
-                        Packager.info "Successfully called: 'gem2tgz #{gem_file_name}' --> #{Dir.glob("**")}"
-                        # Get the actual result of the conversion and unwrap
-                        gem_tar_gz = Dir.glob("*.tar.gz").first
-                        system("tar", "xzf", gem_tar_gz, :close_others => true)
-                        FileUtils.rm gem_tar_gz
-
-                        # Check if we need to convert the name
-                        if gem_tar_gz != "#{gem_versioned_name}.tar.gz"
-                            tmp_source_dir = gem_tar_gz.gsub(/.tar.gz/,"")
-                            FileUtils.mv tmp_source_dir, gem_versioned_name
-                        end
-                        Packager.info "Converted: #{Dir.glob("**")}"
-
-                        # Check if patching is needed
-                        # To allow patching we need to split `gem2deb -S #{gem_name}`
-                        # into its substeps
-                        #
-                        Dir.chdir(gem_versioned_name) do
-                            package_name = options[:package_name] || gem_base_name
-                            patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
-                        end
-
-                        # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
-                        checksums_file="checksums.yaml.gz"
-                        files = Dir.glob("*/#{checksums_file}")
-                        if not files.empty?
-                            checksums_file = files.first
-                        end
-
-                        if File.exist? checksums_file
-                            Packager.info "Pre-packaging cleanup: removing #{checksums_file}"
-                            FileUtils.rm checksums_file
-                        else
-                            Packager.info "Pre-packaging cleannup: no #{checksums_file} found"
-                        end
-
-
-                        tgz_date = nil
-
-                        if pkg_commit_time
-                            tgz_date = pkg_commit_time
-                        else
-                            # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
-                            ['*.gemspec', 'metadata.yml'].each do |file|
-                                Dir.chdir(gem_versioned_name) do
-                                    files = Dir.glob("#{file}")
-                                    if not files.empty?
-                                        if files.first =~ /yml/
-                                            spec = YAML.load_file(files.first)
-                                        else
-                                            spec = Gem::Specification::load(files.first)
-                                        end
-                                    else
-                                        Packager.info "Gem conversion: file #{file} does not exist"
-                                        next
-                                    end
-
-                                    #todo: not reliable. need sth better.
-                                    if spec
-                                        if spec.date
-                                            if !tgz_date || spec.date < tgz_date
-                                                tgz_date = spec.date
-                                                Packager.info "#{files.first} has associated time: using #{tgz_date} as timestamp"
-                                            end
-                                            Packager.info "#{files.first} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
-                                        else
-                                            Packager.warn "#{files.first} has no associated time: using current time for packaging"
-                                        end
-                                    else
-                                        Packager.warn "#{files.first} is not a spec file"
-                                    end
-                                end
-                            end
-                        end
-                        if !tgz_date
-                            tgz_date = Time.now
-                            Packager.warn "Gem conversion: could not extract time for gem: using current time: #{tgz_date}"
-                        else
-                            Packager.info "Gem conversion: successfully extracted time for gem: using: #{tgz_date}"
-                            files = Dir.glob("#{gem_versioned_name}/metadata.yml")
-                            if not files.empty?
-                                spec = YAML.load_file(files.first)
-                                spec.date = tgz_date
-                                File.open(files.first, "w") do |file|
-                                    Packager.info "Gem conversion: updating metadata.yml timestamp"
-                                    file.write spec.to_yaml
-                                end
-                            end
-                        end
-
-                        # Repackage
-                        source_dir = gem_versioned_name
-                        if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz", tgz_date)
-                            raise RuntimeError, "Failed to reformat original #{gem_versioned_name}.tar.gz for gem"
-                        end
-                        FileUtils.rm_rf source_dir
-                        Packager.info "Converted: #{Dir.glob("**")}"
+                        Packager.info "Apaka::Packaging::Debian::convert_gem: existing orig.tar.gz found: #{registered_orig_tar_gz}"
+                        FileUtils.cp registered_orig_tar_gz.first, "#{gem_versioned_name}.tar.gz"
                     end
 
+                    ############
+                    # Step 1: calling gem2tgz - if orig.tar.gz is not available
+                    ############
+                    if !File.exist?("#{gem_versioned_name}.tar.gz")
+                        Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
+                        # Convert .gem to .tar.gz
+                        cmd = ["gem2tgz", gem_file_name]
+                        if not system(*cmd, :close_others => true)
+                            raise RuntimeError, "Converting gem: '#{gem_path}' failed -- gem2tgz failed"
+                        else
+                            # Unpack and repack the orig.tar.gz to
+                            # (1) remove timestamps to create consistent checksums
+                            # (2) remove gem2deb residues that should not be there, e.g. checksums.yaml.gz
+                            # (3) guarantee consisted gem naming, e.g. ruby-concurrent turn in ruby-concurrent-0.7.2-x64-86-linux,
+                            #     but we require ruby-concurrent-0.7.2
+                            #
+                            Packager.info "Successfully called: 'gem2tgz #{gem_file_name}' --> #{Dir.glob("**")}"
+                            # Get the actual result of the conversion and unwrap
+                            gem_tar_gz = Dir.glob("*.tar.gz").first
+                            system("tar", "xzf", gem_tar_gz, :close_others => true)
+                            FileUtils.rm gem_tar_gz
+
+                            # Check if we need to convert the name
+                            if gem_tar_gz != "#{gem_versioned_name}.tar.gz"
+                                tmp_source_dir = gem_tar_gz.gsub(/.tar.gz/,"")
+                                FileUtils.mv tmp_source_dir, gem_versioned_name
+                            end
+                            Packager.info "Converted: #{Dir.glob("**")}"
+
+                            # Check if patching is needed
+                            # To allow patching we need to split `gem2deb -S #{gem_name}`
+                            # into its substeps
+                            #
+                            Dir.chdir(gem_versioned_name) do
+                                package_name = options[:package_name] || gem_base_name
+                                patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
+                            end
+
+                            # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
+                            checksums_file="checksums.yaml.gz"
+                            files = Dir.glob("*/#{checksums_file}")
+                            if not files.empty?
+                                checksums_file = files.first
+                            end
+
+                            if File.exist? checksums_file
+                                Packager.info "Pre-packaging cleanup: removing #{checksums_file}"
+                                FileUtils.rm checksums_file
+                            else
+                                Packager.info "Pre-packaging cleannup: no #{checksums_file} found"
+                            end
+
+
+                            tgz_date = nil
+
+                            if pkg_commit_time
+                                tgz_date = pkg_commit_time
+                            else
+                                # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
+                                ['*.gemspec', 'metadata.yml'].each do |file|
+                                    Dir.chdir(gem_versioned_name) do
+                                        files = Dir.glob("#{file}")
+                                        if not files.empty?
+                                            if files.first =~ /yml/
+                                                spec = YAML.load_file(files.first)
+                                            else
+                                                spec = Gem::Specification::load(files.first)
+                                            end
+                                        else
+                                            Packager.info "Gem conversion: file #{file} does not exist"
+                                            next
+                                        end
+
+                                        #todo: not reliable. need sth better.
+                                        if spec
+                                            if spec.date
+                                                if !tgz_date || spec.date < tgz_date
+                                                    tgz_date = spec.date
+                                                    Packager.info "#{files.first} has associated time: using #{tgz_date} as timestamp"
+                                                end
+                                                Packager.info "#{files.first} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
+                                            else
+                                                Packager.warn "#{files.first} has no associated time: using current time for packaging"
+                                            end
+                                        else
+                                            Packager.warn "#{files.first} is not a spec file"
+                                        end
+                                    end
+                                end
+                            end
+                            if !tgz_date
+                                tgz_date = Time.now
+                                Packager.warn "Gem conversion: could not extract time for gem: using current time: #{tgz_date}"
+                            else
+                                Packager.info "Gem conversion: successfully extracted time for gem: using: #{tgz_date}"
+                                files = Dir.glob("#{gem_versioned_name}/metadata.yml")
+                                if not files.empty?
+                                    spec = YAML.load_file(files.first)
+                                    spec.date = tgz_date
+                                    File.open(files.first, "w") do |file|
+                                        Packager.info "Gem conversion: updating metadata.yml timestamp"
+                                        file.write spec.to_yaml
+                                    end
+                                end
+                            end
+
+                            # Repackage
+                            source_dir = gem_versioned_name
+                            if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz", tgz_date)
+                                raise RuntimeError, "Failed to reformat original #{gem_versioned_name}.tar.gz for gem"
+                            end
+                            FileUtils.rm_rf source_dir
+                            Packager.info "Converted: #{Dir.glob("**")}"
+                        end
+                    end
 
                     ############
                     # Step 2: calling dh-make-ruby

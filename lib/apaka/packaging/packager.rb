@@ -247,6 +247,13 @@ module Apaka
                 end
             end
 
+            # Retrieve files from reprepro repository
+            def reprepro_registered_files(debian_pkg_name, release_name,
+                                         suffix_regexp)
+                reprepro_dir = File.join(deb_repository, release_name)
+                Dir.glob(File.join(reprepro_dir,"pool","main","**","#{debian_pkg_name}#{suffix_regexp}"))
+            end
+
             def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_dirs.each do |excluded_dir|
