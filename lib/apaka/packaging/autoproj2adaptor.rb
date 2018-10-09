@@ -96,6 +96,9 @@ module Apaka
             end
 
             def pkginfo_from_pkg(pkg)
+                if Autoproj.manifest.excluded?(pkg.name)
+                    raise ArgumentError, "Apaka::Packaging::Autoproj2Adaptor::pkginfo_from_pkg: trying to get info from excluded package '#{pkg.name}'"
+                end
                 if @pkginfo_cache.has_key?(pkg.name)
                     return @pkginfo_cache[pkg.name]
                 end
@@ -258,7 +261,7 @@ module Apaka
 
             private
 
-            # Compute all packages that are require and their corresponding
+            # Compute all packages that are required and their corresponding
             # reverse dependencies
             # return [Hash<package_name, reverse_dependencies>]
             def reverse_dependencies(selection)
@@ -399,10 +402,28 @@ module Apaka
                 # Add the ruby requirements for the current rock selection
                 #todo: this used to work an all_packages without the already installed packages
                 all_pkginfos = []
-                failed_pkgs = []
+                excluded_packages = []
+                failed_packages = []
                 all_packages.each do |pkg|
                     begin
-                        deps = dependencies(pkg, with_rock_release_prefix)
+                        if Autoproj.manifest.excluded?(pkg.name)
+                            excluded_packages << pkg
+                            next
+                        end
+
+                        deps = {}
+                        begin
+                            # Retrieve information about osdeps and non-native
+                            # dependencies, since
+                            # No need to reiterate on rock package dependencies
+                            # since these are contained in all_packages
+                            deps = dependencies(pkg, with_rock_release_prefix)
+                            all_pkginfos << pkginfo_from_pkg(pkg)
+                        rescue ArgumentError
+                            failed_packages << pkg
+                            next
+                        end
+
                         # Update global list
                         extra_osdeps.concat deps[:osdeps]
                         extra_gems.concat deps[:extra_gems]
@@ -412,18 +433,18 @@ module Apaka
                             if version
                                 gem_versions[dep] << version
                             end
+                            all_pkginfos << pkginfo_from_pkg(pkg)
                         end
-                        all_pkginfos << pkginfo_from_pkg(pkg)
                     rescue Exception => e
                         Packager.warn "Apaka::Packaging::Autoproj2Adaptor: failed to process package " \
                             " '#{pkg.name}' -- #{e.message}"
-                        failed_pkgs << pkg.name
+                        failed_packages << pkg.name
                     end
                 end
 
                 required_gems = all_required_gems(gem_versions)
-
-                {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_pkgs }.merge required_gems
+                
+                {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_packages, :excluded => excluded_packages }.merge required_gems
             end
 
             # resolve the required gems of a list of gems and their versions
