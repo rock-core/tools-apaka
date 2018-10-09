@@ -39,13 +39,28 @@ module Apaka
             attr_reader :log_dir
             attr_reader :local_tmp_dir
             attr_reader :deb_repository
+            attr_reader :target_platform
 
-            def initialize
+            def initialize(options = Hash.new)
+                options, unknown_options = Kernel.filter_options options,
+                    :distribution => TargetPlatform.autodetect_linux_distribution_release,
+                    :architecture => TargetPlatform.autodetect_dpkg_architecture
+
+                @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
+
                 @build_dir = Apaka::Packaging.build_dir
-                @log_dir = File.join(@build_dir, "logs")
-                @local_tmp_dir = File.join(@build_dir, ".apaka_packager")
+                @log_dir = File.join(@build_dir, "logs",
+                                     @target_platform.distribution_release_name, @target_platform.architecture)
+                @local_tmp_dir = File.join(@build_dir, ".apaka_packager",
+                                     @target_platform.distribution_release_name, @target_platform.architecture)
                 @deb_repository = DEB_REPOSITORY
                 @reprepro_lock = Mutex.new
+
+                [@build_dir, @log_dir, @local_tmp_dir].each do |dir|
+                    if not File.directory?(dir)
+                        FileUtils.mkdir_p dir
+                    end
+                end
             end
 
             # Initialize the reprepro repository
@@ -99,6 +114,7 @@ module Apaka
                             FileUtils.mkdir_p dirname
                         end
                         logfile = File.join(dirname,"reprepro-init.log")
+
                         cmd = [reprepro_bin]
                         cmd << "-V" << "-b" << reprepro_dir <<
                             "export" << target_platform.distribution_release_name

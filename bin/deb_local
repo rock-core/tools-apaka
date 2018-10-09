@@ -20,7 +20,7 @@ def build_locally(packager, pkg_name, options)
         :install => false,
         :config_file => nil,
         :ancestor_blacklist => nil,
-        :log_dir => File.join(packager.log_dir, packager.target_platform.to_s("-"))
+        :log_dir => packager.log_dir
 
     arguments = []
     if options[:release_name]
@@ -426,10 +426,7 @@ required_gems_versions = all_rock_packages[:gem_versions]
 # Create logging directory
 distribution = packager.target_platform.distribution_release_name
 architecture = packager.target_platform.architecture
-log_dir = File.join(packager.log_dir,packager.target_platform.to_s("-"))
-if !File.directory?(log_dir)
-    FileUtils.mkdir_p log_dir
-end
+log_dir = packager.log_dir
 
 ###############################################################
 

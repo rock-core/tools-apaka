@@ -46,16 +46,11 @@ module Apaka
             # For example, :orogen build_type requires orogen from rock.
             attr_accessor :rock_autobuild_deps
 
-            attr_reader :target_platform
             attr_reader :rock_release_platform
             attr_reader :rock_release_hierarchy
 
             def initialize(options = Hash.new)
-                super()
-
-                options, unknown_options = Kernel.filter_options options,
-                    :distribution => TargetPlatform.autodetect_linux_distribution_release,
-                    :architecture => TargetPlatform.autodetect_dpkg_architecture
+                super(options)
 
                 @debian_version = Hash.new
                 @rock_base_install_directory = "/opt/rock"
@@ -67,18 +62,9 @@ module Apaka
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 # Rake and rdoc commands to try to create documentation
                 @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rdoc']
-                @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
                 @rock_autobuild_deps = { :orogen => [], :cmake => [], :autotools => [], :ruby => [], :archive_importer => [], :importer_package => [] }
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
-
-                if not File.exist?(local_tmp_dir)
-                    FileUtils.mkdir_p local_tmp_dir
-                end
-
-                if not File.exist?(log_dir)
-                    FileUtils.mkdir_p log_dir
-                end
             end
 
             # Canonize that name -- downcase and replace _ with -
@@ -201,9 +187,9 @@ module Apaka
 
             def rock_release_name=(name)
                 if name !~ /^[a-zA-Z][a-zA-Z0-9\-\.]+$/
-		    raise ArgumentError, "Debian: given release name '#{name}' has an " \
-				"invalid pattern.\nPlease start with single letter followed by " \
-				"alphanumeric characters and dash(-) and dot(.), e.g., my-release-18.01"
+                    raise ArgumentError, "Debian: given release name '#{name}' has an " \
+                                "invalid pattern.\nPlease start with single letter followed by " \
+                                "alphanumeric characters and dash(-) and dot(.), e.g., my-release-18.01"
                 end
 
                 @rock_release_name = name
