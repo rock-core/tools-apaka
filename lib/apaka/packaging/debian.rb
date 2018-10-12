@@ -219,7 +219,7 @@ module Apaka
                 Dir.chdir(osdeps_files_dir) do
                     Packaging::Config.active_configurations.each do |release,arch|
                         selected_platform = TargetPlatform.new(release, arch)
-                        file = File.absolute_path("rock-osdeps.osdeps-#{rock_release_name}-#{arch}")
+                        file = File.absolute_path("#{rock_release_name}-#{arch}.yml")
                         update_osdeps_list(pkginfo, file, selected_platform)
                     end
                 end
