@@ -598,6 +598,11 @@ Dir.chdir(packager.build_dir) do
 
     # Updating the osdeps files in a given directory
     if o_osdeps_list_dir
+        if not o_rock_release_name
+            puts "Please specify a release name with the --release-name option to generate the corresponding list of available osdeps"
+            exit -1
+        end
+
         puts "Updating osdep-lists: #{o_selected_packages} in directory #{o_osdeps_list_dir}"
         all_packages = packager.filter_all_required_packages(package_info_ask.all_required_packages(selection, selected_gems))
         selected_gems.concat all_packages[:extra_gems]
