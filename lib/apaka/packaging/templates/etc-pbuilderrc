@@ -20,7 +20,7 @@ if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; t
     DEBOOTSTRAP="qemu-debootstrap"
 fi
 
-if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] || [ "$DIST" == "xenial" ] || [ "$DIST" == "yakkety" ] || [ "$DIST" == "zesty" ] || ["$DIST" == "artful" ] || [ "$DIST" == "bionic" ]; then
+if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] || [ "$DIST" == "xenial" ] || [ "$DIST" == "yakkety" ] || [ "$DIST" == "zesty" ] || [ "$DIST" == "artful" ] || [ "$DIST" == "bionic" ]; then
     echo "Identified Ubuntu Distribution"
 
     COMPONENTS="main restricted universe multiverse"
