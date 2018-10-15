@@ -83,11 +83,24 @@ def build_locally(packager, pkg_name, options)
                                          options[:release_name],
                                          options)
 
-        deb_file = Dir.glob(File.join(debian_package_dir,"*.deb"))
-        if deb_file.empty?
-            raise RuntimeError, "Building package failed"
+        deb_files = Dir.glob(File.join(debian_package_dir,"*.deb"))
+        if deb_files.empty?
+            raise RuntimeError, "Building package failed - no *.deb file found"
         end
-        deb_file = deb_file.first
+
+        deb_file = nil
+        deb_files.each do |file|
+            if file =~ /-dbgsym_/
+                next
+            else
+                deb_file = file
+                break
+            end
+        end
+        if !deb_file
+            raise RuntimeError, "Building package failed - only deb file with debug symbols found"
+        end
+
         puts "Registering debian package: #{deb_file}"
         packager.register_debian_package(deb_file,
                                         options[:release_name],

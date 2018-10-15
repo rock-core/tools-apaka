@@ -156,21 +156,22 @@ module Apaka
             # using reprepro
             def register_debian_package(debian_pkg_file, release_name, codename, force = false)
                 begin
-
                     reprepro_dir = File.join(deb_repository, release_name)
 
                     debian_package_dir = File.dirname(debian_pkg_file)
-                    # get the basename, e.g., from rock-local-base-cmake_0.20160928-1~xenial_amd64.deb
-                    debian_pkg_name = File.basename(debian_pkg_file).split("_").first
+                    debfile = File.basename(debian_pkg_file)
+                    debian_pkg_name = debfile.split("_").first
                     logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
                     if force
                         deregister_debian_package(debian_pkg_name, release_name, codename, true)
                     end
-
                     @reprepro_lock.lock
                     Dir.chdir(debian_package_dir) do
-                        debfile = Dir.glob("*.deb").first
+                        if !File.exists?(debfile)
+                            raise ArgumentError, "Apaka::Packaging::register_debian_package: could not find '#{debfile}' in directory: '#{debian_package_dir}'"
+                        end
+
                         cmd = [reprepro_bin]
                         cmd << "-V" << "-b" << reprepro_dir <<
                             "includedeb" << codename << debfile
