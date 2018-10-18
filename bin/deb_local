@@ -652,8 +652,7 @@ while !pending_jobs.empty? || !running_jobs.empty?
         end
     end
     if running_jobs.empty? && !pending_jobs.empty?
-        Apaka::Packaging.error "Could not find any package with satisfied dependencies"
-        Apaka::Packaging.error "Packages still pending: "
+        Apaka::Packaging.error "Remaining (pending) packages which unsatisfied dependencies:"
         pending_jobs.each do |pkg,job|
             Apaka::Packaging.error "#{pkg}: #{job[:dependencies].join(", ")}"
         end
