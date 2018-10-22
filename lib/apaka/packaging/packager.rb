@@ -181,13 +181,15 @@ module Apaka
                             raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                         end
 
-                        dscfile = Dir.glob("*.dsc").first
-                        cmd = [reprepro_bin]
-                        cmd << "-V" << "-b" << reprepro_dir <<
-                            "includedsc" << codename <<  dscfile
-                        Packager.info "Register dsc file: #{cmd.join(" ")} &>> #{logfile}"
-                        if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
-                            raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                        if not reprepro_has_dsc?(debian_pkg_name, release_name, codename, true)
+                            dscfile = Dir.glob("*.dsc").first
+                            cmd = [reprepro_bin]
+                            cmd << "-V" << "-b" << reprepro_dir <<
+                                "includedsc" << codename <<  dscfile
+                            Packager.info "Register dsc file: #{cmd.join(" ")} &>> #{logfile}"
+                            if !system(*cmd, [:out, :err] => [logfile, "a"], :close_others => true)
+                                raise RuntimeError, "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
+                            end
                         end
                     end
                 ensure
@@ -224,6 +226,26 @@ module Apaka
                     end
                 ensure
                     @reprepro_lock.unlock
+                end
+            end
+
+            # Check if the *.dsc file has already been registered for a
+            # particular release and codename(=distribution)
+            def reprepro_has_dsc?(debian_pkg_name, release_name, codename, reuseLock = false)
+                @reprepro_lock.lock unless reuseLock
+                begin
+                    reprepro_dir = File.join(deb_repository, release_name)
+                    cmd = "#{reprepro_bin} -T dsc -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name}"
+                    package_info = `#{cmd}`
+                    if !package_info.empty?
+                        Packager.info "Reprepro: dsc file for #{debian_pkg_name} available for #{codename}"
+                        return true
+                    else
+                        Packager.info "Reprepro: dsc file for #{debian_pkg_name} not available for #{codename}"
+                        return false
+                    end
+                ensure
+                    @reprepro_lock.unlock unless reuseLock
                 end
             end
 
