@@ -251,12 +251,15 @@ module Apaka
 
             # Check if the given package in available in reprepro for the given
             # architecture
+            # @param debian_pkg_name Name of the debian package
+            # @release_name name of the package release, e.g., master-18.04
+            # @arch name of the architecture
             def reprepro_has_package?(debian_pkg_name, release_name, codename, arch)
                 @reprepro_lock.lock
 
                 begin
                     reprepro_dir = File.join(deb_repository, release_name)
-                    cmd = "#{reprepro_bin} -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name} | grep #{arch}"
+                    cmd = "#{reprepro_bin} -A #{arch} -T deb -V -b #{reprepro_dir} list #{codename} #{debian_pkg_name}"
                     package_info = `#{cmd}`
                     if !package_info.empty?
                         Packager.info "Reprepro: #{debian_pkg_name} available for #{codename} #{arch}"
