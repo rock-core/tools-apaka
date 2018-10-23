@@ -22,9 +22,9 @@ call
 Start a new shell and source the env.sh.
 
 
-## Creating an new Rock release with Apaka
+## Creating an new Rock release with apaka
 
-The command line tool `deb_local` provides a way to generate debian packages from autoproj information
+The command line tool `deb_local` provides a way to generate Debian packages from autoproj information
 for use with the rock_osdeps package set.
 
 When creating a new release, the reprepro repository and build environment need
@@ -49,7 +49,7 @@ To build only a particular package or package_set add it as parameter, e.g., her
     deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-18.01 base/cmake
 ```
 
-The package respository can be browsed under:
+The package repository can be browsed under:
 ```
     http://<hostname>/apaka-releases
 ```
@@ -100,7 +100,7 @@ repository.
 
 
 
-## How to use an Apaka release in combination with Rock
+## How to use an apaka release in combination with Rock
 Either start with a fresh bootstrap:
 
 ```
@@ -129,14 +129,14 @@ layout:
 
 After the package_sets that you would require for a normal bootstrap, you require a package set that contains the overrides for
 your release.
-You can find an example at http://github.com/2maz/rock-osdeps
-The package set has to contains the required osdeps definition and setup of environment variables:
+You can find an example at http://github.com/rock-core/rock-osdeps-package_set
+The package set has to contain the required osdeps definition and setup of environment variables:
 Hence, a minimal package set could look like the following:
 
 ```
     package_sets:
     - github: rock-core/package_set
-    - github: rock-core/rock-osdeps
+    - github: rock-core/rock-osdeps-package_set
     layout:
     - rock.core
 ```
@@ -148,15 +148,19 @@ After adding the package set use autoproj as usual:
     autoproj update
 ```
 
-Follow the questions for configuration and select your prepared release for the debian packages.
+Follow the questions for configuration and select your prepared release for the Debian packages.
 Finally start a new shell, reload the env.sh and call amake.
-This should finall install all required Debian packages and remaining required packages, which might have not been packaged.
+This should finally install all required Debian packages and remaining required packages, which might have not been packaged.
 
 ### Features
 
 * multiple autoproj workspace can reuse the existing set of Rock Debian packages
-* multiple releases of the Rock Debian packages can be installed in parallel, the target folder is typically /opt/rock/release-name
-* in order to enforce the usage of a source package in a workspace create a file autoproj/deb_blacklist.yml containing the name of the particular package. This will disable automatically the use of this debian package and all that depend on that package, e.g., to disable base/types and all packages that start with simulation/ create a deb_blacklist.yml with the following content:
+* multiple releases of the Rock Debian packages can be installed in parallel, the target folder is typically /opt/rock/*release-name*
+* in order to enforce the usage of a source package in a workspace create a file
+  autoproj/deb_blacklist.yml containing the name of the particular package. This
+  will disable automatically the use of this Debian package and all that depend
+  on that package, e.g., to disable base/types add all packages that start with
+  simulation/ create a deb_blacklist.yml with the following content:
 
 ```
     ---
@@ -166,8 +170,41 @@ This should finall install all required Debian packages and remaining required p
 
 You will be informed about the disabled packages:
 
-Triggered regeneration of rock-osdeps.osdeps: /opt/workspace/rock_autoproj_v2/.autoproj/remotes git_git_github_com_2maz_rock_osdeps_git/lib/../rock-osdeps.osdeps, blacklisted packages: ["base/types"]
+Triggered regeneration of rock-osdeps.osdeps: /opt/workspace/rock_autoproj_v2/.autoproj/remotes git_git_github_com_rock_core_rock_osdeps_git/lib/../rock-osdeps.osdeps, blacklisted packages: ["base/types"]
 Disabling osdeps: ["base/types", "tools/service_discovery", "tools/pocolog_cpp", ...
+
+
+### Maintaining apaka
+
+#### Adding new distributions
+
+In order to add a new distributions a few things have to be done.
+Firstly, the default configuration file should be extended with the particular
+distribution, i.e., add the desired distribution here.
+Call 'deb_local --show-current-os' to retrieve the corrensponding
+labels for your current operating system.
+Examples:
+```
+distributions:
+    bionic:
+        type: ubuntu,debian
+        labels: 18.04,bionic,beaver,default
+    stretch:
+        type: debian
+        labels: 9.4,stretch,default
+        ruby_version: ruby23
+```
+
+Adapt the template for /etc/pbuilerrc i.e., lib/apaka/packaging/templates/etc-pbuilderrc
+In order to bootstrap new images, pbuilder has to be informed, whether an
+distribution label such as 'bionic' or 'stretch' has to be interpreted as
+Ubuntu or Debian distribution (currently apaka consider only these two).
+New distributions should be added to the list in the above mentioned template of /etc/pbuilderrc.
+This update will not be automatically applied to existing installations, hence,
+you will have change existing installations of apaka manually.
+Furthermore, reprepro only accounts for the new distribution, if you create a
+new release. To add it to existing releases you have to add the distribution
+(architecture) manually to /var/www/apaka-releases/*rock-release*/conf/distributions.
 
 ### Known Issues
 1.  If you get a message like
@@ -368,4 +405,4 @@ This software is distributed under the [New/3-clause BSD license](https://openso
 
 ## Copyright
 
-(c) Copyright 2014-2018, DFKI GmbH Robotics Innovation Center
+Copyright (c) 2014-2018, DFKI GmbH Robotics Innovation Center
