@@ -1,6 +1,6 @@
 <%= debian_name %> (<%= debian_version %>) unstable; urgency=low
 
-  * Package automatically built using autoproj-package debian
+  * Package automatically built using 'apaka'
 <% origin_information.each do |line| %>
   * <%= line %>
 <% end %>
