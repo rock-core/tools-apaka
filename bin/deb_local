@@ -143,6 +143,7 @@ o_patch_dir = "#{ENV['AUTOPROJ_CURRENT_ROOT']}/deb_patches"
 o_prepare_local_build = false
 o_ancestor_blacklist_file = nil
 o_register = false
+o_show_current_os = false
 o_skip = false
 o_verbose = false
 
@@ -212,6 +213,9 @@ options = OptionParser.new do |opt|
         end
         build_options[:rock_base_install_dir] = dir
     end
+    opt.on("--show-current-os", "Show information about the current operating system, which can be used to augment the configuration if necessary") do
+        o_show_current_os = true
+    end
     opt.on('--verbose', 'Display output') do
         o_verbose = true
     end
@@ -234,6 +238,17 @@ end
 Apaka::Packaging::Config.reload_config(build_options[:config_file], build_options[:release_name])
 
 package_info_ask = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+
+if o_show_current_os
+    os = package_info_ask.osdeps_operating_system
+    puts "Current operating system:"
+    if os
+        puts "    type: #{os[0].join(",")}"
+        puts "    labels: #{os[1].join(",")}"
+    end
+    exit 0
+end
+
 Apaka::Packaging.root_dir = package_info_ask.root_dir
 Apaka::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
 packager = Apaka::Packaging::Debian.new(build_options)
