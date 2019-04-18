@@ -11,8 +11,9 @@ module Apaka
 
             BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static"]
             WEBSERVER_DEBS=["apache2"]
-            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz']
+            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
+            IMAGE_EXTRA_DEB_DIR="/tmp/extradebs"
 
             @base_image_lock = Mutex.new
 
@@ -176,6 +177,15 @@ module Apaka
                 chroot_cmd(basepath, "apt-get install -y #{pkg}")
             end
 
+            def self.image_cp_debfiles(distribution, architecture, pkgs, target_path)
+                if !@base_image_lock.owned?
+                    raise ThreadError.new
+                end
+                basepath = image_basepath(distribution, architecture)
+                chroot_cmd(basepath, "mkdir -p #{target_path}")
+                chroot_cmd(basepath, "chmod -R 777 #{target_path}")
+                chroot_cmd(basepath, "cp /mnt/*_#{architecture}.deb #{target_path}")
+            end
 
             # Install a particular package into a chroot using 'dpkg'
             # @param distribution [String] name of the distribution, e.g., xenial
@@ -334,10 +344,12 @@ module Apaka
                 end
 
                 begin
+                    debfiles = []
                     if !gem2deb_test_runner_debfile.empty?
-                        image_install_debfile(distribution, architecture, "/#{mountbase}/#{gem2deb_test_runner_debfile}")
+                        debfiles << "/#{mountbase}/#{gem2deb_test_runner_debfile}"
                     end
-                    image_install_debfile(distribution, architecture, "/#{mountbase}/#{gem2deb_debfile}")
+                    debfiles << "/#{mountbase}/#{gem2deb_debfile}"
+                    image_cp_debfiles(distribution, architecture, debfiles, IMAGE_EXTRA_DEB_DIR)
                 ensure
                     cmd = ["sudo"]
                     cmd << "umount" << mountdir
@@ -367,7 +379,47 @@ module Apaka
                 if !File.exist?(hook_dir)
                     FileUtils.mkdir_p hook_dir
                 end
+
+                prepare_deps_hook(hook_dir, distribution, rock_release_platform)
+                prepare_upgrade_from_backports_hook(hook_dir, distribution)
+                prepare_gem2deb_hook(hook_dir, architecture)
+            end
+
+            def self.prepare_upgrade_from_backports_hook(hook_dir, distribution)
+                filename = "D06backports"
+                Dir.chdir(hook_dir) do
+                    File.open(filename, "w") do |f|
+                        f.write("#!/bin/bash\n")
+                        f.write("set -ex\n")
+                        f.write("/usr/bin/apt update\n")
+                        f.write("/usr/bin/apt -t #{distribution}-backports upgrade -y\n")
+                    end
+
+                    Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
+                    FileUtils.chmod 0755, filename
+                end
+            end
+
+            def self.prepare_gem2deb_hook(hook_dir, architecture)
+                filename = "D07gem2deb"
+                Dir.chdir(hook_dir) do
+                    File.open(filename, "w") do |f|
+                        f.write("#!/bin/bash\n")
+                        f.write("set -ex\n")
+                        f.write("/usr/bin/dpkg -i #{File.join(IMAGE_EXTRA_DEB_DIR,"*_#{architecture}.deb")}\n")
+                    end
+
+                    Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
+                    FileUtils.chmod 0755, filename
+                end
+            end
+
+            def self.prepare_deps_hook(hook_dir, distribution, rock_release_platform)
                 filename = "D05deps"
+
+                release_prefix = rock_release_platform.distribution_release_name
+                architecture = rock_release_platform.architecture
+
                 Dir.chdir(hook_dir) do
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
