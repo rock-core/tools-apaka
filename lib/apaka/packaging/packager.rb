@@ -109,7 +109,7 @@ module Apaka
                                               "binary-#{target_platform.architecture}","Packages")
                     if !File.exist?(packages_file)
                         reprepro_dir = File.join(deb_repository, release_prefix)
-                        dirname = File.join(log_dir,target_platform.to_s("-"))
+                        dirname = log_dir
                         if !File.directory?(dirname)
                             FileUtils.mkdir_p dirname
                         end
