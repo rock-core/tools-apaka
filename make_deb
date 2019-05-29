@@ -16,6 +16,7 @@
 ##      Available flags:                                                                           ##
 ##            --nomake  --> skips the update and building of apaka                                 ##
 ##            --help    --> prints this dialog                                                     ##
+##            --cleanup --> cleans up working directory (deletes build dir & apaka)                ##
 ##                                                                                                 ##
 ##                                                                                                 ##
 ## ~~~ Check hard coded variables if you want to change architecture, distribution or release ~~~  ##
@@ -24,6 +25,10 @@
 architecture="amd64"
 dist="xenial"
 release="master-18.01"
+
+# =============================================  Flag handlers  ============================================ #
+
+trap "exit" INT
 
 # check for input argument
 if [[ $# -eq 0 ]]
@@ -35,12 +40,46 @@ fi
 
 # print help
 if [[ $* == *--help* ]]; then  #poor style, but also not dangerous
-  head -22 make_deb
+  head -23 make_deb
   exit 1
 fi
 
-# change to working directory
+# set working directory
 dir=$1
+
+# clean working directory
+function cleanFunc {
+  echo "Cleaning up working directory..";
+  if [ -d "$dir/build" ]; then echo "Removing build directory"; rm -rf $dir/build; fi
+  if [ -d "$dir/tools/apaka" ]; then echo "Removing apaka directory"; rm -rf $dir/tools/apaka; fi
+  if [ -d "$dir/deb_patches" ]; then echo "Removing deb_patches directory"; rm -rf $dir/deb_patches; fi
+  if [[ $(cd "$dir/autoproj/" && grep -rc tools/apaka --include=manifest | cut -d':' -f2) -gt 0 ]]; then
+    echo "Resetting autoproj manifest"
+    sed -i '/tools\/apaka/d' $dir/autoproj/manifest
+  fi
+  echo "Successfully cleaned $dir workspace"
+}
+
+if [[ $* == *--cleanup* ]]; then  #poor style, but also not dangerous
+  while true; do
+    read -p "Are you sure you want to clean your working directory? This will delete the build directory! [y/n] " confirm
+    case $confirm in
+      [Yy]* ) cleanFunc; exit 1;;
+      [Nn]* ) echo "Abort mission"; exit 1;;
+      * ) echo "Please type y or n!";;
+    esac
+  done
+fi
+
+# set bool for update and build apaka
+build=true
+if [[ $* == *--nomake* ]]; then  #poor style, but also not dangerous
+  echo "apaka won't be build due to --nomake flag"
+  build=false
+fi
+
+# ==================================================  Main  ================================================ #
+# source environment
 if cd "$dir"; then
   source env.sh
 else
@@ -49,9 +88,8 @@ else
 fi
 
 # clone apaka into directory
-if $(git clone https://github.com/rock-core/tools-apaka "$dir" 2> /dev/null); then
+if $(git clone https://github.com/rock-core/tools-apaka "$dir/tools/apaka" 2> /dev/null); then
   echo "Cloned tools/apaka from git"
-  mv tools-apaka tools/apaka
 else
   echo "tools/apaka already exists. Skip cloning from git repository."
 fi
@@ -71,13 +109,19 @@ else
 fi
 
 # update and build apaka
-if [[ $* == *--nomake* ]]; then  #poor style, but also not dangerous
-  echo "apaka won't be build due to --nomake flag"
-else
+if $build; then
   aup apaka && amake apaka
 fi
 
+# clone deb_patches into directory
+if $(git clone https://github.com/2maz/deb_patches.git "$dir/deb_patches" 2> /dev/null); then
+  echo "Cloned deb_patches from git"
+else
+  echo "deb_patches already exists. Skip cloning from git repository."
+fi
+
+# prepare and execute packaging
 echo "Prepare for packaging"
 deb_local --architecture $architecture --distribution $dist --release-name $release --prepare
 echo "Perform packaging"
-deb_local --architecture $architecture --distribution $dist --release-name $release
+deb_local --patch-dir deb_patches --architecture $architecture --distribution $dist --release-name $release
