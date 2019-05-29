@@ -10,7 +10,7 @@ module Apaka
         DEB_REPOSITORY=File.join(WWW_ROOT,"apaka-releases")
         TEMPLATES_DIR=File.join(File.expand_path(File.dirname(__FILE__)),"templates")
 
-        EXCLUDED_DIRS_PREFIX = ["**/.travis","build","tmp","debian","**/.autobuild","**/.orogen"]
+        EXCLUDED_DIRS_PREFIX = ["**/.travis","build","tmp","debian","**/.autobuild","**/.orogen","**/build"]
         EXCLUDED_FILES_PREFIX = ["**/.git","**/.travis","**/.orogen","**/.autobuild"]
 
         extend Logger::Root("Packaging", Logger::INFO)
