@@ -382,7 +382,7 @@ module Apaka
 
                 prepare_deps_hook(hook_dir, distribution, rock_release_platform)
                 prepare_upgrade_from_backports_hook(hook_dir, distribution)
-                prepare_gem2deb_hook(hook_dir, architecture)
+                prepare_gem2deb_hook(hook_dir, distribution, architecture)
             end
 
             def self.prepare_upgrade_from_backports_hook(hook_dir, distribution)
@@ -400,12 +400,18 @@ module Apaka
                 end
             end
 
-            def self.prepare_gem2deb_hook(hook_dir, architecture)
+            def self.prepare_gem2deb_hook(hook_dir, distribution, architecture)
                 filename = "D07gem2deb"
                 Dir.chdir(hook_dir) do
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
                         f.write("set -ex\n")
+                        # Making sure that all dependencies are installed for
+                        # gem2deb, when gem2deb has not been installed already
+                        f.write("apt -t #{distribution}-backports search gem2deb\n")
+                        f.write("if [ $? -eq 0 ] && [ \"$(dpkg-query -W -f='${db:Status-Status}' gem2deb)\" != \"installed\" ]; then\n")
+                        f.write("    apt -t #{distribution}-backports install gem2deb -y\n")
+                        f.write("fi\n")
                         f.write("/usr/bin/dpkg -i #{File.join(IMAGE_EXTRA_DEB_DIR,"*_#{architecture}.deb")}\n")
                     end
 
