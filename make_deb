@@ -1,0 +1,83 @@
+#!/bin/bash
+
+##==================================  DESCRIPTION make_deb  =======================================##
+##                                                                                                 ## 
+##                                                                                                 ##
+##      Script for automated debian packaging based on a given autoproj based workspace.           ##
+##      Provide the absolute path of the designated working directory (WD) as the 1st ARGUMENT!    ##
+##      May be executed from anywhere..                                                            ##
+##                                                                                                 ##
+##      Execution: bash make_deb absolute_path_WD                                                  ##
+##      Example: bash make_deb ~/mantis_dev                                                        ##
+##                                                                                                 ##
+##      Alternative: make file executable with >> chmod +x make_deb <<                             ##
+##                   execute >> ./make_deb absolute_path_WD <<                                     ##
+##                                                                                                 ##
+##      Available flags:                                                                           ##
+##            --nomake  --> skips the update and building of apaka                                 ##
+##            --help    --> prints this dialog                                                     ##
+##                                                                                                 ##
+##                                                                                                 ##
+## ~~~ Check hard coded variables if you want to change architecture, distribution or release ~~~  ##
+##=================================================================================================##
+
+architecture="amd64"
+dist="xenial"
+release="master-18.01"
+
+# check for input argument
+if [[ $# -eq 0 ]]
+    then
+      echo "Argument missing! Provide absolute path to the directory containing env.h"
+      echo "Type >> bash make_deb --help << in order to get a script description"
+    exit 1
+fi
+
+# print help
+if [[ $* == *--help* ]]; then  #poor style, but also not dangerous
+  head -22 make_deb
+  exit 1
+fi
+
+# change to working directory
+dir=$1
+if cd "$dir"; then
+  source env.sh
+else
+  echo "Provided argument is no valid directory"
+  exit 1
+fi
+
+# clone apaka into directory
+if $(git clone https://github.com/rock-core/tools-apaka "$dir" 2> /dev/null); then
+  echo "Cloned tools/apaka from git"
+  mv tools-apaka tools/apaka
+else
+  echo "tools/apaka already exists. Skip cloning from git repository."
+fi
+
+# inject tools/apaka into autoproj/manifest
+if [ -f "$dir/autoproj/manifest" ]; then 
+  cd "$dir/autoproj"
+  if [[ $(grep -rc tools/apaka --include=manifest | cut -d':' -f2) -eq 0 ]]; then
+    echo "Adding tools/apaka to autoproj/manifest"
+    lineNumber=$(($(grep -rn layout --include=manifest | cut -d':' -f2 ) + 1))
+    awk -v number=$lineNumber -v line="    - tools/apaka" 'NR == number {print line} {print}' manifest > manifest.new && mv manifest.new manifest
+  fi
+  cd ..
+else
+  echo "Could not find valid manifest file in autoproj directory."
+  exit 1
+fi
+
+# update and build apaka
+if [[ $* == *--nomake* ]]; then  #poor style, but also not dangerous
+  echo "apaka won't be build due to --nomake flag"
+else
+  aup apaka && amake apaka
+fi
+
+echo "Prepare for packaging"
+deb_local --architecture $architecture --distribution $dist --release-name $release --prepare
+echo "Perform packaging"
+deb_local --architecture $architecture --distribution $dist --release-name $release
