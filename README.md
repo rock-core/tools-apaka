@@ -11,8 +11,10 @@ A description of the general architecture is part for the following publication:
 
 Clone the repository into an existing autoproj installation
 ```
-    git clone https://github.com/rock-core/tools-apaka
+    git clone https://github.com/rock-core/tools-apaka tools/apaka
 ```
+Add "- tools/apaka" to your autoproj/manifest under the layout section
+
 call
 ```
     aup apaka
