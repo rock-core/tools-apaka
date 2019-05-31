@@ -141,10 +141,11 @@ class TestDebian < Minitest::Test
     end
 
     def test_orig_tgz
-        gems= ['rice']
+        # only package equatable as basic test since it does not
+        # require patching
+        gems= ['equatable']
 
-        # only package rice as basic test
-        extended_gems = ['websocket',['state_machine',"1.1.0"],'rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus','grape','grape_logging']
+        extended_gems = ['rice', 'websocket',['state_machine',"1.1.0"],'rb-readline','concurrent-ruby','qtbindings','tty-cursor','debug_inspector','equatable','tty-color','uber','lazy_priority_queue','stream','necromancer','wisper','tty-screen','unicode-display_width','enumerable-lazy','websocket-extensions','unicode_utils','ice_nine','hoe-yard','binding_of_caller','concurrent-ruby-ext','pastel','hooks','rgl','mustermann','websocket-driver','descendants_tracker','faye-websocket','tty-prompt','tty-table','axiom-types','coercible','virtus','grape','grape_logging']
 
         require 'digest'
 
