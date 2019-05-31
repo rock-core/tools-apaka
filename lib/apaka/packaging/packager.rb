@@ -78,7 +78,9 @@ module Apaka
                     system("sudo", "mkdir", "-p", conf_dir, :close_others => true)
 
                     user = Etc.getpwuid(Process.uid).name
+                    Packager.info "Set owner #{user} for #{deb_repository}"
                     system("sudo", "chown", "-R", user, deb_repository, :close_others => true)
+                    system("sudo", "chown", "-R", user, deb_repository + "/", :close_others => true)
                     system("sudo", "chmod", "-R", "755", conf_dir, :close_others => true)
                 end
 
