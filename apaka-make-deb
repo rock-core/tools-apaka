@@ -1,22 +1,23 @@
 #!/bin/bash
 
-##==================================  DESCRIPTION make_deb  =======================================##
+##============================== *** DESCRIPTION apaka-make-deb  ***===============================##
 ##                                                                                                 ## 
 ##                                                                                                 ##
 ##      Script for automated debian packaging based on a given autoproj based workspace.           ##
 ##      Provide the absolute path of the designated working directory (WD) as the 1st ARGUMENT!    ##
-##      May be executed from anywhere..                                                            ##
+##      ( May be executed from anywhere.. )                                                        ##
 ##                                                                                                 ##
-##      Execution: bash make_deb absolute_path_WD                                                  ##
-##      Example: bash make_deb ~/mantis_dev                                                        ##
+##      Execution: bash apaka-make-deb absolute_path_WD                                            ##
+##      Example: bash apaka-make-deb ~/mantis_dev                                                  ##
 ##                                                                                                 ##
-##      Alternative: make file executable with >> chmod +x make_deb <<                             ##
-##                   execute >> ./make_deb absolute_path_WD <<                                     ##
+##      Alternative: make file executable with >> chmod +x apaka-make-deb <<                       ##
+##                   execute >> ./apaka-make-deb absolute_path_WD <<                               ##
 ##                                                                                                 ##
 ##      Available flags:                                                                           ##
 ##            --nomake  --> skips the update and building of apaka                                 ##
 ##            --help    --> prints this dialog                                                     ##
-##            --cleanup --> cleans up working directory (deletes build dir & apaka)                ##
+##            --cleanup --> cleans up working directory                                            ##
+##                          (incl. remove of build dir & tools/apaka)                              ##
 ##                                                                                                 ##
 ##                                                                                                 ##
 ## ~~~ Check hard coded variables if you want to change architecture, distribution or release ~~~  ##
@@ -34,13 +35,13 @@ trap "exit" INT
 if [[ $# -eq 0 ]]
     then
       echo "Argument missing! Provide absolute path to the directory containing env.h"
-      echo "Type >> bash make_deb --help << in order to get a script description"
+      echo "Type >> bash apaka-make-deb --help << in order to get a script description"
     exit 1
 fi
 
 # print help
 if [[ $* == *--help* ]]; then  #poor style, but also not dangerous
-  head -23 make_deb
+  head -25 apaka-make-deb | sed 1,1d 
   exit 1
 fi
 
