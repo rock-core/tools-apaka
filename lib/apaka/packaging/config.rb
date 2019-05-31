@@ -83,7 +83,7 @@ module Apaka
             attr_reader :architectures
 
             attr_reader :packages_optional
-            attr_reader :packages_enforce_build
+            attr_accessor :packages_enforce_build
 
 
             def reload_config(file, current_release_name = nil)
@@ -230,6 +230,10 @@ module Apaka
                 instance.packages_enforce_build
             end
 
+            def self.packages_enforce_build=(value)
+                instance.packages_enforce_build=value
+            end
+
             def self.active_distributions
                 linux_distribution_releases.collect do |name,ids|
                     if build_for_distribution?(name)
@@ -290,7 +294,7 @@ module Apaka
                 packages_optional.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end
-                s += "    enforce build  packages:\n"
+                s += "    enforce build packages:\n"
                 packages_enforce_build.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end

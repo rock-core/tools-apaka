@@ -101,12 +101,17 @@ class TestDebian < Minitest::Test
     end
 
     def test_recursive_dependencies
-        test_set = { "utilrb" => ["bundler", "ruby-facets"],
-                     "rtt"  => ["cmake","build-essential","omniidl","libomniorb4-dev","omniorb-nameserver",
+        test_set = {}
+        if Apaka::Packaging::Config.packages_enforce_build.include?('gems')
+            test_set["utilrb"] = ["rock-master-ruby-bundler", "rock-master-ruby-facets"]
+        else
+            test_set["utilrb"] = ["bundler", "ruby-facets"]
+        end
+
+        test_set["rtt"] = ["cmake","build-essential","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
                                 "libboost-iostreams-dev","libboost-system-dev","libxml-xpath-perl"]
-        }
 
         test_set.each do |pkg_name, expected_deps|
             pkg = autoprojadaptor.package_by_name(pkg_name)
@@ -210,11 +215,14 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_package_available
+        enforce_build = Apaka::Packaging::Config.packages_enforce_build
+        Apaka::Packaging::Config.packages_enforce_build = []
         ["cucumber","bundler","ruby-facets","cmake"].each do |pkg|
             platforms.each do |platform|
                 assert( platform.contains(pkg), "'#{pkg} is available for #{platform}" )
             end
         end
+        Apaka::Packaging::Config.packages_enforce_build = enforce_build
     end
 
     def test_package_unavailable
