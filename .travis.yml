@@ -10,8 +10,10 @@ matrix:
 
 cache: bundler
 
-before_install:
+install:
     - docker build -t 2maz/apaka .
-    - docker run --privileged -d 2maz/apaka tail -f /dev/null
-    - docker ps -a
+              --build-arg PKG_BRANCH="${TRAVIS_BRANCH}"
+              --build-arg PKG_PULL_REQUEST="${TRAVIS_PULL_REQUEST}"
+              --build-arg PKG_PULL_REQUEST_BRANCH="${TRAVIS_PULL_REQUEST_BRANCH}"
+script:
     - docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; rake test"
