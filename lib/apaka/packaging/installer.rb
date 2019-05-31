@@ -9,7 +9,7 @@ module Apaka
         class Installer
             extend Logger::Root("Installer", Logger::INFO)
 
-            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static"]
+            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static","gem2deb"]
             WEBSERVER_DEBS=["apache2"]
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
@@ -81,11 +81,12 @@ module Apaka
 
             # Install all required packages to build
             # debian packages and host them using apache and reprepro
-            def self.install_all_requirements
+            def self.install_all_requirements(patch_dir, distribution, architecture)
                 install_pbuilder_conf
 
                 install_package_list BUILDER_DEBS
                 install_package_list WEBSERVER_DEBS
+                install_gem2deb(patch_dir, distribution, architecture)
             end
 
             # Install a given list of packages
@@ -102,6 +103,48 @@ module Apaka
                 if !installed?(package_name)
                     Installer.info "Installing '#{package_name}'"
                     system("sudo", "apt-get", "-y", "install", package_name, :close_others => true)
+                end
+            end
+
+            def self.get_gem2deb_debs(gem2deb_debs_basedir, distribution, architecture)
+                gem2deb_debs_dir = File.join(gem2deb_debs_basedir,"#{distribution}-all")
+                if !File.exist?(gem2deb_debs_dir)
+                    raise ArgumentError, "#{self} -- gemb2deb debian package directory: #{gem2deb_debs_dir} does not exist"
+                end
+
+                gem2deb_debfile = ""
+                gem2deb_test_runner_debfile = ""
+                [architecture,"all"].each do |suffix|
+		    gem2deb_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb_*_#{suffix}.deb"))
+		    if gem2deb_debfile.empty?
+                        next
+		    else
+		        gem2deb_debfile = File.basename(gem2deb_debfile.first)
+		    end
+
+		    gem2deb_test_runner_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb-test-runner_*_#{suffix}.deb"))
+		    if !gem2deb_test_runner_debfile.empty?
+		        gem2deb_test_runner_debfile = File.basename(gem2deb_test_runner_debfile.first)
+                        break
+		    end
+                end
+                return [ { main: gem2deb_debfile, runner: gem2deb_test_runner_debfile}, gem2deb_debs_dir ]
+            end
+
+            def self.install_gem2deb(patch_dir, distribution, architecture)
+                if not patch_dir
+                    Installer.warn "Not installing a custom gem2deb version -- no patch dir given"
+                    return
+                end
+
+                begin
+                    base_dir = File.join(patch_dir,"gem2deb")
+                    debs, gem2deb_dir = get_gem2deb_debs(base_dir, distribution, architecture)
+                    Installer.info "Installing '#{debs} from directory #{gem2deb_dir}"
+                    system("sudo", "dpkg", "-i", File.join(gem2deb_dir, debs[:runner]), :close_others => true)
+                    system("sudo", "dpkg", "-i", File.join(gem2deb_dir, debs[:main]), :close_others => true)
+                rescue ArgumentError => e
+                    Installer.warn "Cannot install a custom gem2deb version -- #{e}"
                 end
             end
 
@@ -307,28 +350,9 @@ module Apaka
                 end
                 basepath = image_basepath(distribution, architecture)
 
-                gem2deb_debs_dir = File.join(gem2deb_debs_basedir,"#{distribution}-all")
-                if !File.exist?(gem2deb_debs_dir)
-                    raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
-                        "Debian package directory: #{gem2deb_debs_dir} does not exist"
-                end
-
-                gem2deb_debfile = ""
-                gem2deb_test_runner_debfile = ""
-                [architecture,"all"].each do |suffix|
-		    gem2deb_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb_*_#{suffix}.deb"))
-		    if gem2deb_debfile.empty?
-                        next
-		    else
-		        gem2deb_debfile = File.basename(gem2deb_debfile.first)
-		    end
-
-		    gem2deb_test_runner_debfile = Dir.glob(File.join(gem2deb_debs_dir,"gem2deb-test-runner_*_#{suffix}.deb"))
-		    if !gem2deb_test_runner_debfile.empty?
-		        gem2deb_test_runner_debfile = File.basename(gem2deb_test_runner_debfile.first)
-                        break
-		    end
-                end
+                debs, gem2deb_debs_dir = get_gem2deb_debs(gem2deb_debs_basedir, distribution, architecture)
+                gem2deb_debfile = debs[:main]
+                gem2deb_test_runner_debfile = debs[:runner]
 
                 if gem2deb_debfile.empty?
 		    raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
