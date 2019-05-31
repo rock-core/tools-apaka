@@ -390,9 +390,12 @@ module Apaka
                 Dir.chdir(hook_dir) do
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
-                        f.write("set -ex\n")
+                        f.write("set -x\n")
                         f.write("/usr/bin/apt update\n")
                         f.write("/usr/bin/apt -t #{distribution}-backports upgrade -y\n")
+                        f.write("if ! [ $? = 1 ] && ! [ $? = 0 ]; then\n")
+                        f.write("    echo \"Backports not activated or available for #{distribution}\"\n")
+                        f.write("fi\n")
                     end
 
                     Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
@@ -405,14 +408,18 @@ module Apaka
                 Dir.chdir(hook_dir) do
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/bash\n")
-                        f.write("set -ex\n")
+                        f.write("set -x\n")
                         # Making sure that all dependencies are installed for
                         # gem2deb, when gem2deb has not been installed already
                         f.write("apt -t #{distribution}-backports search gem2deb\n")
                         f.write("if [ $? -eq 0 ] && [ \"$(dpkg-query -W -f='${db:Status-Status}' gem2deb)\" != \"installed\" ]; then\n")
                         f.write("    apt -t #{distribution}-backports install gem2deb -y\n")
                         f.write("fi\n")
-                        f.write("/usr/bin/dpkg -i #{File.join(IMAGE_EXTRA_DEB_DIR,"*_#{architecture}.deb")}\n")
+                        f.write("if [ -d #{IMAGE_EXTRA_DEB_DIR} ]; then\n")
+                        f.write("    /usr/bin/dpkg -i #{File.join(IMAGE_EXTRA_DEB_DIR,"*_#{architecture}.deb")}\n")
+                        f.write("else\n")
+                        f.write("    echo \"apaka: no extra/custom debian packages for gem2deb\"\n")
+                        f.write("fi\n")
                     end
 
                     Packager.info "Changing filemode of: #{filename} in #{Dir.pwd}"
