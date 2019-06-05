@@ -1415,8 +1415,9 @@ module Apaka
                                     tmpfile = Tempfile.new(File.basename(f))
                                     FileUtils.cp_r(f, tmpfile)
                                     prepare_patch_file(tmpfile.path)
-                                    FileUtils.cp_r(tmpfile, "#{target_dir}/#{File.basename(f)}")
-                                    Packager.warn "Patch target (#{target_dir}/#{f}) with #{tmpfile.path}"
+                                    target_file = File.join(target_dir,File.basename(f))
+                                    FileUtils.cp_r(tmpfile, target_file)
+                                    Packager.warn "Patch target (#{target_file}) with #{tmpfile.path}"
                                 end
                             end
                         end
@@ -1578,6 +1579,7 @@ module Apaka
 
                                         #todo: not reliable. need sth better.
                                         if spec
+                                            Packager.info "Loaded gemspec: #{spec}"
                                             if spec.date
                                                 if !tgz_date || spec.date < tgz_date
                                                     tgz_date = spec.date
@@ -1782,6 +1784,8 @@ module Apaka
                             bdep.replace("debhelper") if bdep =~ /debhelper.+/
                         end
                         debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
+                        Packager.info "Build-Depends: #{debian_ruby_name}: injecting dependencies: '#{debcontrol.source["Build-Depends"]}'"
+
                         File.write("debian/control", DebianControl::generate(debcontrol))
                         dpkg_commit_changes("relax_version_requirements")
 
@@ -1829,7 +1833,7 @@ module Apaka
                         # Injecting environment setup in debian/rules
                         # packages like orocos.rb will require locally installed packages
 
-                        Packager.info "#{debian_ruby_name}: injecting enviroment variables into debian/rules"
+                        Packager.info "#{debian_ruby_name}: injecting environment variables into debian/rules"
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
