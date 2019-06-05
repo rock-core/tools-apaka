@@ -66,7 +66,7 @@ packages:
         tools/utilrb-ext: utilrb-ext
         tools/orogen: orogen
     optional: llvm,clang
-    enforce_build: rgl,gems
+    enforce_build: rgl,ruby-backports
 rock_releases:
     master:
         url: http://localhost/apaka-releases/master/
