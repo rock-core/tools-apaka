@@ -1,128 +1,197 @@
 #!/bin/bash
 
-##============================== *** DESCRIPTION apaka-make-deb  ***===============================##
-##                                                                                                 ## 
+##============================== *** DESCRIPTION apaka-make-deb *** ===============================##
 ##                                                                                                 ##
 ##      Script for automated debian packaging based on a given autoproj based workspace.           ##
-##      Provide the absolute path of the designated working directory (WD) as the 1st ARGUMENT!    ##
+##      Provide the absolute path (may include ~) to the designated working directory!             ##
 ##      ( May be executed from anywhere.. )                                                        ##
 ##                                                                                                 ##
 ##      Execution: bash apaka-make-deb absolute_path_WD                                            ##
-##      Example: bash apaka-make-deb ~/mantis_dev                                                  ##
+##        Example: bash apaka-make-deb ~/mantis_dev                                                ##
 ##                                                                                                 ##
-##      Alternative: make file executable with >> chmod +x apaka-make-deb <<                       ##
-##                   execute >> ./apaka-make-deb absolute_path_WD <<                               ##
+##        Alternative: make file executable with >> chmod +x apaka-make-deb <<                     ##
+##                     execute >> ./apaka-make-deb absolute_path_WD <<                             ##
 ##                                                                                                 ##
 ##      Available flags:                                                                           ##
-##            --nomake  --> skips the update and building of apaka                                 ##
-##            --help    --> prints this dialog                                                     ##
-##            --cleanup --> cleans up working directory                                            ##
-##                          (incl. remove of build dir & tools/apaka)                              ##
+##        required:                                                                                ##
+##            --dir path                                                                           ##
+##                     --> set working directory.                                                  ##
+##            --release argument                                                                   ##
+##                     --> set release name [current default = mantis-19.05]                       ##
+##                                                                                                 ##
+##        optional:                                                                                ##
+##            --help   --> print this dialog                                                       ##
+##            --nomake --> skip the update and building of apaka                                   ##
+##            --clean  --> clean up working directory                                              ##
+##                                                                                                 ##
+##            --architecture argument                                                              ##
+##                     --> set architecture [current default = autodetect build system]            ##
+##            --distribution argument                                                              ##
+##                     --> set distribution [current default = autodetect build system]            ##
+##            --package argument                                                                   ##
+##                     --> build only this package                                                 ##
 ##                                                                                                 ##
 ##                                                                                                 ##
-## ~~~ Check hard coded variables if you want to change architecture, distribution or release ~~~  ##
+##      ~~~ Architecture and distribution are autodetected. Use flag for user definition ~~~       ##
 ##=================================================================================================##
 
-architecture="amd64"
-dist="xenial"
-release="master-18.01"
+# =============================================  TODOS  =========================================== #
 
-# =============================================  Flag handlers  ============================================ #
+# - ENSURE RELEASE!
+# - check architecture and distribution flags for valid arguments!
+# - implement autocomplete for flags
+# multiple package support
 
+# ==========================================  ESSENTIALS  ========================================= #
+
+# kill script execution of the entire script upon Ctrl-C
 trap "exit" INT
 
-# check for input argument
-if [[ $# -eq 0 ]]
-    then
-      echo "Argument missing! Provide absolute path to the directory containing env.h"
-      echo "Type >> bash apaka-make-deb --help << in order to get a script description"
-    exit 1
-fi
+# ========================================= DEFAULT VALUES  ======================================= #
 
-# print help
-if [[ $* == *--help* ]]; then  #poor style, but also not dangerous
-  head -25 apaka-make-deb | sed 1,1d 
-  exit 1
-fi
+build=true # ?run aup apaka && amake apaka
+dir=''
 
-# set working directory
-dir=$1
+release="mantis-19.05"
+architectures=""
+distributions=""
+package=""
 
-# clean working directory
-function cleanFunc {
-  echo "Cleaning up working directory..";
-  if [ -d "$dir/build" ]; then echo "Removing build directory"; rm -rf $dir/build; fi
-  if [ -d "$dir/tools/apaka" ]; then echo "Removing apaka directory"; rm -rf $dir/tools/apaka; fi
-  if [ -d "$dir/deb_patches" ]; then echo "Removing deb_patches directory"; rm -rf $dir/deb_patches; fi
-  if [[ $(cd "$dir/autoproj/" && grep -rc tools/apaka --include=manifest | cut -d':' -f2) -gt 0 ]]; then
-    echo "Resetting autoproj manifest"
-    sed -i '/tools\/apaka/d' $dir/autoproj/manifest
-  fi
-  echo "Successfully cleaned $dir workspace"
+# ===========================================  FUNCTIONS  ========================================= #
+# print help dialog
+function print_usage() {
+  head -37 ${0##*/} | sed 1,1d
 }
 
-if [[ $* == *--cleanup* ]]; then  #poor style, but also not dangerous
+# check argument
+function checkArg() {
+  if [[ "$2" == "--"* ]]; then
+    echo "ERROR: No valid argument for $1 flag."
+    echo "HINT: Use --help flag to see usage"
+  else
+    echo "INFO: For $(echo $1 | cut -d'-' -f3) using $2"
+    case "$1" in
+      "--architectures"    ) architectures="--architectures $2";;
+      "--distributions"    ) distributions="--distributions $2";;
+      "--package"          ) package="$2";;
+      * ) echo "ERROR: This error should never occur! Please check code.."; exit 1;;
+    esac
+  fi
+}
+
+# set working directory
+function setDir() {
+  if [ -d "$1" ]; then #&& [ -d "$1/autoproj" ]; then
+    echo "INFO: Setting working directory to $1"
+    dir=$1
+  else
+    echo "ERROR: The set working directory is not a valid directory or does not contain an autoproj directory."
+    exit 1
+  fi
+}
+
+# clean working directory
+function cleanDir {
+  if [ -d $dir ]; then
+    echo "INFO: Cleaning up working directory..";
+    if [ -d "$dir/build" ]; then echo "INFO: Removing build directory"; rm -rf $dir/build; fi
+    if [ -d "$dir/tools/apaka" ]; then echo "INFO: Removing apaka directory"; rm -rf $dir/tools/apaka; fi
+    if [ -d "$dir/deb_patches" ]; then echo "INFO: Removing deb_patches directory"; rm -rf $dir/deb_patches; fi
+    if [[ $(cd "$dir/autoproj/" && grep -rc tools/apaka --include=manifest | cut -d':' -f2) -gt 0 ]]; then
+      echo "INFO: Resetting autoproj manifest"
+      sed -i '/tools\/apaka/d' $dir/autoproj/manifest
+    fi
+    echo "INFO: Successfully cleaned $dir workspace"
+  else
+    echo "ERROR: No valid working directory! Check your --dir argument."
+    exit 1
+  fi
+}
+
+function ensureCleaning {
   while true; do
-    read -p "Are you sure you want to clean your working directory? This will delete the build directory! [y/n] " confirm
+    read -p "PROMPT: Are you sure you want to clean your working directory? This will delete the build directory! [y/n] " confirm
     case $confirm in
-      [Yy]* ) cleanFunc; exit 1;;
-      [Nn]* ) echo "Abort mission"; exit 1;;
-      * ) echo "Please type y or n!";;
+      [Yy]* ) cleanDir; exit 1;;
+      [Nn]* ) echo "INFO: Abort mission"; exit 1;;
+      * ) echo "PROMPT: Please type y or n!";;
     esac
   done
+}
+
+# ==========================================  FLAG HANDLER  ======================================= #
+# ensure --dir flag
+if [[ ! $* == *--dir* ]] && [[ ! $* == *--help* ]]; then
+  echo "ERROR: Please provide working directory argument through --dir flag."
+  exit 1;
+elif [[ $* == *--help* ]]; then
+  print_usage; exit 1;
 fi
 
-# set bool for update and build apaka
-build=true
-if [[ $* == *--nomake* ]]; then  #poor style, but also not dangerous
-  echo "apaka won't be build due to --nomake flag"
-  build=false
-fi
+# handle flags
+while [[ $# -gt 0 ]] && [[ "$1" == --* ]];
+do
+  opt="$1";
+  shift;
+  case "$opt" in
+    "--dir"            ) setDir $1;shift;;
+    "--help"           ) print_usage; exit 1;;
+    "--nomake"         ) build=false;;
+    "--clean"          ) ensureCleaning;;
+    "--release"        ) release=$1; shift;;
+    "--architectures"   ) checkArg $opt $1; shift;;
+    "--distributions"   ) checkArg $opt $1; shift;;
+    "--package"        ) checkArg $opt $1; shift;;
+    * ) echo "ERROR: Wrong flag please use --help flag to see usage:"; exit 1 ;;
+  esac
+done
 
-# ==================================================  Main  ================================================ #
+# =============================================  MAIN  ============================================ #
 # source environment
-if cd "$dir"; then
-  source env.sh
+if [ -f "$dir/env.sh" ]; then
+  source "$dir/env.sh" && echo "INFO: Sourcing env.sh"
 else
-  echo "Provided argument is no valid directory"
+  echo "ERROR: Can't source env.sh. No such file."
   exit 1
 fi
 
 # clone apaka into directory
 if $(git clone https://github.com/rock-core/tools-apaka "$dir/tools/apaka" 2> /dev/null); then
-  echo "Cloned tools/apaka from git"
+  echo "INFO: Cloned tools/apaka from git"
 else
-  echo "tools/apaka already exists. Skip cloning from git repository."
+  echo "INFO: tools/apaka already exists. Skip cloning from git repository."
 fi
 
 # inject tools/apaka into autoproj/manifest
 if [ -f "$dir/autoproj/manifest" ]; then 
   cd "$dir/autoproj"
   if [[ $(grep -rc tools/apaka --include=manifest | cut -d':' -f2) -eq 0 ]]; then
-    echo "Adding tools/apaka to autoproj/manifest"
+    echo "INFO: Adding tools/apaka to autoproj/manifest"
     lineNumber=$(($(grep -rn layout --include=manifest | cut -d':' -f2 ) + 1))
     awk -v number=$lineNumber -v line="    - tools/apaka" 'NR == number {print line} {print}' manifest > manifest.new && mv manifest.new manifest
   fi
   cd ..
 else
-  echo "Could not find valid manifest file in autoproj directory."
+  echo "ERROR: Could not find valid manifest file in autoproj directory."
   exit 1
 fi
 
 # update and build apaka
-if $build; then
+if $build ; then
   aup apaka && amake apaka
+else
+  echo "INFO: apaka will not be updated nor build due to --nomake flag"
 fi
 
 # clone deb_patches into directory
 if $(git clone https://github.com/2maz/deb_patches.git "$dir/deb_patches" 2> /dev/null); then
-  echo "Cloned deb_patches from git"
+  echo "INFO: Cloned deb_patches from git"
 else
-  echo "deb_patches already exists. Skip cloning from git repository."
+  echo "INFO: deb_patches already exists. Skip cloning from git repository."
 fi
 
 # prepare and execute packaging
-echo "Prepare for packaging"
-deb_local --architecture $architecture --distribution $dist --release-name $release --prepare
-echo "Perform packaging"
-deb_local --patch-dir deb_patches --architecture $architecture --distribution $dist --release-name $release
+echo "INFO: Prepare for packaging"
+deb_local --release-name $release $architectures $distributions --prepare
+echo "INFO: Perform packaging"
+deb_local --patch-dir deb_patches --release-name $release $architectures $distributions $package
