@@ -1,55 +1,21 @@
 require 'rubygems/requirement'
 require 'set'
-require 'autoproj/package_managers/gem_manager'
-require 'apaka/packaging/packager'
+require 'open3'
 require 'json'
 require 'date'
-require 'open3'
+require 'autoproj'
+require 'apaka/packaging/packager'
 
 module Apaka
     module Packaging
         class GemDependencies
-            # Resolve the dependency of a gem using `gem dependency <gem_name>`
-            # This will only work if the local installation is update to date
-            # regarding the gems
-            # return [:deps => , :version =>  ]
-            def self.resolve_by_name(gem_name, version = nil, runtime_deps_only = true)
-                if not gem_name.kind_of?(String)
-                    raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
-                end
-                version_requirements = Array.new
-                if version
-                    if version.kind_of?(Set)
-                        version_requirements = version.to_a.compact
-                    elsif version.kind_of?(String)
-                        version_requirements = version.gsub(' ','').split(',')
-                    else
-                        version_requirements = version
-                    end
-                end
-                gem_dependency_cmd = "gem dependency #{gem_name}"
-                gem_dependency = `#{gem_dependency_cmd}`
-
-                if $?.exitstatus != 0
-                    Apaka::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
-                    gem_manager = ::Autoproj::PackageManagers::GemManager.new(Autoproj.workspace)
-                    if version_requirements.empty?
-                        gem_manager.install([[gem_name]])
-                    else
-                        if version_requirements.size != 1
-                            raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
-                        end
-                        gem_manager.install([[gem_name, version_requirements.first]])
-                    end
-                end
-
-                # Output of gem dependency is not providing more information
-                # than for the specific gem found
+            # Parse gem dependencies and return the dependencies
+            def self.parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only = true)
+                dependencies = Hash.new
                 regexp = /(.*)\s\((.*)\)/
                 found_gem = false
                 current_version = nil
                 versioned_gems = Array.new
-                dependencies = Hash.new
                 gem_dependency.split("\n").each do |line|
                     if match = /Gem #{gem_name}-([0-9].*)/.match(line)
                         # add after completion of the parsing
@@ -90,6 +56,106 @@ module Apaka
                     versioned_gems << { :version => current_version, :deps => dependencies }
                 end
 
+                return versioned_gems
+            end
+            # Get the installation status
+            #
+            def self.installation_status(gem_name, version_requirements = nil, runtime_deps_only: true)
+                gem_dependency_cmd = "gem dependency #{gem_name}"
+                if version_requirements && !version_requirements.empty?
+                    gem_dependency_cmd += " -v\"#{version_requirements.join(',')}\""
+                end
+                stdcout, stdcerr, status = Open3.capture3(gem_dependency_cmd)
+                if !status.success?
+                    gem_dependency = nil
+                    return false, nil
+                else
+                    gem_dependency = stdcout
+                    # do a quick check to verify we actually found our gem
+                    found = false
+                    gem_dependency.split("\n").each do |line|
+                        if match = /Gem #{gem_name}-([0-9].*)/.match(line)
+                            found = true
+                            break;
+                        end
+                    end
+                    if !found
+                        gem_dependency = nil
+                    end
+                end
+                return true, parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only: runtime_deps_only)
+            end
+
+            def self.install(gem_name, version_requirements)
+                if defined?(::Autoproj::PackageManagers::BundlerManager)
+                    install_autoproj2(gem_name, version_requirements)
+                elsif defined?(::Autoproj::PackageManager::GemManager)
+                    install_autoproj1(gem_name, version_requirements)
+                else
+                    raise RuntimeError("GemDependencies::install: could not identify proper" \
+                                       " installation mechanism for gems in autoproj")
+                end
+            end
+
+            def self.install_autoproj2(gem_name, version_requirements)
+                bundler_manager = ::Autoproj::PackageManagers::BundlerManager.new(::Autoproj::workspace)
+                if version_requirements.empty?
+                    bundler_manager.install([gem_name])
+                else
+                    if version_requirements.size != 1
+                        raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
+                    end
+                    bundler_manager.install([gem_name+version_requirements.first])
+                end
+            end
+
+            def self.install_autoproj1(gem_name, version_requirements)
+                gem_manager = ::Autoproj::PackageManagers::GemManager.new(Autoproj.workspace)
+                if version_requirements.empty?
+                    gem_manager.install([[gem_name]])
+                else
+                    if version_requirements.size != 1
+                        raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
+                    end
+                    gem_manager.install([[gem_name, version_requirements.first]])
+                end
+            end
+
+            def self.gem_dependencies(gem_name)
+                gem_dependency_cmd = "gem dependency #{gem_name}"
+                gem_dependency, stdcerr, status = Open3.capture3(gem_dependency_cmd)
+                if !status.success?
+                    raise RuntimeError, "GemDependencies::resolve_by_name could not find '#{gem_name}', even though we tried to install it"
+                end
+                return gem_dependency
+            end
+            # Resolve the dependency of a gem using `gem dependency <gem_name>`
+            # This will only work if the local installation is update to date
+            # regarding the gems
+            # return [:deps => , :version =>  ]
+            def self.resolve_by_name(gem_name, version = nil, runtime_deps_only = true)
+                if not gem_name.kind_of?(String)
+                    raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
+                end
+                version_requirements = Array.new
+                if version
+                    if version.kind_of?(Set)
+                        version_requirements = version.to_a.compact
+                    elsif version.kind_of?(String)
+                        version_requirements = version.gsub(' ','').split(',')
+                    else
+                        version_requirements = version
+                    end
+                end
+
+                installed, gem_dependency = installation_status(gem_name, version_requirements, runtime_deps_only: runtime_deps_only)
+                if !installed
+                    Apaka::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
+                    install(gem_name, version_requirements)
+                    installed, gem_dependency = installation_status(gem_name, version_requirements)
+                end
+
+                versioned_gems = gem_dependency
                 # pick last, i.e. highest version
                 requirements = Array.new
                 version_requirements.each do |requirement|
@@ -251,6 +317,10 @@ module Apaka
                 return false
             end
 
+            # Get the release date for a particular gem
+            # if no version is given, then the latest is used
+            #
+            # This performs a webquery on rubygems.org
             def self.get_release_date(gem_name, version = nil)
                 json_txt, err, status = Open3.capture3("curl https://rubygems.org/api/v1/versions/#{gem_name}.json")
                 if status.success?

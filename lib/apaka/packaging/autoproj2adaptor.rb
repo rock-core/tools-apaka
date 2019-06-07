@@ -3,7 +3,7 @@ require 'autoproj'
 require 'autobuild'
 require 'apaka/packaging/packageinfoask'
 require 'autoproj/cli/base'
-require 'apaka/packaging/gem_dependencies2'
+require 'apaka/packaging/gem_dependencies'
 
 module Apaka
     module Packaging
@@ -453,7 +453,7 @@ module Apaka
             #           :gem_versions => { gem => version } }
             def all_required_gems(gem_versions)
                 gem_version_requirements = gem_versions.dup
-                gem_dependencies = GemDependencies2.resolve_all(gem_versions)
+                gem_dependencies = GemDependencies.resolve_all(gem_versions)
                 gem_dependencies.each do |name, deps|
                     if deps
                         deps.each do |dep_name, dep_versions|
@@ -462,8 +462,8 @@ module Apaka
                         end
                     end
                 end
-                exact_version_list = GemDependencies2.gem_exact_versions(gem_version_requirements)
-                sorted_gem_list = GemDependencies2.sort_by_dependency(gem_dependencies).uniq
+                exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
+                sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
                 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end

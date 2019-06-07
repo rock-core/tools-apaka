@@ -9,7 +9,7 @@ module Apaka
         class Installer
             extend Logger::Root("Installer", Logger::INFO)
 
-            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static","gem2deb"]
+            BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static","gem2deb","curl"]
             WEBSERVER_DEBS=["apache2"]
             CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
