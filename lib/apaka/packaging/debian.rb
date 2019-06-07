@@ -1558,43 +1558,48 @@ module Apaka
 
 
                             tgz_date = nil
-
                             if pkg_commit_time
                                 tgz_date = pkg_commit_time
                             else
+                                tgz_date = GemDependencies.get_release_date(gem_base_name, version = gem_version)
+                                # If we cannot retrieve the information from the
+                                # web
+                                #
                                 # Prefer metadata.yml over gemspec since it gives a more reliable timestamp
-                                ['*.gemspec', 'metadata.yml'].each do |file|
-                                    Dir.chdir(gem_versioned_name) do
-                                        files = Dir.glob("#{file}")
-                                        if not files.empty?
-                                            if files.first =~ /yml/
-                                                spec = YAML.load_file(files.first)
-                                            else
-                                                spec = Gem::Specification::load(files.first)
-                                            end
-                                        else
-                                            Packager.info "Gem conversion: file #{file} does not exist"
-                                            next
-                                        end
-
-                                        #todo: not reliable. need sth better.
-                                        if spec
-                                            Packager.info "Loaded gemspec: #{spec}"
-                                            if spec.date
-                                                if !tgz_date || spec.date < tgz_date
-                                                    tgz_date = spec.date
-                                                    Packager.info "#{files.first} has associated time: using #{tgz_date} as timestamp"
+                                if not tgz_date
+                                    ['*.gemspec', 'metadata.yml'].each do |file|
+                                        Dir.chdir(gem_versioned_name) do
+                                            files = Dir.glob("#{file}")
+                                            if not files.empty?
+                                                if files.first =~ /yml/
+                                                    spec = YAML.load_file(files.first)
+                                                else
+                                                    spec = Gem::Specification::load(files.first)
                                                 end
-                                                Packager.info "#{files.first} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
                                             else
-                                                Packager.warn "#{files.first} has no associated time: using current time for packaging"
+                                                Packager.info "Gem conversion: file #{file} does not exist"
+                                                next
                                             end
-                                        else
-                                            Packager.warn "#{files.first} is not a spec file"
+
+                                            if spec
+                                                Packager.info "Loaded gemspec: #{spec}"
+                                                if spec.date
+                                                    if !tgz_date || spec.date < tgz_date
+                                                        tgz_date = spec.date
+                                                        Packager.info "#{files.first} has associated time: using #{tgz_date} as timestamp"
+                                                    end
+                                                    Packager.info "#{files.first} has associated time, but too recent, thus staying with #{tgz_date} as timestamp"
+                                                else
+                                                    Packager.warn "#{files.first} has no associated time: using current time for packaging"
+                                                end
+                                            else
+                                                Packager.warn "#{files.first} is not a spec file"
+                                            end
                                         end
                                     end
                                 end
                             end
+
                             if !tgz_date
                                 tgz_date = Time.now
                                 Packager.warn "Gem conversion: could not extract time for gem: using current time: #{tgz_date}"

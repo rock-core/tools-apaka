@@ -2,6 +2,9 @@ require 'rubygems/requirement'
 require 'set'
 require 'autoproj/package_managers/gem_manager'
 require 'apaka/packaging/packager'
+require 'json'
+require 'date'
+require 'open3'
 
 module Apaka
     module Packaging
@@ -246,6 +249,25 @@ module Apaka
                     end
                 end
                 return false
+            end
+
+            def self.get_release_date(gem_name, version = nil)
+                json_txt, err, status = Open3.capture3("curl https://rubygems.org/api/v1/versions/#{gem_name}.json")
+                if status.success?
+                    json = JSON.parse(json_txt)
+                    json.each do |desc|
+                        if not version or desc["number"] == version
+                            built_at = desc['built_at']
+                            Apaka::Packaging.info "GemDependencies: gem #{gem_name}, version #{version} built at: #{built_at}"
+                            if built_at =~ /([0-9]{4}-[0-9]{2}-[0-9]{2})T/
+                                return DateTime.strptime($1, "%Y-%m-%d")
+                            end
+                        end
+                    end
+                else
+                    Apaka::Packaging.info "GemDependencies: gem #{gem_name}, version #{version} could not retrieve release date"
+                end
+                nil
             end
         end # GemDependencies
     end # Packaging
