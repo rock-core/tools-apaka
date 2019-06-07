@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:18.04
 
 MAINTAINER 2maz "https://github.com/2maz"
 
@@ -15,8 +15,7 @@ ENV PKG_PULL_REQUEST_BRANCH=${PKG_PULL_REQUEST_BRANCH}
 
 RUN apt update
 RUN apt upgrade -y
-RUN apt install -y ruby ruby-dev git locales tzdata vim
-RUN apt install -y wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer
+RUN export DEBIAN_FRONTEND=noninteractive; apt install -y ruby ruby-dev git locales tzdata vim wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer curl
 RUN apt-file update
 RUN service apache2 start
 RUN echo "Europe/Berlin" > /etc/timezone; dpkg-reconfigure -f noninteractive tzdata
