@@ -150,9 +150,12 @@ module Apaka
 
                 installed, gem_dependency = installation_status(gem_name, version_requirements, runtime_deps_only: runtime_deps_only)
                 if !installed
-                    Apaka::Packaging.warn "Failed to resolve #{gem_name} via #{gem_dependency_cmd} -- autoinstalling"
+                    Apaka::Packaging.warn "Failed to resolve #{gem_name} via 'gem dependency' -- autoinstalling"
                     install(gem_name, version_requirements)
                     installed, gem_dependency = installation_status(gem_name, version_requirements)
+                    if !installed
+                        raise RuntimeError, "GemDependencies.resolve_by_name: failed to autoinstall gem '#{gem_name}'"
+                    end
                 end
 
                 versioned_gems = gem_dependency
@@ -203,7 +206,7 @@ module Apaka
                         end
 
                         remaining_gems[name] ||= Array.new
-                        remaining_gems[name] << version
+                        remaining_gems[name] << version if version
                     end
                 elsif gems.kind_of?(Hash)
                     remaining_gems = gems
