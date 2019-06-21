@@ -1299,7 +1299,7 @@ module Apaka
                                     gem = Dir.glob("#{gem_dir}/*.gem")
                                     if !gem.empty?
                                         gem_from_cache = true
-                                        Packager.info "Using gem from cache: copying #{gem.first} to #{Dir.pwd}"
+                                        Packager.info "Selecting gem from cache: #{gem.join('\n')}, searching for version: '#{version}'"
                                         selected_gem = nil
                                         if version
                                             regexp = Regexp.new(version)
@@ -1317,6 +1317,7 @@ module Apaka
                                             Packager.warn "Gem(s) in cache does not match the expected version: #{version}"
                                             raise RuntimeError, "Failed to find gem for '#{gem_name}' with version '#{version}' in cache: #{File.absolute_path(gem_dir)}"
                                         end
+                                        Packager.info "Selected gem from cache: #{selected_gem}"
                                         FileUtils.cp selected_gem, "."
                                     end
                                 end
