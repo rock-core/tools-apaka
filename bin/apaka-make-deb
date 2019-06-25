@@ -6,33 +6,34 @@
 ##      Provide the absolute path (may include ~) to the designated working directory!             ##
 ##      ( May be executed from anywhere.. )                                                        ##
 ##                                                                                                 ##
-##      Execution: bash apaka-make-deb absolute_path_WD                                            ##
-##        Example: bash apaka-make-deb ~/mantis_dev                                                ##
+##      Execution: bash apaka-make-deb --dir absolute_path_WD --release name                       ##
+##          Example: bash apaka-make-deb --dir ~/mantis_dev --release mantis-19.05                 ##
 ##                                                                                                 ##
-##        Alternative: make file executable with >> chmod +x apaka-make-deb <<                     ##
-##                     execute >> ./apaka-make-deb absolute_path_WD <<                             ##
+##          Alternative: make file executable with >> chmod +x apaka-make-deb <<                   ##
+##                       execute >> ./apaka-make-deb [required arguments] [options] <<             ##
 ##                                                                                                 ##
 ##      Available flags:                                                                           ##
-##        required:                                                                                ##
-##            --dir path                                                                           ##
-##                     --> set working directory.                                                  ##
-##            --release argument                                                                   ##
-##                     --> set release name [current default = mantis-19.05]                       ##
+##          required:                                                                              ##
+##              --dir path                                                                         ##
+##                       --> set working directory.                                                ##
+##              --release argument                                                                 ##
+##                       --> set release name [current default = mantis-19.05]                     ##
 ##                                                                                                 ##
-##        optional:                                                                                ##
-##            --help   --> print this dialog                                                       ##
-##            --nomake --> skip the update and building of apaka                                   ##
-##            --clean  --> clean up working directory                                              ##
+##          optional:                                                                              ##
+##              --help   --> print this dialog                                                     ##
+##              --nomake --> skip the update and building of apaka                                 ##
+##              --clean  --> clean up working directory                                            ##
 ##                                                                                                 ##
-##            --architecture argument                                                              ##
-##                     --> set architecture [current default = autodetect build system]            ##
-##            --distribution argument                                                              ##
-##                     --> set distribution [current default = autodetect build system]            ##
-##            --package argument                                                                   ##
-##                     --> build only this package                                                 ##
+##              --architecture argument                                                            ##
+##                       --> set architecture [current default = autodetect build system]          ##
+##              --distribution argument                                                            ##
+##                       --> set distribution [current default = autodetect build system]          ##
+##              --package argument                                                                 ##
+##                       --> build only this package                                               ##
 ##                                                                                                 ##
 ##                                                                                                 ##
 ##      ~~~ Architecture and distribution are autodetected. Use flag for user definition ~~~       ##
+##      ~~ deb_patches is used by default. Edit last line of file for different behaviour ~~       ##
 ##=================================================================================================##
 
 # =============================================  TODOS  =========================================== #
@@ -60,7 +61,7 @@ package=""
 # ===========================================  FUNCTIONS  ========================================= #
 # print help dialog
 function print_usage() {
-  head -37 ${0##*/} | sed 1,1d
+  head -38 ${0##*/} | sed 1,1d
 }
 
 # check argument
@@ -123,6 +124,7 @@ function ensureCleaning {
 # ensure --dir flag
 if [[ ! $* == *--dir* ]] && [[ ! $* == *--help* ]]; then
   echo "ERROR: Please provide working directory argument through --dir flag."
+  echo "INFO: Use --help flag for man page."
   exit 1;
 elif [[ $* == *--help* ]]; then
   print_usage; exit 1;
@@ -167,8 +169,8 @@ if [ -f "$dir/autoproj/manifest" ]; then
   cd "$dir/autoproj"
   if [[ $(grep -rc tools/apaka --include=manifest | cut -d':' -f2) -eq 0 ]]; then
     echo "INFO: Adding tools/apaka to autoproj/manifest"
-    lineNumber=$(($(grep -rn layout --include=manifest | cut -d':' -f2 ) + 1))
-    awk -v number=$lineNumber -v line="    - tools/apaka" 'NR == number {print line} {print}' manifest > manifest.new && mv manifest.new manifest
+    lineNumber=$(($(grep -rn layout: --include=manifest | cut -d':' -f2 ) + 1))
+    awk -v number=$lineNumber -v line="  - tools/apaka" 'NR == number {print line} {print}' manifest > manifest.new && mv manifest.new manifest
   fi
   cd ..
 else
@@ -190,7 +192,14 @@ else
   echo "INFO: deb_patches already exists. Skip cloning from git repository."
 fi
 
+if [ -d "$dir/deb_patches/bagel" ]; then
+  echo "INFO: MAINTAIN!! removing bagel deb_patches"
+  rm -r $dir/deb_patches/bagel
+fi
+
 # prepare and execute packaging
+cd $dir
+source env.sh
 echo "INFO: Prepare for packaging"
 deb_local --release-name $release $architectures $distributions --prepare
 echo "INFO: Perform packaging"
