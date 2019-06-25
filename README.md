@@ -246,6 +246,45 @@ for the test_canonize
     ruby -Ilib test/test_packaging.rb -n test_canonize
 ```
 
+## Package Signing and Usage
+### Maintainer
+
+Generate key pair gpg2 (use RSA and RSA)
+```
+    gpg2 --full-gen-key
+```
+List proper key-ID-format of the generated key pair. For the next step use the 16 character long key ID that is shown in the line starting with pub after rsa4096/.
+```
+    gpg2 --list-key --keyid-format long
+```
+Edit /var/www/akala-releases/_releaseName_/config/distributions and add the following line to the block matching the distribution that is to be signed (e.g. bionic). 
+```
+    SignWith: insert_short_pub_key_ID
+```
+
+Rebuild one new package that **has not been build before**, in order to have deb_local sign the entire release (of this distribution).
+If all packages have already been build, remove a small package from the release with reprepro and rebuild it.
+E.g. search for base/cmake and remove matching packages on the bionic distribution.
+```
+    reprepro -b . listmatched bionic '*base-cmake*'
+    reprepro -b . removematched bionic '*base-cmake*'
+```
+Rebuild base/cmake with deb_local or using apaka-make-deb with --package base/cmake option.
+
+Export public key to file. Replace _releaseName_ and _bionic_ as needed.
+```
+    gpg2 --armor --output /var/www/apaka-releases/_releaseName_/dists/_bionic_/Release_pub --export insert_short_pub_key_ID
+```
+
+### User
+Get the public key file Release_pub and make it known to apt and update.
+```
+    sudo apt-key add Release_pub && apt-get update
+```
+Open /etc/apt/sources.list (sudo required) and add deb URL dsitribution.
+E.g. _deb http://rock.hb.dfki.de/rock-releases/mantis-19.05/ bionic main_
+
+
 ## Script interface description
 
 ### deb_package
