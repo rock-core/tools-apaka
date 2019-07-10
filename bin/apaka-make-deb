@@ -17,7 +17,7 @@
 ##              --dir path                                                                         ##
 ##                       --> set working directory.                                                ##
 ##              --release argument                                                                 ##
-##                       --> set release name [current default = mantis-19.05]                     ##
+##                       --> set release name                                                      ##
 ##                                                                                                 ##
 ##          optional:                                                                              ##
 ##              --help   --> print this dialog                                                     ##
@@ -30,6 +30,9 @@
 ##                       --> set distribution [current default = autodetect build system]          ##
 ##              --package argument                                                                 ##
 ##                       --> build only this package                                               ##
+##              --osdeps                                                                           ##
+##                       --> generate osdeps file                                                  ##
+##                           (will only be executed if packaging is successful)                    ##
 ##                                                                                                 ##
 ##                                                                                                 ##
 ##      ~~~ Architecture and distribution are autodetected. Use flag for user definition ~~~       ##
@@ -38,30 +41,36 @@
 
 # =============================================  TODOS  =========================================== #
 
-# - ENSURE RELEASE!
 # - check architecture and distribution flags for valid arguments!
-# - implement autocomplete for flags
-# multiple package support
+# - multiple package support
+# - autogenerate key and sign release!
 
 # ==========================================  ESSENTIALS  ========================================= #
 
 # kill script execution of the entire script upon Ctrl-C
 trap "exit" INT
-
+# catch any occuring error, kill script and print info
+set -e
+err() {
+    echo "Error occurred:"
+    awk 'NR>L-4 && NR<L+4 { printf "%-5d%3s%s\n",NR,(NR==L?">>>":""),$0 }' L=$1 $0
+}
+trap 'err $LINENO' ERR
 # ========================================= DEFAULT VALUES  ======================================= #
 
 build=true # ?run aup apaka && amake apaka
+osdeps=false
 dir=''
 
-release="mantis-19.05"
-architectures=""
-distributions=""
+release=""
+architecture=""
+distribution=""
 package=""
 
 # ===========================================  FUNCTIONS  ========================================= #
 # print help dialog
 function print_usage() {
-  head -38 ${0##*/} | sed 1,1d
+  head -41 ${0##*/} | sed 1,1d
 }
 
 # check argument
@@ -72,9 +81,10 @@ function checkArg() {
   else
     echo "INFO: For $(echo $1 | cut -d'-' -f3) using $2"
     case "$1" in
-      "--architectures"    ) architectures="--architectures $2";;
-      "--distributions"    ) distributions="--distributions $2";;
-      "--package"          ) package="$2";;
+      "--release"         ) release="--release $2";;
+      "--architecture"    ) architecture="--architecture $2";;
+      "--distribution"    ) distribution="--distribution $2";;
+      "--package"         ) package="$2";;
       * ) echo "ERROR: This error should never occur! Please check code.."; exit 1;;
     esac
   fi
@@ -121,9 +131,10 @@ function ensureCleaning {
 }
 
 # ==========================================  FLAG HANDLER  ======================================= #
-# ensure --dir flag
-if [[ ! $* == *--dir* ]] && [[ ! $* == *--help* ]]; then
-  echo "ERROR: Please provide working directory argument through --dir flag."
+# ensure --dir and --release or help flag
+if [[ ! $* == *--dir* ]] && [[ ! $* == *--release* ]] && [[ ! $* == *--help* ]]; then
+  echo "ERROR: Please make sure that you have provided working directory and release name!"
+  echo "       Use --dir and --release flag."
   echo "INFO: Use --help flag for man page."
   exit 1;
 elif [[ $* == *--help* ]]; then
@@ -140,18 +151,20 @@ do
     "--help"           ) print_usage; exit 1;;
     "--nomake"         ) build=false;;
     "--clean"          ) ensureCleaning;;
-    "--release"        ) release=$1; shift;;
-    "--architectures"   ) checkArg $opt $1; shift;;
-    "--distributions"   ) checkArg $opt $1; shift;;
+    "--release"        ) checkArg $opt $1; shift;;
+    "--architecture"   ) checkArg $opt $1; shift;;
+    "--distribution"   ) checkArg $opt $1; shift;;
     "--package"        ) checkArg $opt $1; shift;;
+    "--osdeps"         ) osdeps=true;;
     * ) echo "ERROR: Wrong flag please use --help flag to see usage:"; exit 1 ;;
   esac
 done
 
 # =============================================  MAIN  ============================================ #
+{
 # source environment
 if [ -f "$dir/env.sh" ]; then
-  source "$dir/env.sh" && echo "INFO: Sourcing env.sh"
+  source "$dir/env.sh" && export BASE_LOG_LEVEL="ERROR" && echo "INFO: Sourcing env.sh"
 else
   echo "ERROR: Can't source env.sh. No such file."
   exit 1
@@ -199,8 +212,14 @@ fi
 
 # prepare and execute packaging
 cd $dir
-source env.sh
+source env.sh && export BASE_LOG_LEVEL="ERROR" 
 echo "INFO: Prepare for packaging"
-deb_local --release-name $release $architectures $distributions --prepare
+deb_local --release-name $release $architecture $distribution --prepare
 echo "INFO: Perform packaging"
-deb_local --patch-dir deb_patches --release-name $release $architectures $distributions $package
+deb_local --patch-dir deb_patches --release-name $release $architecture $distribution $package
+} && {
+if $osdeps ; then
+  echo "Generating osdep-list of release $release in $dir/build/apaka-packager"
+  deb_package --release-name $release --update-osdeps-lists $dir
+fi
+}
