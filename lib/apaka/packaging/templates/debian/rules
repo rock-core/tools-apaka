@@ -118,6 +118,7 @@ end %>
 configure/<%= debian_name %>::
 	echo "Adapt -I to -isystem in pkgconfig files:"
 	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Adapting {}; sed -i 's#\(\"\?\)-isystem[^ ]\+\1##g; s#\(\"\?\)-I\([^ ]\+\)\1#\1-I\2\1 \1-isystem\2\1#g; s#[ ]\+# #g' {}; cat {};" \;
+	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Cleanup {}; sed -i 's#-isystem/usr/include # #g' {}; sed -i 's#-I/usr/include # #g' {}; cat {}" \;
 
 ###########################################
 # DOCS
