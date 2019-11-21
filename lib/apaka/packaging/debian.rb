@@ -1844,12 +1844,10 @@ module Apaka
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
-                        system("sed", "-i", "1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}", "debian/rules", :close_others => true)
                         envsh = Regexp.escape(env_setup())
                         system("sed", "-i", "1 a #{envsh}", "debian/rules", :close_others => true)
                         ruby_arch_env = ruby_arch_setup(true)
                         system("sed", "-i", "1 a #{ruby_arch_env}", "debian/rules", :close_others => true)
-                        system("sed", "-i", "1 a export DH_RUBY_INSTALL_PREFIX=#{rock_install_directory}", "debian/rules", :close_others => true)
                         system("sed", "-i", "s#\\(dh \\)#\\$(env_setup) \\1#", "debian/rules", :close_others => true)
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
@@ -1865,6 +1863,15 @@ module Apaka
                         system("sed", "-i", "1 a export DEB_BUILD_OPTIONS=nocheck", "debian/rules", :close_others => true)
                         dpkg_commit_changes("disable_tests")
 
+                        Packager.debug "Adapting the target installation directory from /usr to #{rock_install_directory}"
+                        # Append an installation override
+                        open('debian/rules','a') do |file|
+                            file << "\noverride_dh_auto_install:\n"
+                            file << "\tdh_auto_install\n"
+                            file << "\tmkdir -p debian/#{debian_ruby_unversioned_name}#{rock_install_directory}/\n"
+                            file << "\tcp -R debian/#{debian_ruby_unversioned_name}/usr/* debian/#{debian_ruby_unversioned_name}#{rock_install_directory}/\n"
+                            file << "\trm -rf debian/#{debian_ruby_unversioned_name}/usr/*\n"
+                        end
 
                         ["debian","pkgconfig"].each do |subdir|
                             Dir.glob("#{subdir}/*").each do |file|
