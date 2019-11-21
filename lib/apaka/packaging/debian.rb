@@ -281,14 +281,14 @@ module Apaka
 
             # Commit changes of a debian package using dpkg-source --commit
             # in a given directory (or the current one by default)
-            def dpkg_commit_changes(patch_name, directory = Dir.pwd)
+            def dpkg_commit_changes(patch_name, directory = Dir.pwd, prefix = "apaka-")
                 Dir.chdir(directory) do
                     Packager.debug ("commit changes to debian pkg: #{patch_name}")
                     # Since dpkg-source will open an editor we have to
                     # take this approach to make it pass directly in an
                     # automated workflow
                     ENV['EDITOR'] = "/bin/true"
-                    system("dpkg-source", "--commit", ".", patch_name, :close_others => true)
+                    system("dpkg-source", "--commit", ".", prefix + patch_name, :close_others => true)
                 end
             end
 
