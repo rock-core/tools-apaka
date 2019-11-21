@@ -302,8 +302,15 @@ module Apaka
             #
             # The order of the resulting package list is sorted
             # accounting for interdependencies among packages
-            def all_required_rock_packages(selection)
-                reverse_dependencies = reverse_dependencies(selection)
+            def all_required_rock_packages(selection, no_deps: false)
+                reverse_dependencies = {}
+                if no_deps
+                    selection.each do |pkg_name|
+                        reverse_dependencies[pkg_name] = []
+                    end
+                else
+                    reverse_dependencies = reverse_dependencies(selection)
+                end
                 sort_packages(reverse_dependencies)
             end
 
@@ -381,8 +388,8 @@ module Apaka
             # This requires the current installation to be complete since
             # `gem dependency <gem-name>` has been selected to provide the information
             # of ruby dependencies
-            def all_required_packages(selection, selected_gems, with_rock_release_prefix = false)
-                all_packages = all_required_rock_packages(selection)
+            def all_required_packages(selection, selected_gems, with_rock_release_prefix: false, no_deps: false)
+                all_packages = all_required_rock_packages(selection, no_deps: no_deps)
 
                 gems = Array.new
                 gem_versions = Hash.new
@@ -417,7 +424,7 @@ module Apaka
                             # dependencies, since
                             # No need to reiterate on rock package dependencies
                             # since these are contained in all_packages
-                            deps = dependencies(pkg, with_rock_release_prefix)
+                            deps = dependencies(pkg, with_rock_release_prefix) unless no_deps
                             all_pkginfos << pkginfo_from_pkg(pkg)
                         rescue ArgumentError
                             failed_packages << pkg

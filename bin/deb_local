@@ -350,7 +350,7 @@ end
 
 # Compute dependencies for a given selection
 package_info_ask.package_set_order = ["orocos.toolchain","rock.core","rock"]
-all_rock_packages = package_info_ask.all_required_packages selection, selected_gems
+all_rock_packages = package_info_ask.all_required_packages selection, selected_gems, no_deps: o_no_deps
 
 rock_pkginfos = all_rock_packages[:pkginfos]
 required_gems = all_rock_packages[:gems]
@@ -525,7 +525,10 @@ else
             next
         end
 
-        pkgdeps = pkginfo.dependencies
+        pkgdeps = {:rock_pkginfo => [], :nonnative => []}
+        if not o_no_deps
+            pkgdeps = pkginfo.dependencies
+        end
 
         pkg_build_options = build_options.dup
         pkg_build_options[:debian_package_name] = packager.debian_name(pkginfo,true)
