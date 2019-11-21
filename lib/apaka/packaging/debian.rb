@@ -1714,6 +1714,10 @@ module Apaka
                         end
 
                         # Fix the name, in case we had to patch
+                        debcontrol.source["Maintainer"] = Apaka::Packaging::Config.maintainer || "Autopackaged by apaka"
+                        debcontrol.source["Uploaders"] = ""
+                        debcontrol.source["Vcs-Browser"] = ""
+                        debcontrol.source["Vcs-Git"] = ""
                         debcontrol.source["Source"] = debian_ruby_unversioned_name
                         debcontrol.packages.each do |pkg|
                             pkg["Package"] = debian_ruby_unversioned_name

@@ -73,3 +73,4 @@ rock_releases:
     transterra:
         url: http://localhost/apaka-releases/transterra/
         depends_on: master, trusty
+maintainer: "Rock Packaging Daemon <rock-dev@dfki.de>"

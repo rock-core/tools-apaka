@@ -63,6 +63,7 @@ module Apaka
         #    transterra:
         #        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
         #        depends_on: master, trusty
+        #maintainer: "Rock Packaging Daemon <rock-dev@dfki.de>"
         #
         # The configuration can be extended/overridden via the environmental variable
         # ROCK_DEB_RELEASE_HIERARCHY using the pattern <release-name-0>:<url-0>;<release-name-1>:<url-1>;
@@ -81,6 +82,7 @@ module Apaka
             attr_reader :rock_releases
 
             attr_reader :architectures
+            attr_reader :maintainer
 
             attr_reader :packages_optional
             attr_accessor :packages_enforce_build
@@ -148,6 +150,8 @@ module Apaka
                     end
                     @rock_releases[key] = options
                 end
+
+                @maintainer = configuration["maintainer"]
 
                 update_hierarchy_from_env
 
@@ -274,6 +278,10 @@ module Apaka
                 if instance.rock_releases.has_key?(release_name)
                     instance.rock_releases[release_name][:url]
                 end
+            end
+
+            def self.maintainer
+                instance.maintainer
             end
 
             def self.to_s
