@@ -875,12 +875,6 @@ module Apaka
                     # First, generate the source tarball
                     tarball = "#{sources_name}.orig.tar.gz"
 
-                    if options[:patch_dir] && File.exist?(options[:patch_dir])
-                        if patch_pkg_dir(pkginfo.name, options[:patch_dir], nil, pkginfo.srcdir)
-                            Packager.warn "Overlay patch applied to #{pkginfo.name}"
-                        end
-                    end
-
                     # Check first if actual source contains newer information than existing
                     # orig.tar.gz -- only then we create a new debian package
                     package_with_update = false
@@ -902,6 +896,13 @@ module Apaka
                         # Generate the debian directory
                         generate_debian_dir(pkginfo, pkginfo.srcdir, options)
 
+                        if options[:patch_dir] && File.exist?(options[:patch_dir])
+                            if patch_pkg_dir(pkginfo.name, options[:patch_dir], nil, pkginfo.srcdir)
+                                Packager.warn "Overlay patch applied to #{pkginfo.name}"
+                            end
+                        end
+
+                        dpkg_commit_changes("overlay", pkginfo.srcdir)
                         # Run dpkg-source
                         # Use the new tar ball as source
                         if !system("dpkg-source", "-I", "-b", pkginfo.srcdir, :close_others => true)
