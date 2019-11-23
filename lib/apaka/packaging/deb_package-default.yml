@@ -73,4 +73,6 @@ rock_releases:
     transterra:
         url: http://localhost/apaka-releases/transterra/
         depends_on: master, trusty
-maintainer: "Rock Packaging Daemon <rock-dev@dfki.de>"
+maintainer_name: Rock Packaging Daemon (based on apaka)
+maintainer_email: rock-dev@dfki.de
+homepage: http://www.rock-robotics.org

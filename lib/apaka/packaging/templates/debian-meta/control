@@ -1,7 +1,7 @@
 Source: <%= debian_name %>
 Section: science
 Priority: extra
-Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
+Maintainer: <%= Apaka::Packaging::Config.maintainer %>
 % dependencies = (deps_rock_packages + deps_osdeps_packages + deps_nonnative_packages).flatten
 Build-Depends: 
 Standards-Version: 3.9.2

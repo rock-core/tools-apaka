@@ -1714,7 +1714,7 @@ module Apaka
                         end
 
                         # Fix the name, in case we had to patch
-                        debcontrol.source["Maintainer"] = Apaka::Packaging::Config.maintainer || "Autopackaged by apaka"
+                        debcontrol.source["Maintainer"] = Apaka::Packaging::Config.maintainer
                         debcontrol.source["Uploaders"] = ""
                         debcontrol.source["Vcs-Browser"] = ""
                         debcontrol.source["Vcs-Git"] = ""
@@ -1938,7 +1938,7 @@ END
                             #
                             date=`date --rfc-2822 --date="00:00:01"`
                             date=date.strip
-                            if `sed -i 's#\\(.*<.*>  \\)\\(.*\\)#\\1#{date}#' debian/changelog`
+                            if `sed -i 's#\\(.*<.*> \\)\\(.*\\)# -- #{Apaka::Packaging::Config.maintainer}  #{date}#' debian/changelog`
                                 Packager.info "Injecting timestamp info: '#{date}' into debian/changelog"
                             else
                                 raise RuntimeError, "Failed to inject timestamp information into debian/changelog"

@@ -63,7 +63,9 @@ module Apaka
         #    transterra:
         #        url: http://rimres-gcs2-u/rock-releases/transterra-16.06
         #        depends_on: master, trusty
-        #maintainer: "Rock Packaging Daemon <rock-dev@dfki.de>"
+        #maintainer_name: Rock Packaging Daemon
+        #maintainer_email: rock-dev@dfki.de
+        #homepage: http://www.rock-robotics.org
         #
         # The configuration can be extended/overridden via the environmental variable
         # ROCK_DEB_RELEASE_HIERARCHY using the pattern <release-name-0>:<url-0>;<release-name-1>:<url-1>;
@@ -82,7 +84,11 @@ module Apaka
             attr_reader :rock_releases
 
             attr_reader :architectures
+            # Preformatted combination of maintainer name and email
             attr_reader :maintainer
+            attr_reader :maintainer_name
+            attr_reader :maintainer_email
+            attr_reader :homepage
 
             attr_reader :packages_optional
             attr_accessor :packages_enforce_build
@@ -151,11 +157,17 @@ module Apaka
                     @rock_releases[key] = options
                 end
 
-                @maintainer = configuration["maintainer"]
+                @maintainer_name = configuration["maintainer_name"].strip || "Packaged using 'apaka'"
+                @maintainer_email = configuration["maintainer_email"].strip || ""
+                @homepage = configuration["homepage"].strip || ""
 
                 update_hierarchy_from_env
 
                 self
+            end
+
+            def maintainer
+                "#{maintainer_name} <#{maintainer_email}>"
             end
 
             def initialize
@@ -282,6 +294,18 @@ module Apaka
 
             def self.maintainer
                 instance.maintainer
+            end
+
+            def self.maintainer_name
+                instance.maintainer_name
+            end
+
+            def self.maintainer_email
+                instance.maintainer_email
+            end
+
+            def self.homepage
+                instance.homepage
             end
 
             def self.to_s

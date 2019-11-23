@@ -2,4 +2,4 @@
 
   * Package automatically built using 'apaka'
 
- -- Packaging Daemon <rock-dev@dfki.de>  <%= Time.now.strftime("%a, %d %b %Y %H:%M:%S %z") %>
+ -- <%= Apaka::Packaging::Config.maintainer %>  <%= Time.now.strftime("%a, %d %b %Y %H:%M:%S %z") %>

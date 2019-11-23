@@ -1,10 +1,10 @@
 Source: <%= debian_name %>
 Section: science
 Priority: extra
-Maintainer: Rock Packaging Daemon <rock-dev@dfki.de>
+Maintainer: <%= Apaka::Packaging::Config.maintainer %>
 Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.uniq.sort.join(", ") %>
 Standards-Version: 3.9.2
-Homepage: http://rock-robotics.org
+Homepage: <%= Apaka::Packaging::Config.homepage %>
 #Vcs-Git: git://git.debian.org/collab-maint/bla.git
 #Vcs-Browser: http://git.debian.org/?p=collab-maint/bla.git;a=summary
 
