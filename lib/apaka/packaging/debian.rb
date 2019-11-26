@@ -5,6 +5,7 @@ require 'timeout'
 require 'time'
 require 'open3'
 require_relative 'debian_control'
+require_relative 'debian_changelog'
 require_relative 'packageinfo'
 require_relative 'gem_dependencies'
 
@@ -839,6 +840,7 @@ module Apaka
                         options[:package_name] = pkginfo.name
                         options[:latest_commit_time] = pkginfo.latest_commit_time
                         options[:recursive_deps] = recursive_dependencies(pkginfo)
+                        options[:origin_information] = pkginfo.origin_information
 
                         convert_gem(gem_final_path, options)
                     rescue Exception => e
@@ -1462,7 +1464,8 @@ module Apaka
                     :local_pkg => false,
                     :package_name => nil,
                     :recursive_deps => nil,
-                    :latest_commit_time => nil
+                    :latest_commit_time => nil,
+                    :origin_information => []
 
                 pkg_commit_time = options[:latest_commit_time]
 
@@ -1927,24 +1930,22 @@ END
                             #
                             # after
                             # ruby-activesupport (4.2.3-1~trusty) UNRELEASED; urgency=medium
-                            if `sed -i 's#\(\\(.*\\)\)#\(\\1~#{distribution}\)#' debian/changelog`
-                                Packager.info "Injecting distribution info: '~#{distribution}' into debian/changelog"
-                            else
-                                raise RuntimeError, "Failed to inject distribution information into debian/changelog"
-                            end
-
+                            debian_changelog = DebianChangelog.new("debian/changelog")
+                            debian_changelog.version = "#{debian_changelog.version}~#{distribution}"
                             # Make timestamp constant
                             # https://www.debian.org/doc/debian-policy/ch-source.html
                             #
                             date=`date --rfc-2822 --date="00:00:01"`
                             date=date.strip
-                            if `sed -i 's#\\(.*<.*> \\)\\(.*\\)# -- #{Apaka::Packaging::Config.maintainer}  #{date}#' debian/changelog`
-                                Packager.info "Injecting timestamp info: '#{date}' into debian/changelog"
-                            else
-                                raise RuntimeError, "Failed to inject timestamp information into debian/changelog"
+                            debian_changelog.maintainer_name = Apaka::Packaging::Config.maintainer_name
+                            debian_changelog.maintainer_email = Apaka::Packaging::Config.maintainer_email
+                            debian_changelog.date = "#{date}"
+                            debian_changelog.body = Array.new
+                            debian_changelog.body << "Package automatically built using 'apaka'"
+                            options[:origin_information].each do |line|
+                                debian_changelog.body << line
                             end
-
-                            #FileUtils.cp "debian/changelog","/tmp/test-changelog"
+                            debian_changelog.save("debian/changelog")
                         end
 
                         ########################
