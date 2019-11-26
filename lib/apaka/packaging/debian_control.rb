@@ -1,9 +1,12 @@
 module Apaka
     module Packaging
-        @source = Hash.new
-        @packages = Array.new
-        
         class DebianControl
+            attr_reader :source
+            attr_reader :packages
+
+            @source = Hash.new
+            @packages = Array.new
+
             # debian/control file reader/writer
             # These files have the following layout:
             #
@@ -27,11 +30,11 @@ module Apaka
             # Result is an array of hashes, preserving the order of the
             # blocks, but not of the key/value pairs.
             #
-            def self.parse(source, opts = {})
+            def self.load(filename, opts = {})
                 blocks = Array.new
                 hash = Hash.new
                 key = ""
-                source.each_line do |line|
+                File.open(filename).each_line do |line|
                     case line
                     when /^(\S+)\s*:\s*(.*)\s*$/
                         key = $1
@@ -48,7 +51,7 @@ module Apaka
                 sourceblock = blocks.shift
                 self.new(sourceblock,blocks)
             end #parse
-            
+
             def self.generate(debctl, opts = {})
                 ret = ""
                 first_block = true
@@ -77,8 +80,10 @@ module Apaka
                 [ @source ] + @packages
             end
 
-            attr_reader :source
-            attr_reader :packages
+            # Save the debian control file
+            def save(filename)
+                File.write(filename, DebianControl.generate(self))
+            end
         end #DebianControl
     end
 end

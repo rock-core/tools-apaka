@@ -4,7 +4,7 @@ require 'utilrb'
 require 'timeout'
 require 'time'
 require 'open3'
-require_relative 'debiancontrol'
+require_relative 'debian_control'
 require_relative 'packageinfo'
 require_relative 'gem_dependencies'
 
@@ -1675,7 +1675,7 @@ module Apaka
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
 
-                        debcontrol = DebianControl.parse(File.open("debian/control"))
+                        debcontrol = DebianControl.load("debian/control")
 
                         # Filter ruby versions out -- we assume chroot has installed all
                         # ruby versions
@@ -1783,7 +1783,7 @@ module Apaka
                         #`sed -i "s#^\\(^Build-Depends: .*\\)#\\1, #{deps.join(", ")},#" debian/control`
 
                         debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
-                        File.write("debian/control", DebianControl::generate(debcontrol))
+                        debcontrol.save("debian/control")
                         dpkg_commit_changes("deb_extra_dependencies")
 
                         Packager.info "Relaxing version requirement for: debhelper and gem2deb"
