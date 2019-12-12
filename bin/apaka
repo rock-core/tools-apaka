@@ -249,6 +249,19 @@ if o_show_current_os
     exit 0
 end
 
+# Handling special packages which have been moved in the layout, and the user is
+# using the 'moved' package name
+if !o_selected_packages.empty?
+    Autoproj.manifest.moved_packages.each do |original_name, moved_name|
+        if o_selected_packages.include?(moved_name)
+            o_selected_packages.delete(moved_name)
+            o_selected_packages << original_name
+            Apaka::Packaging.info "Identified package '#{moved_name}' as moved package, hence using its original name '#{original_name}'"
+        end
+    end
+end
+Apaka::Packaging.info "Selected packages: #{o_selected_packages}"
+
 Apaka::Packaging.root_dir = package_info_ask.root_dir
 Apaka::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
 packager = Apaka::Packaging::Debian.new(build_options)

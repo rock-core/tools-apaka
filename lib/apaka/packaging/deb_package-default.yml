@@ -58,13 +58,6 @@ architectures:
     armhf: jessie,stretch
     arm64: xenial,bionic
 packages:
-    aliases:
-        tools/rtt: rtt
-        tools/rtt-typelib: rtt-typelib
-        tools/typelib: typelib
-        tools/utilrb: utilrb
-        tools/utilrb-ext: utilrb-ext
-        tools/orogen: orogen
     optional: llvm,clang
     enforce_build: rgl,ruby-backports,yard
 rock_releases:
