@@ -195,14 +195,6 @@ module Apaka
                     CHROOT_EXTRA_DEBS.each do |extra_pkg|
                         image_install_pkg(distribution, architecture, extra_pkg)
                     end
-                    # If gem2deb_base_dir is given, then it will be tried to update
-                    # (install a patched version of) gem2deb in the target chroot
-                    # (if possible)
-                    #
-                    if options[:patch_dir]
-                        gem2deb_base_dir = File.join(options[:patch_dir],"gem2deb")
-                        image_update_gem2deb(distribution, architecture, gem2deb_base_dir)
-                    end
                 ensure
                     @base_image_lock.unlock
                 end
@@ -336,52 +328,6 @@ module Apaka
                 end
             end
 
-            # Update the gem2deb version if a patched version is available
-            # An update is typically required, since the standard versions of gem2deb do not support
-            # the installation into custom directories, such as /opt instead of /usr
-            # As such corresponding updated debs can be installed and put into a folder named
-            # <gem2deb_debs_basedir>/<distribution>-all/
-            # @param distribution [String] name of the distribution, e.g., xenial
-            # @param architecture [String] name of the architecture, e.g., amd64, i386 or armel
-            # @param gem2deb_debs_basedir [String] base-directory where the precompiled gem2deb packages are located
-            def self.image_update_gem2deb(distribution, architecture, gem2deb_debs_basedir)
-                if !@base_image_lock.owned?
-                    raise ThreadError.new
-                end
-                basepath = image_basepath(distribution, architecture)
-
-                debs, gem2deb_debs_dir = get_gem2deb_debs(gem2deb_debs_basedir, distribution, architecture)
-                gem2deb_debfile = debs[:main]
-                gem2deb_test_runner_debfile = debs[:runner]
-
-                if gem2deb_debfile.empty?
-		    raise ArgumentError, "#{self} -- Cannot update gem2deb in chroot #{basepath}. " \
-			"Debian package directory: #{gem2deb_debs_dir} does not contain a deb file for architectue #{architecture} or all"
-                end
-
-                mountbase = "mnt"
-                mountdir = File.join(basepath,mountbase)
-                cmd = ["sudo"]
-                cmd << "mount" << "--bind" << gem2deb_debs_dir << mountdir
-                if !system(*cmd, :close_others => true)
-                    raise RuntimeError, "#{self} -- Execution: #{cmd.join(" ")} failed"
-                end
-
-                begin
-                    debfiles = []
-                    if !gem2deb_test_runner_debfile.empty?
-                        debfiles << "/#{mountbase}/#{gem2deb_test_runner_debfile}"
-                    end
-                    debfiles << "/#{mountbase}/#{gem2deb_debfile}"
-                    image_cp_debfiles(distribution, architecture, debfiles, IMAGE_EXTRA_DEB_DIR)
-                ensure
-                    cmd = ["sudo"]
-                    cmd << "umount" << mountdir
-                    if !system(*cmd, :close_others => true)
-                        raise RuntimeError, "#{self} -- Execution: #{cmd.join(" ")} failed"
-                    end
-                end
-            end
 
             # Construct the name of the pbuild hook directory from the distribution name, architecture
             # and the release prefix

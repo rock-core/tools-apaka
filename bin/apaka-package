@@ -433,15 +433,6 @@ Dir.chdir(packager.build_dir) do
             end
 
             pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
-
-            if o_skip && o_obs_dir
-                pkg_obs_dir = File.join(o_obs_dir, Apaka::Packaging::Packager.obs_package_name(pkginfo))
-                if File.directory?(pkg_obs_dir)
-                    puts "skipping existing package #{pkg_name} (#{i + 1}/#{selection.size})"
-                    next
-                end
-            end
-
             puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
             # Making sure all packages that require base/cmake due to using Rock CMake macros have
             # a dependency on base/cmake
