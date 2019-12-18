@@ -13,6 +13,15 @@
   <depend package="autoproj" optional="1"/>
   <depend package="utilrb" />
   <depend package="yard" />
+  <depend package="dh-autoreconf" />
+  <depend package="cdbs" />
+  <depend package="cmake" />
+  <depend package="apt-utils" />
+  <depend package="cowbuilder" />
+  <depend package="debian-archive-keyring" />
+  <depend package="qemu" />
+  <depend package="gem2deb" />
+  <depend package="curl" />
   <stage>1</stage>
   <activity>active</activity>
   <keywords>
