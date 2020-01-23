@@ -5,8 +5,8 @@ Maintainer: <%= Apaka::Packaging::Config.maintainer %>
 Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.uniq.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: <%= Apaka::Packaging::Config.homepage %>
-#Vcs-Git: git://git.debian.org/collab-maint/bla.git
-#Vcs-Browser: http://git.debian.org/?p=collab-maint/bla.git;a=summary
+% #Vcs-Git: git://git.debian.org/collab-maint/bla.git
+% #Vcs-Browser: http://git.debian.org/?p=collab-maint/bla.git;a=summary
 
 Package: <%= debian_name %>
 Architecture: any
