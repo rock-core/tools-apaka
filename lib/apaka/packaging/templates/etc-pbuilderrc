@@ -59,7 +59,7 @@ fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
-EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev"
+EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
 echo "COMPONENTS: $COMPONENTS"
