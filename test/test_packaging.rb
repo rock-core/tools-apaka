@@ -108,7 +108,7 @@ class TestDebian < Minitest::Test
             test_set["utilrb"] = ["bundler", "ruby-facets"]
         end
 
-        test_set["rtt"] = ["cmake","build-essential","omniidl","libomniorb4-dev","omniorb-nameserver",
+        test_set["rtt"] = ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
                                 "libboost-iostreams-dev","libboost-system-dev","libxml-xpath-perl"]
