@@ -1482,6 +1482,8 @@ module Apaka
 
                     # Dealing with _ in original file name, since gem2deb
                     # will debianize it
+                    gem_base_name = nil
+                    gem_version = nil
                     if gem_versioned_name =~ /(.*)(-[0-9]+\.[0-9\.-]*(-[0-9]+)*)/
                         gem_base_name = $1
                         version_suffix = gem_versioned_name.gsub(gem_base_name,"").gsub(/\.gem/,"")
@@ -1506,7 +1508,24 @@ module Apaka
                         Packager.info "Apaka::Packaging::Debian::convert_gem: no existing orig.tar.gz found in reprepro"
                     else
                         Packager.info "Apaka::Packaging::Debian::convert_gem: existing orig.tar.gz found: #{registered_orig_tar_gz}"
-                        FileUtils.cp registered_orig_tar_gz.first, "#{gem_versioned_name}.tar.gz"
+
+                        if registered_orig_tar_gz =~ /(.*)_([0-9]+\.[0-9\.-]*(-[0-9]+)*)\.orig.tar.gz/
+                            existing_name = $1
+                            existing_gem_version = $2
+                            if existing_gem_version != gem_version
+                                Packager.warn "Apaka::Packaging::Debian::convert_gem: using"\
+                                    " gem version '#{existing_gem_version}' as already"\
+                                    " used in the release (not #{gem_version} "\
+                                    " requested)"
+                            end
+                            gem_versioned_name = gem_base_name.gsub("_","-") + "_" + existing_gem_version
+                            FileUtils.cp registered_orig_tar_gz.first, "#{gem_versioned_name}.tar.gz"
+                        else
+                            raise RuntimeError,
+                                "Apaka::Packaging::Debian::convert_gem: could"\
+                                "not extract version information from orig.tar.gz"\
+                                "'#{registered_orig_tar_gz}'"
+                        end
                     end
 
                     ############
