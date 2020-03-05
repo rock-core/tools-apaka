@@ -32,7 +32,7 @@ if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] ||
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
-elif [ "$DIST" == "sid" ] || [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "stretch" ]; then
+elif [ "$DIST" == "sid" ] || [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "stretch" ] || [ "$DIST" == "buster" ]; then
     echo "Identified Debian Distribution"
     echo " -- you have to make sure that 'debian-archive-keyring' is installed"
 
@@ -59,7 +59,7 @@ fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
-EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard"
+EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
 echo "COMPONENTS: $COMPONENTS"
