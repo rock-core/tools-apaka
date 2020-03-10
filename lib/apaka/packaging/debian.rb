@@ -520,6 +520,11 @@ module Apaka
                 short_documentation = pkginfo.short_documentation
                 documentation = pkginfo.documentation
                 origin_information = pkginfo.origin_information
+                source_files = pkginfo.source_files
+
+                upstream_name = pkginfo.name
+                copyright = pkginfo.copyright
+                license = pkginfo.licenses
 
                 deps = filtered_dependencies(pkginfo)
                 #debian names of rock packages
@@ -1531,6 +1536,8 @@ module Apaka
                     ############
                     # Step 1: calling gem2tgz - if orig.tar.gz is not available
                     ############
+                    license = nil
+                    copyright = nil
                     if !File.exist?("#{gem_versioned_name}.tar.gz")
                         Packager.info "Converting gem: #{gem_versioned_name} in #{Dir.pwd}"
                         # Convert .gem to .tar.gz
@@ -1564,6 +1571,17 @@ module Apaka
                             Dir.chdir(gem_versioned_name) do
                                 package_name = options[:package_name] || gem_base_name
                                 patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
+                                # Make sure we extract the original license
+                                # and copyright information
+                                Dir.glob("*").grep(/^license/i).each do |file|
+                                    license = "\n"
+                                    license += File.read(file)
+                                    license += "\n"
+                                end
+                                Dir.glob("*").grep(/^copyright/i).each do |file|
+                                    copyright = File.read(file)
+                                    copyright += "\n"
+                                end
                             end
 
                             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
@@ -1735,9 +1753,21 @@ module Apaka
                             recursive_deps = nil
                         end
 
-                        # Fix the name, in case we had to patch
+                        specfiles = Dir.glob("*.gemspec")
+                        spec = nil
+                        if specfiles.size == 1
+                            spec = Gem::Specification::load(specfiles.first)
+                        elsif specfiles.size > 1
+                            Packager.warn "Gem conversion: more than one specfile found #{specfiles} "\
+                                " ignoring specfiles altogether"
+                        end
+
+                        # see https://www.debian.org/doc/debian-policy/ch-controlfields.html
+                        debcontrol.source["Section"] = "science"
+                        debcontrol.source["Priority"] = "optional"
                         debcontrol.source["Maintainer"] = Apaka::Packaging::Config.maintainer
-                        debcontrol.source["Uploaders"] = ""
+                        debcontrol.source["Uploaders"] = Apaka::Packaging::Config.maintainer
+                        debcontrol.source["Homepage"] = spec.homepage || Apaka::Packaging::Config.homepage
                         debcontrol.source["Vcs-Browser"] = ""
                         debcontrol.source["Vcs-Git"] = ""
                         debcontrol.source["Source"] = debian_ruby_unversioned_name
@@ -1848,6 +1878,25 @@ module Apaka
                         if File.exist?("debian/package.postinst")
                             FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
                             dpkg_commit_changes("add_postinst_script")
+                        ####################
+                        # debian/copyright
+                        source_files = []
+                        upstream_name = gem_base_name
+                        debian_name = gem_versioned_name
+                        origin_information = []
+                        if spec
+                            copyright ||= spec.authors.join(", ")
+                            license ||= spec.licenses.join(", ")
+                            origin_information << spec.homepage
+                        end
+
+                        # We cannot assume that an existing debian/copyright
+                        # file is correct, since gem2deb autogenerates one
+                        path = File.join(TEMPLATES,"copyright")
+                        template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                        rendered = template.result(binding)
+                        File.open("debian/copyright", "w") do |io|
+                            io.write(rendered)
                         end
 
                         ################

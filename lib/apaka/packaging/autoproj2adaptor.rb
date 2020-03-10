@@ -662,6 +662,32 @@ module Apaka
 
                     @srcdir = pkg_target_importdir
                     @pkginfoask.send(:import_package, @pkg, pkg_target_importdir)
+
+                    @files = Dir.glob("#{@pkg.srcdir}/**")
+                    @licenses = ""
+                    @copyright = ""
+                    ['manifest.xml','package.xml'].each do |file|
+                        xml_file  = File.join(@pkg.srcdir, file)
+                        if File.exists?(xml_file)
+                            data = File.read(xml_file)
+                            # check over multilines, then filter out newlines to 
+                            # get a consistent/unformatted text block
+                            if data =~ /<license>(.*)<\/license>/m
+                                @licenses += $1.split("\n").map { |x| x.strip }.reject {|x| x.empty? }.join(", ")
+                            end
+                            if data =~ /<copyright>(.*)<\/copyright>/m
+                                @copyright += $1.split("\n").map { |x| x.strip }.reject {|x| x.empty? }.join(", ")
+                            end
+                        end
+                    end
+                    @files.grep(/^license/i).each do |file|
+                        @licenses += File.read(file)
+                        @licenses += "\n"
+                    end
+                    @files.grep(/^copyright/i).each do |file|
+                        @copyright += File.read(file)
+                        @copyright += "\n"
+                    end
                 end
 
                 # raw dependencies

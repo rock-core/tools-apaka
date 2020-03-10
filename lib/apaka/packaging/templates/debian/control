@@ -1,7 +1,8 @@
 Source: <%= debian_name %>
 Section: science
-Priority: extra
+Priority: optional
 Maintainer: <%= Apaka::Packaging::Config.maintainer %>
+Uploaders: <%= Apaka::Packaging::Config.maintainer %>
 Build-Depends: cdbs, debhelper (>= 8.0.0), pkg-config, dh-autoreconf, <%= build_dependencies.uniq.sort.join(", ") %>
 Standards-Version: 3.9.2
 Homepage: <%= Apaka::Packaging::Config.homepage %>

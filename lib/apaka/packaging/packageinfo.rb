@@ -41,6 +41,18 @@ module Apaka
             attr_accessor :using_autogen
             # additional configure flags to be passed to the build process
             attr_accessor :extra_configure_flags
+            # license information
+            attr_accessor :licenses
+            # copyright
+            attr_accessor :copyright
+            # source files
+            attr_accessor :source_files
+
+            def initialize()
+                @licenses = nil
+                @copyright = nil
+                @source_files = []
+            end
             # imports the package to the importdir
             # generally, that is a copy if a different source dir exists, but
             # it may be a source control checkout.
