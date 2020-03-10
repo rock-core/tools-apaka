@@ -504,9 +504,9 @@ else
         gem_deps = nil
         if version = required_gems_versions[pkg]
             pkg_build_options[:package_version] = version
-            gem_deps = package_info_ask.all_required_gems({pkg => [version]})
+            gem_deps = package_info_ask.all_required_gems({pkg => [version]}, no_deps: o_no_deps)
         else
-            gem_deps = package_info_ask.all_required_gems({pkg => []})
+            gem_deps = package_info_ask.all_required_gems({pkg => []}, no_deps: o_no_deps)
         end
 
         gem_deps = gem_deps[:gem_versions].to_a.select do |gem,versions|

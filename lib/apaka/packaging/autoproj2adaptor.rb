@@ -449,7 +449,7 @@ module Apaka
                     end
                 end
 
-                required_gems = all_required_gems(gem_versions)
+                required_gems = all_required_gems(gem_versions, no_deps: no_deps )
                 
                 {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_packages, :excluded => excluded_packages }.merge required_gems
             end
@@ -458,20 +458,24 @@ module Apaka
             # { gem => [versions] }
             # returns { :gems => [gem names sorted so least dependend is first],
             #           :gem_versions => { gem => version } }
-            def all_required_gems(gem_versions)
+            def all_required_gems(gem_versions, no_deps: false)
                 gem_version_requirements = gem_versions.dup
-                gem_dependencies = GemDependencies.resolve_all(gem_versions)
-                gem_dependencies.each do |name, deps|
-                    if deps
-                        deps.each do |dep_name, dep_versions|
-                            gem_version_requirements[dep_name] ||= Array.new
-                            gem_version_requirements[dep_name] = (gem_version_requirements[dep_name] + dep_versions).uniq
+                if !no_deps
+                    gem_dependencies = GemDependencies.resolve_all(gem_versions)
+                    gem_dependencies.each do |name, deps|
+                        if deps
+                            deps.each do |dep_name, dep_versions|
+                                gem_version_requirements[dep_name] ||= Array.new
+                                gem_version_requirements[dep_name] = (gem_version_requirements[dep_name] + dep_versions).uniq
+                            end
                         end
                     end
+                    sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
                 end
+
                 exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
-                sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
-                
+                sorted_gem_list ||= exact_version_list.keys
+
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end
             
@@ -637,6 +641,7 @@ module Apaka
 
             class Autoproj2PackageInfo < PackageInfo
                 def initialize(pkg,pkginfoask)
+                    super()
                     @pkg = pkg
                     @pkginfoask = pkginfoask
                 end

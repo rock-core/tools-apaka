@@ -599,10 +599,13 @@ Dir.chdir(packager.build_dir) do
         selected_gems.concat all_packages[:extra_gems]
         selected_gems.uniq!
 
-        all_packages[:pkginfos].each do |pkginfo|
+        pkginfos = all_packages[:pkginfos].sort_by { |pkginfo| pkginfo.name }
+        pkginfos.each do |pkginfo|
             packager.update_osdeps_lists(pkginfo, o_osdeps_list_dir)
         end
-        all_packages[:gems].each do |pkg_name|
+
+        gems = all_packages[:gems].sort
+        gems.each do |pkg_name|
             pkg = package_info_ask.package(pkg_name)
             if !pkg.nil?
                 pkg = pkg.autobuild
