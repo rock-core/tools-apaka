@@ -1570,28 +1570,31 @@ module Apaka
                             #
                             Dir.chdir(gem_versioned_name) do
                                 package_name = options[:package_name] || gem_base_name
-                                apaka_control = File.join(options[:patch_dir],package_name, "apaka.control")
-                                if File.exists?(apaka_control)
-                                    Packager.info "apaka.control file available: #{apaka_control}"
-                                    File.open(apaka_control,"r").each do |line|
-                                        if line =~/RENAME (.*) (.*)/
-                                            orig_file = $1
-                                            renamed_file = $2
-                                            if File.exists?(orig_file)
-                                                Packager.info "Renaming file: #{orig_file} to #{renamed_file}"
-                                                target_dir = File.dirname(renamed_file)
-                                                FileUtils.mkdir_p target_dir unless File.exists?(target_dir)
-                                                FileUtils.mv orig_file, renamed_file
-                                            else
-                                                raise RuntimeError, "Failed to rename file for #{package_name} - please check "\
-                                                    " #{apaka_control} on correctness"
+
+                                if options[:patch_dir]
+                                    apaka_control = File.join(options[:patch_dir],package_name, "apaka.control")
+                                    if File.exists?(apaka_control)
+                                        Packager.info "apaka.control file available: #{apaka_control}"
+                                        File.open(apaka_control,"r").each do |line|
+                                            if line =~/RENAME (.*) (.*)/
+                                                orig_file = $1
+                                                renamed_file = $2
+                                                if File.exists?(orig_file)
+                                                    Packager.info "Renaming file: #{orig_file} to #{renamed_file}"
+                                                    target_dir = File.dirname(renamed_file)
+                                                    FileUtils.mkdir_p target_dir unless File.exists?(target_dir)
+                                                    FileUtils.mv orig_file, renamed_file
+                                                else
+                                                    raise RuntimeError, "Failed to rename file for #{package_name} - please check "\
+                                                        " #{apaka_control} on correctness"
+                                                end
                                             end
                                         end
+                                    else
+                                        Packager.warn "apaka.control file is not available: #{File.join(Dir.pwd, apaka_control)}"
                                     end
-                                else
-                                    Packager.warn "apaka.control file is not available: #{File.join(Dir.pwd, apaka_control)}"
+                                    patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
                                 end
-                                patch_pkg_dir(package_name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
                                 # Make sure we extract the original license
                                 # and copyright information
                                 Dir.glob("*").grep(/^license/i).each do |file|
