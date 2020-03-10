@@ -1952,6 +1952,7 @@ module Apaka
                         Packager.debug "Allow custom rock name and installation path: #{rock_install_directory}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
+                        system("sed", "-i", "1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{File.join("debian",debian_ruby_unversioned_name, rock_install_directory)}", "debian/rules", :close_others => true)
                         envsh = Regexp.escape(env_setup())
                         system("sed", "-i", "1 a #{envsh}", "debian/rules", :close_others => true)
                         ruby_arch_env = ruby_arch_setup(true)
