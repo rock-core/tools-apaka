@@ -16,3 +16,4 @@ rtt_target: gnulinux
 rtt_corba_implementation: omniorb
 typelib_cxx_loader: castxml
 apt_dpkg_update: true
+USE_PYTHON: false
