@@ -6,6 +6,10 @@ echo "DIST: ${DIST}"
 echo "ARCH: ${ARCH}"
 echo "COMPONENTS: ${COMPONENTS}"
 
+UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
+DEBIAN_DISTS="sid wheezy jessie stretch buster"
+
+
 if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
     echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
     DIST=$DISTRIBUTION
@@ -13,14 +17,27 @@ elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
 else
-    echo "warning: no distribution set -- using default"
+    DIST=bionic
+    echo "warning: no distribution set -- using default: ${DIST}"
 fi
+
+for NAME in $UBUNTU_DISTS; do
+    if [ "$DIST" == "$NAME" ]; then
+        DIST_TYPE=ubuntu
+    fi
+done
+
+for NAME in $DEBIAN_DISTS; do
+    if [ "$DIST" == "$NAME" ]; then
+        DIST_TYPE=debian
+    fi
+done
 
 if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
     DEBOOTSTRAP="qemu-debootstrap"
 fi
 
-if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] || [ "$DIST" == "xenial" ] || [ "$DIST" == "yakkety" ] || [ "$DIST" == "zesty" ] || [ "$DIST" == "artful" ] || [ "$DIST" == "bionic" ]; then
+if [ "$DIST_TYPE" == "ubuntu" ]; then
     echo "Identified Ubuntu Distribution"
 
     COMPONENTS="main restricted universe multiverse"
@@ -32,7 +49,7 @@ if [ "$DIST" == "trusty" ] || [ "$DIST" == "vivid" ] || [ "$DIST" == "wily" ] ||
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
-elif [ "$DIST" == "sid" ] || [ "$DIST" == "wheezy" ] || [ "$DIST" == "jessie" ] || [ "$DIST" == "stretch" ] || [ "$DIST" == "buster" ]; then
+elif [ "$DIST_TYPE" == "debian" ]; then
     echo "Identified Debian Distribution"
     echo " -- you have to make sure that 'debian-archive-keyring' is installed"
 
@@ -61,6 +78,7 @@ fi
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
 EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
+echo "DIST_TYPE: ${DIST_TYPE}"
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
 echo "COMPONENTS: $COMPONENTS"
 
