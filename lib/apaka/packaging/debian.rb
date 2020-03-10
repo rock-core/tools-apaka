@@ -1291,6 +1291,23 @@ module Apaka
                         end
                     end
 
+                    existing_gem_version = gem_get_registered_version(gem_name)
+                    if existing_gem_version
+                        if existing_gem_version != version
+                            Packager.warn "Apaka::Packaging::Debian::convert_gem: conversion of '#{gem_name}'" \
+                                " with version '#{version}' requested. "\
+                                " However, using version '#{existing_gem_version}' which is already"\
+                                " part of the release"
+                            version = existing_gem_version
+                        else
+                            Packager.info "Apaka::Packaging::Debian::convert_gem: conversion of '#{gem_name}' " \
+                                " with version '#{version}' requested, which matches existing version in the release"
+                        end
+                    else
+                        Packager.info "Apaka::Packaging::Debian::convert_gem: conversion of '#{gem_name}' " \
+                                " with version '#{version}' requested, which is the first registration for this gem in the release"
+                    end
+
                     # Assuming if the .gem file has been download we do not need to update
                     gem_globname = "#{packaging_dirname}/#{gem_name}*.gem"
                     if options[:force_update] or Dir.glob(gem_globname).empty?
@@ -1348,8 +1365,14 @@ module Apaka
                                         Timeout.timeout(60) do
                                             Packager.info 'waiting for gem fetch to end'
                                             Process.wait(pid)
-                                            Packager.info 'gem fetch seems successful'
-                                            error = false
+                                            status = $?.exitstatus
+                                            if status != 0
+                                                Packager.info "gem fetch failed (exitstatus #{status})"
+                                                error = true
+                                            else
+                                                Packager.info "gem fetch seems successful (exitstatus #{status})"
+                                                error = false
+                                            end
                                         end
                                     rescue Timeout::Error
                                         Packager.warn 'gem fetch not finished in time, killing it'
@@ -1442,6 +1465,36 @@ module Apaka
                  end
             end
 
+            # Compute the registered version of a gem
+            # @return nil if no gem is registered or the version information
+            def gem_get_registered_version(gem_name)
+                registered_orig_tar_gz = reprepro_registered_files(debian_ruby_name(gem_name) + "_",
+                                         rock_release_name,
+                                         "*.orig.tar.gz")
+                if registered_orig_tar_gz.empty?
+                    Packager.info "Apaka::Packaging::Debian::convert_gems: no existing orig.tar.gz found in reprepro for #{gem_name}"
+                elsif registered_orig_tar_gz.size == 1
+                    registered_orig_tar_gz = registered_orig_tar_gz.first
+
+                    Packager.info "Apaka::Packaging::Debian::convert_gem: existing orig.tar.gz found in reprepro for #{gem_name}: #{registered_orig_tar_gz}"
+                    if registered_orig_tar_gz =~ /#{rock_ruby_release_prefix()}([^\/]*)_([0-9]+\.[0-9\.-]*(-[0-9]+)*)\.orig.tar.gz/
+                        existing_name = $1
+                        existing_gem_version = $2
+                        return existing_gem_version
+                    else
+                        raise RuntimeError,
+                            "Apaka::Packaging::Debian::convert_gems: could "\
+                            "not extract version information from orig.tar.gz"\
+                            "'#{registered_orig_tar_gz}'"
+                    end
+                else
+                    raise RuntimeError, "Apaka::Packaging::Debian::convert_gems: found "\
+                        "multiple orig.tar.gz file, cannot uniquely identify version: "\
+                        "#{registered_orig_tar_gz}"
+                end
+                nil
+            end
+
             # When providing the path to a gem file converts the gem into
             # a debian package (files will be residing in the same folder
             # as the gem)
@@ -1498,39 +1551,6 @@ module Apaka
                         gem_versioned_name = gem_base_name.gsub("_","-") + version_suffix
                     else
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
-                    end
-
-
-                    ############
-                    # Step 0: check if the gem has already been registered, e.g. as result of building for 
-                    # another architecture
-                    ############
-                    # append underscore to make sure version definition follows
-                    registered_orig_tar_gz = reprepro_registered_files(debian_ruby_name(gem_base_name) + "_",
-                                             rock_release_name,
-                                             "*.orig.tar.gz")
-                    if registered_orig_tar_gz.empty?
-                        Packager.info "Apaka::Packaging::Debian::convert_gem: no existing orig.tar.gz found in reprepro"
-                    else
-                        Packager.info "Apaka::Packaging::Debian::convert_gem: existing orig.tar.gz found: #{registered_orig_tar_gz}"
-
-                        if registered_orig_tar_gz =~ /(.*)_([0-9]+\.[0-9\.-]*(-[0-9]+)*)\.orig.tar.gz/
-                            existing_name = $1
-                            existing_gem_version = $2
-                            if existing_gem_version != gem_version
-                                Packager.warn "Apaka::Packaging::Debian::convert_gem: using"\
-                                    " gem version '#{existing_gem_version}' as already"\
-                                    " used in the release (not #{gem_version} "\
-                                    " requested)"
-                            end
-                            gem_versioned_name = gem_base_name.gsub("_","-") + "_" + existing_gem_version
-                            FileUtils.cp registered_orig_tar_gz.first, "#{gem_versioned_name}.tar.gz"
-                        else
-                            raise RuntimeError,
-                                "Apaka::Packaging::Debian::convert_gem: could"\
-                                "not extract version information from orig.tar.gz"\
-                                "'#{registered_orig_tar_gz}'"
-                        end
                     end
 
                     ############
