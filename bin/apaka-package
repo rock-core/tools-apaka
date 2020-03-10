@@ -4,7 +4,7 @@ require 'apaka'
 
 # Prevent deb_package from parallel execution since autoproj configuration loading
 # does not account for parallelism
-lock_file = File.open("/tmp/deb_package.lock",File::CREAT)
+lock_file = File.open("/tmp/apaka-package.lock",File::CREAT)
 Apaka::Packaging.debug "deb_package: waiting for execution lock"
 lock_time = Time.now
 lock_file.flock(File::LOCK_EX)
