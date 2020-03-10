@@ -11,7 +11,7 @@ module Apaka
 
             BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static","gem2deb","curl"]
             WEBSERVER_DEBS=["apache2"]
-            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper']
+            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper','gem2deb','git']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
             IMAGE_EXTRA_DEB_DIR="/tmp/extradebs"
 
