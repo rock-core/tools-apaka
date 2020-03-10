@@ -2109,6 +2109,7 @@ END
 
             def env_setup
                 Packager.info "Creating envsh"
+                home_env            = "HOME=/home/ "
                 path_env            = "PATH="
                 rubylib_env         = "RUBYLIB="
                 pkgconfig_env       = "PKG_CONFIG_PATH="
@@ -2155,6 +2156,7 @@ END
                 orogen_plugin_path  += "$(OROGEN_PLUGIN_PATH)"
 
                 envsh +=  "env_setup =  #{path_env}\n"
+                envsh += "env_setup += #{home_env}\n"
                 envsh += "env_setup += #{rubylib_env}\n"
                 envsh += "env_setup += #{pkgconfig_env}\n"
                 envsh += "env_setup += #{rock_dir_env}\n"
