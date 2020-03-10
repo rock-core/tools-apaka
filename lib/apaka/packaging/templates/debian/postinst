@@ -3,6 +3,7 @@
 # An identical script is used for postinst and postrm
 
 use strict;
+use File::Find;
 
 my $rock_install_dir = "<%= rock_install_directory %>";
 my $rock_doc_install_dir = "$rock_install_dir/share/doc";
@@ -12,14 +13,26 @@ sub update_index_html() {
     system("mkdir","-p",$rock_doc_install_dir);
     #collect candidate files
     my @dirs = glob("$rock_doc_install_dir/*/");
+    my @indexfiles;
     my @indexes = map {
 	my $dir = $_;
 	$dir =~ m!/([^/]+)/+$!;
 	my $pkg = $1;
 	$dir =~ s!/+$!!;
+
+        @indexfiles = ();
+        find(\&wanted, $dir);
+        sub wanted {
+            return if ! -e;
+            if($File::Find::name =~ /\/index.htm/)
+            {
+                push @indexfiles, $File::Find::name;
+            }
+        }
 	my @candidates = sort {
 	    length($a) <=> length($b);
-	} glob("$dir/**/index.html $dir/**/index.htm");
+	} @indexfiles;
+
 	my $idx = substr $candidates[0],length($dir);
 	$idx =~ s!^/+!!;
 	$idx ? ({ pkg => $pkg, index => $idx }) : ();

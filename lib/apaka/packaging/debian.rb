@@ -63,7 +63,7 @@ module Apaka
                 @gem_clean_alternatives = ['clean','dist:clean','clobber']
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 # Rake and rdoc commands to try to create documentation
-                @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rake yard','rdoc']
+                @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rake yard', 'yard -o ./api', 'rdoc -o ./api']
                 @rock_autobuild_deps = { :orogen => [], :cmake => [], :autotools => [], :ruby => [], :archive_importer => [], :importer_package => [] }
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
@@ -1873,11 +1873,23 @@ module Apaka
                         dpkg_commit_changes("adapt_original_package_name")
 
                         ################
+                        # postinst and postrm
                         # debian/package.postinst
                         ################
-                        if File.exist?("debian/package.postinst")
-                            FileUtils.mv "debian/package.postinst", "debian/#{debian_ruby_unversioned_name}.postinst"
-                            dpkg_commit_changes("add_postinst_script")
+                        ["postinst","postrm"].each do |action|
+                            if File.exist?("debian/package.#{action}")
+                                FileUtils.mv "debian/package.#{action}", "debian/#{debian_ruby_unversioned_name}.#{action}"
+                                dpkg_commit_changes("add_#{action}_script")
+                            end
+
+                            path = File.join(TEMPLATES,action)
+                            template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                            rendered = template.result(binding)
+                            File.open("debian/#{action}", "w") do |io|
+                                io.write(rendered)
+                            end
+                        end
+
                         ####################
                         # debian/copyright
                         source_files = []
@@ -1978,6 +1990,7 @@ clean:
 install:
 	mkdir -p $(DESTDIR)/$(rock_doc_install_dir)
 	-cp -r doc $(DESTDIR)/$(rock_doc_install_dir)
+	-cp -r api $(DESTDIR)/$(rock_doc_install_dir)
 END
                         File.write("debian/dh_ruby.mk", dh_ruby_mk)
 
