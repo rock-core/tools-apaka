@@ -47,15 +47,19 @@ distributions:
         type: debian
         labels: 9.4,stretch,default
         ruby_version: ruby23
+    buster:
+        type: debian
+        labels: 10.3,buster,default
+        ruby_version: ruby25
     sid:
         type: debian
         labels: 10.0,sid,default
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial,jessie,stretch,bionic
-    i386:  trusty,xenial,jessie,stretch,bionic
-    armel: jessie,stretch
-    armhf: jessie,stretch
+    amd64: trusty,xenial,jessie,stretch,buster,bionic
+    i386:  trusty,xenial,jessie,stretch,buster,bionic
+    armel: jessie,stretch,buster
+    armhf: jessie,stretch,buster
     arm64: xenial,bionic
 packages:
     optional: llvm,clang
