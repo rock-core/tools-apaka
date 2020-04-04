@@ -1403,17 +1403,27 @@ module Apaka
             end
 
             # Patch a package (in the current working directory) using overlays found in the global_patch_dir
+            # Also picks architecture specific patches from the special
+            # subdirectory __arch__/<architecture> within the global patch
+            # directory.
+            #
             # Patches are searched for by the package name and the gem name
-            # Returns true if patches have been applied
+            # @return [Bool] true if patches have been applied
             def patch_pkg_dir(package_name, global_patch_dir, whitelist = nil, pkg_dir = Dir.pwd)
                 if global_patch_dir
                     if !package_name
                         raise ArgumentError, "DebianPackager::patch_pkg_dir: package name is required, but was nil"
                     end
+                    patched = false
                     pkg_patch_dir = File.join(global_patch_dir, package_name)
                     if File.exist?(pkg_patch_dir)
-                        return patch_directory(pkg_dir, pkg_patch_dir, whitelist)
+                        patched ||= patch_directory(pkg_dir, pkg_patch_dir, whitelist)
                     end
+                    arch_pkg_patch_dir = File.join(global_patch_dir, "__arch__", target_platform.architecture, package_name)
+                    if File.exist?(arch_pkg_patch_dir)
+                        patched ||= patch_directory(pkg_dir, arch_pkg_patch_dir, whitelist)
+                    end
+                    patched
                 end
             end
 
@@ -1500,6 +1510,7 @@ module Apaka
                         "#{registered_orig_tar_gz}"
                 end
             end
+
 
             # When providing the path to a gem file converts the gem into
             # a debian package (files will be residing in the same folder
@@ -1633,7 +1644,7 @@ module Apaka
                                     copyright += "\n"
                                 end
                             end
-
+                            
                             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725348
                             checksums_file="checksums.yaml.gz"
                             files = Dir.glob("*/#{checksums_file}")
@@ -1764,7 +1775,7 @@ module Apaka
                         #
                         # Enforces to have all dependencies available when building the packages
                         # at the build server
-
+                        #
                         debcontrol = DebianControl.load("debian/control")
 
                         # Filter ruby versions out -- we assume chroot has installed all
