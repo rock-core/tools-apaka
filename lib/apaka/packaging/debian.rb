@@ -63,7 +63,7 @@ module Apaka
                 @gem_clean_alternatives = ['clean','dist:clean','clobber']
                 @gem_creation_alternatives = ['gem','dist:gem','build']
                 # Rake and rdoc commands to try to create documentation
-                @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rake yard', 'yard -o ./api', 'rdoc -o ./api']
+                @gem_doc_alternatives = ['rake docs','rake dist:docs','rake doc','rake dist:doc', 'rake yard', '/usr/bin/yard -o ./api', 'rdoc -o ./api']
                 @rock_autobuild_deps = { :orogen => [], :cmake => [], :autotools => [], :ruby => [], :archive_importer => [], :importer_package => [] }
 
                 rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
