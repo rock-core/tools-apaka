@@ -63,6 +63,7 @@ architectures:
     arm64: xenial,bionic
 packages:
     optional: llvm,clang
+    excluded: libqwt5-qt4-dev
     enforce_build: rgl,ruby-backports,yard
 rock_releases:
     master:

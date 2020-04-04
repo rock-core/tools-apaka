@@ -56,6 +56,7 @@ module Apaka
         #    #armhf: jessie
         #packages:
         #    optional: llvm,clang
+        #    excluded: libqwt5-qt4-dev
         #    enforce_build: rgl
         #rock_releases:
         #    master:
@@ -92,7 +93,7 @@ module Apaka
 
             attr_reader :packages_optional
             attr_accessor :packages_enforce_build
-
+            attr_accessor :packages_excluded
 
             def reload_config(file, current_release_name = nil)
                 if !file
@@ -138,11 +139,15 @@ module Apaka
                 end
                 @packages_optional = configuration["packages"]["optional"] || ""
                 if @packages_optional
-                    @packages_optional = @packages_optional.split(",")
+                    @packages_optional = @packages_optional.split(",").map(&:strip)
                 end
                 @packages_enforce_build = configuration["packages"]["enforce_build"] || ""
                 if @packages_enforce_build
-                    @packages_enforce_build = @packages_enforce_build.split(",")
+                    @packages_enforce_build = @packages_enforce_build.split(",").map(&:strip)
+                end
+                @packages_excluded = configuration["packages"]["excluded"] || ""
+                if @packages_excluded
+                    @packages_excluded = @packages_excluded.split(",").map(&:strip)
                 end
 
 
@@ -250,6 +255,14 @@ module Apaka
                 instance.packages_enforce_build=value
             end
 
+            def self.packages_excluded
+                instance.packages_excluded
+            end
+
+            def self.packages_excluded=(value)
+                instance.packages_excluded=value
+            end
+
             def self.active_distributions
                 linux_distribution_releases.collect do |name,ids|
                     if build_for_distribution?(name)
@@ -324,6 +337,10 @@ module Apaka
                 s+= "packages:\n"
                 s += "    optional packages:\n"
                 packages_optional.each do |pkg_name|
+                    s += "        #{pkg_name}\n"
+                end
+                s += "    excluded packages:\n"
+                packages_excluded.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end
                 s += "    enforce build packages:\n"

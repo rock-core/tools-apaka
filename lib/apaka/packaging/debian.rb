@@ -383,6 +383,19 @@ module Apaka
                         result
                     end
 
+                    # Filter out excluded packages, e.g. libqwt5-qt4-dev
+                    deps_osdeps_packages = deps_osdeps_packages.select do |name|
+                        result = true
+                        Packaging::Config.packages_excluded.each do |pkg_name|
+                            regex = Regexp.new(pkg_name)
+                            if regex.match(name)
+                                Packager.info "#{pkginfo.name} excluding osdeps #{pkg_name} as dependency"
+                                result = false
+                            end
+                        end
+                        result
+                    end
+
                     # Filter ruby versions out -- we assume chroot has installed all
                     # ruby versions
                     #
