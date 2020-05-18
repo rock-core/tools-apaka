@@ -74,3 +74,8 @@ rock_releases:
 maintainer_name: Rock Packaging Daemon (based on apaka)
 maintainer_email: rock-dev@dfki.de
 homepage: http://www.rock-robotics.org
+#sign_with: YOUR_KEY
+description: Rock Debian Package Release
+
+#base_install_prefix: /opt/rock
+#base_package_prefix: rock

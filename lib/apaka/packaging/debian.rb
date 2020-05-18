@@ -55,8 +55,8 @@ module Apaka
                 super(options)
 
                 @debian_version = Hash.new
-                @rock_base_install_directory = "/opt/rock"
-                @pkg_prefix_base = "rock"
+                @rock_base_install_directory = Packaging::Config.base_install_prefix
+                @pkg_prefix_base = Packaging::Config.base_package_prefix
 
                 # Rake targets that will be used to clean and create
                 # gems
@@ -183,8 +183,13 @@ module Apaka
                 File.join(@build_dir, pkg_name, target_platform.to_s.gsub("/","-"))
             end
 
-            def rock_install_directory
+            def rock_release_install_directory
                 File.join(rock_base_install_directory, rock_release_name)
+            end
+
+            def rock_install_directory
+                install_dir = File.join(rock_base_install_directory, rock_release_name)
+                install_dir
             end
 
             def rock_release_name=(name)
