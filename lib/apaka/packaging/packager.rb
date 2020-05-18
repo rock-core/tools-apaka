@@ -1,6 +1,7 @@
 require 'utilrb/logger'
 require 'thread'
 require 'etc'
+require_relative 'reprepro/distributions_config'
 
 module Apaka
     module Packaging
@@ -63,7 +64,7 @@ module Apaka
                 end
             end
 
-            # Initialize the reprepro repository
+            # Initialize or update the reprepro repository
             #
             def initialize_reprepro_conf_dir(release_prefix)
                 if !@reprepro_lock.owned?
@@ -72,7 +73,7 @@ module Apaka
                 
                 conf_dir = File.join(deb_repository, release_prefix, "conf")
                 if File.exist? conf_dir
-                    Packager.info "Reprepo repository exists: #{conf_dir}"
+                    Packager.info "Reprepo repository exists: #{conf_dir} - updating"
                 else
                     Packager.info "Initializing reprepo repository in #{conf_dir}"
                     system("sudo", "mkdir", "-p", conf_dir, :close_others => true)
@@ -85,17 +86,42 @@ module Apaka
                 end
 
                 distributions_file = File.join(conf_dir, "distributions")
+                distributions_conf = nil
                 if !File.exist?(distributions_file)
-                    File.open(distributions_file,"w") do |f|
-                        Config.linux_distribution_releases.each do |release_name, release|
-                            f.write("Codename: #{release_name}\n")
-                            f.write("Architectures: #{Config.architectures.keys.join(" ")} source\n")
-                            f.write("Components: main\n")
-                            f.write("UDebComponents: main\n")
-                            f.write("Tracking: minimal\n")
-                            f.write("Contents:\n\n")
-                        end
+                    distributions_config = Reprepro::DistributionsConfig.new
+                    Config.active_distributions.each do |release_name|
+                        rc = Reprepro::ReleaseConfig.new
+                        rc.codename = release_name
+                        rc.architectures = ["amd64","i386","armel","armhf","arm64","source"]
+                        rc.sign_with = Config.sign_with
+                        rc.components = "main"
+                        rc.udeb_components = "main"
+                        rc.tracking = "minimal"
+
+                        distributions_config.releases[rc.codename] = rc
                     end
+                else
+                    distributions_config = Reprepro::DistributionsConfig.load(distributions_file)
+                    Config.active_distributions.each do |release_name|
+                        rc = Reprepro::ReleaseConfig.new
+                        rc.codename = release_name
+                        rc.architectures = ["amd64","i386","armel","armhf","arm64","source"]
+                        rc.sign_with = Config.sign_with
+                        rc.components = "main"
+                        rc.udeb_components = "main"
+                        rc.tracking = "minimal"
+
+                        distributions_config.releases[rc.codename] = rc
+                    end
+                end
+                distributions_config.save(distributions_file)
+                reprepro_dir = File.join(deb_repository, release_prefix)
+                cmd = [reprepro_bin]
+                cmd << "-V" << "-b" << reprepro_dir << "clearvanished"
+                Packager.info "reprepro: updating conf/distributions and clearing vanished"
+                logfile = File.join(log_dir,"reprepro-init.log")
+                if !system(*cmd, [:out, :err] => logfile, :close_others => true)
+                    Packager.info "Execution of #{cmd.join(" ")} failed -- see #{logfile}"
                 end
             end
 
@@ -111,11 +137,7 @@ module Apaka
                                               "binary-#{target_platform.architecture}","Packages")
                     if !File.exist?(packages_file)
                         reprepro_dir = File.join(deb_repository, release_prefix)
-                        dirname = log_dir
-                        if !File.directory?(dirname)
-                            FileUtils.mkdir_p dirname
-                        end
-                        logfile = File.join(dirname,"reprepro-init.log")
+                        logfile = File.join(log_dir,"reprepro-init.log")
 
                         cmd = [reprepro_bin]
                         cmd << "-V" << "-b" << reprepro_dir <<
