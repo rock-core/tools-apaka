@@ -1495,6 +1495,7 @@ module Apaka
                                          "*.orig.tar.gz")
                 if registered_orig_tar_gz.empty?
                     Packager.info "Apaka::Packaging::Debian::convert_gems: no existing orig.tar.gz found in reprepro for #{gem_name}"
+                    return nil
                 elsif registered_orig_tar_gz.size == 1
                     registered_orig_tar_gz = registered_orig_tar_gz.first
 
