@@ -716,6 +716,33 @@ module Apaka
                     @required_rock_packages
                 end
 
+                def env_ops
+                    @pkg.env
+                end
+
+                # Generate an envsh file for this package
+                # base on the custom update of environment variables
+                def envsh(pkg_var, pkg_prefix)
+                    s  = "#{pkg_var}=#{pkg_prefix}\n"
+                    s += "export #{pkg_var}\n"
+                    envvars = Array.new
+                    env_ops.each do |env_op|
+                        envvars << env_op.name
+                        s += "#{env_op.name}="
+                        env_op.values.each do |value|
+                            s += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":"
+                        end
+                        case env_op.type
+                        when :add_path
+                            s+= "${#{env_op.name}}\n"
+                        when :set_path
+                            s+= "\n"
+                        end
+                        s += "export #{env_op.name}\n"
+                    end
+                    return s
+                end
+
                 def env
                     if !@env
                         @pkg.update_environment
