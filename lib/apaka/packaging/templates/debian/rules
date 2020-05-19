@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+SHELL := /bin/bash
+
 # BEGIN ENVIRONMENT SETUP
 # https://www.debian.org/doc/debian-policy/ch-source.html
 # nocheck: This tag says to not run any build-time test suite provided by the package.
@@ -27,17 +29,16 @@ extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
 DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_library_dirs)
 
 rock_doc_install_dir=$(rock_install_dir)/share/doc/<%= debian_name %>
+SOURCE_ENVSH=for file in `find $(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source "$$file"; done;
 
 pre-build::
-	echo "Detected:"
+	echo "Running pre-build"
+	echo "Ruby stats"
 	echo "   ruby version: $(ruby_ver)"
 	echo "   ruby libdir: $(rockruby_libdir)"
 	echo "   ruby archdir: $(rockruby_archdir)"
 	# Source the available packages
-	$(if $(wildcard $(rock_release_install_dir)),-find $(rock_release_install_dir) -type f -name env.sh -exec . {} \;)
-
-	#echo "Current directory:"
-	#find .
+	echo "Sourcing release packages' env.sh"
 
 # END ENVIRONMENT SETUP
 ######################################
@@ -46,7 +47,7 @@ pre-build::
 <% if package_info.build_type == :orogen %>
 	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
-	$(env_setup) <%= orogen_command %>
+	$(SOURCE_ENVSH) $(env_setup) <%= orogen_command %>
 	#echo "Current directory including oroGen generated files"
 	#find . 
 <% end %>
@@ -60,7 +61,7 @@ pre-build::
 # PKG_CONFIG_PATH Resolve Rock package via pkg-config
 # Rock_DIR Set to make sure find_package(Rock) does work
 # ROCK_CMAKE_MACROS Used in some patches to set the CMAKE_MODULE_PATH, allowing to find Rock.cmake
-CMAKE = $(env_setup) cmake
+CMAKE = $(SOURCE_ENVSH) $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
 # Debian packaging discourages the use of rpath, but
@@ -98,7 +99,7 @@ include /usr/share/cdbs/1/rules/autoreconf.mk
 # BEGIN IMPORTER
 #
 <% elsif package_info.importer_type == :archive_importer || package_info.build_type == :importer_package || package_info.name =~ /bundles/ %>
-CMAKE = $(env_setup) cmake
+CMAKE = $(SOURCE_ENVSH) $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
@@ -157,33 +158,33 @@ install-apaka-envsh::
 	echo "Installing apaka-env.sh in $(rock_install_dir)"
 	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(DEB_DESTDIR)$(rock_install_dir)")
 	# PATH
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/bin),-echo "PATH=$(rock_install_dir)/bin:\$${PATH}\nexport PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/bin),-printf "PATH=$(rock_install_dir)/bin:\$${PATH}\nexport PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 	# PKG_CONFIG_PATH
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/pkgconfig),-echo "PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/pkgconfig),-echo "PKG_CONFIG_PATH=$(rock_install_dir)/lib/$(arch)/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/pkgconfig),-echo "PKG_CONFIG_PATH=$(rock_install_dir)/lib/$(arch)/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/pkgconfig),-printf "PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/pkgconfig),-printf "PKG_CONFIG_PATH=$(rock_install_dir)/lib/$(arch)/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/pkgconfig),-printf "PKG_CONFIG_PATH=$(rock_install_dir)/lib/$(arch)/pkgconfig:\$${PKGCONFIG_PATH}\nexport PKG_CONFIG_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 	# LD_LIBRARY and LIBRARY_PATH
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)),-echo "LD_LIBRARY_PATH=$(rock_install_dir)/lib/$(arch):\$${LD_LIBRARY_PATH}\nexport LD_LIBRARY_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib),-echo "LD_LIBRARY_PATH=$(rock_install_dir)/lib/:\$${LD_LIBRARY_PATH}\nexport LD_LIBRARY_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)),-printf "LD_LIBRARY_PATH=$(rock_install_dir)/lib/$(arch):\$${LD_LIBRARY_PATH}\nexport LD_LIBRARY_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib),-printf "LD_LIBRARY_PATH=$(rock_install_dir)/lib/:\$${LD_LIBRARY_PATH}\nexport LD_LIBRARY_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)),-echo "LIBRARY_PATH=$(rock_install_dir)/lib/$(arch):\$${LIBRARY_PATH}\nexport LIBRARY_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DEST)$(rock_install_dir)/lib),-echo "LIBRARY_PATH=$(rock_install_dir)/lib/:\$${LIBRARY_PATH}\nexport LIBRARY_PATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)),-printf "LIBRARY_PATH=$(rock_install_dir)/lib/$(arch):\$${LIBRARY_PATH}\nexport LIBRARY_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DEST)$(rock_install_dir)/lib),-printf "LIBRARY_PATH=$(rock_install_dir)/lib/:\$${LIBRARY_PATH}\nexport LIBRARY_PATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 	# PYTHON
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/python$(python_version)/site-packages),-echo "PYTHONPATH=$(rock_install_dir)/lib/python$(python_version)/site-packages:\$${PYTHON_PATH}\nexport PYTHONPATH" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/python$(python_version)/site-packages),-printf "PYTHONPATH=$(rock_install_dir)/lib/python$(python_version)/site-packages:\$${PYTHON_PATH}\nexport PYTHONPATH\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
         # RUBYLIB
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/$(ruby_ver)),-echo "RUBYLIB=$(rock_install_dir)/lib/ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby/$(ruby_ver)),-echo "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby),-echo "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver)),-echo "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/site_ruby),-echo "RUBYLIB=$(rock_install_dir)/lib/$(arch)/site_ruby:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/site_ruby),-echo "RUBYLIB=$(rock_install_dir)/lib/site_ruby:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/$(ruby_ver)),-printf "RUBYLIB=$(rock_install_dir)/lib/ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby/$(ruby_ver)),-printf "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby),-printf "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver)),-printf "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver):\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/site_ruby),-printf "RUBYLIB=$(rock_install_dir)/lib/$(arch)/site_ruby:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/site_ruby),-printf "RUBYLIB=$(rock_install_dir)/lib/site_ruby:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 
 	# Need for qt(bindings)
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby/standard),-echo "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby/standard:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby/core),-echo "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby/core:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby/standard),-printf "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby/standard:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby/vendor_ruby/core),-printf "RUBYLIB=$(rock_install_dir)/lib/ruby/vendor_ruby/core:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby),-echo "RUBYLIB=$(rock_install_dir)/lib/ruby:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
-	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby),-echo "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby:\$${RUBYLIB}\nexport RUBYLIB" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/ruby),-printf "RUBYLIB=$(rock_install_dir)/lib/ruby:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
+	$(if $(wildcard $(DEB_DESTDIR)$(rock_install_dir)/lib/$(arch)/ruby),-printf "RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby:\$${RUBYLIB}\nexport RUBYLIB\n" >> "$(DEB_DESTDIR)$(rock_install_dir)/env.sh")
 
 clean::
 	rm -f debian/stamp-rock-doc

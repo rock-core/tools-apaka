@@ -2102,8 +2102,8 @@ END
                         ruby_arch_env = ruby_arch_setup(true)
                         system("sed", "-i", "1 a #{ruby_arch_env}", "debian/rules", :close_others => true)
 
-                        source_all = Regexp.escape("$(if $(wildcard $(rock_release_install_dir)),-find $(rock_release_install_dir) -type f -name env.sh -exec . {} \;)\n")
-                        system("sed", "-i", "s#\\(dh \\)##{source_all}\\n\\t\\$(env_setup) \\1#", "debian/rules", :close_others => true)
+                        system("sed", "-i", "s#\\(dh .*\\)#__SOURCE_ALL__ $(env_setup) \\1#", "debian/rules", :close_others => true)
+                        system("sed", "-i", "s#__SOURCE_ALL__#for file in `find \\$(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source \"\\$$file\"; done;#", "debian/rules", :close_others => true)
 
                         # Ignore all ruby test results when the binary package is build (on the build server)
                         # via:
@@ -2136,8 +2136,8 @@ END
                             # have been installed
                             file << "override_dh_installdocs:\n"
                             file << "\techo \"Apaka's override_dh_installdocs called\"\n"
-                            file << "\t$(if $(wildcard #{debian_install_dir}/lib/pkgconfig/*),-echo \"PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:\\\$${PKG_CONFIG_PATH}\\nexport PKG_CONFIG_PATH\" >> #{debian_install_dir}/env.sh)\n"
-                            file << "\techo \"RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver):\\\$${RUBYLIB}\\nexport RUBYLIB\" >> #{debian_install_dir}/env.sh\n"
+                            file << "\t$(if $(wildcard #{debian_install_dir}/lib/pkgconfig/*),-printf \"PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:\\\$${PKG_CONFIG_PATH}\\nexport PKG_CONFIG_PATH\\n\" >> #{debian_install_dir}/env.sh)\n"
+                            file << "\techo \"RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver):\\\$${RUBYLIB}\\nexport RUBYLIB\\n\" >> #{debian_install_dir}/env.sh\n"
                             file << "\n"
                         end
 
@@ -2287,13 +2287,13 @@ END
 
                 pkgconfig_env       += "/usr/share/pkgconfig:/usr/lib/$(arch)/pkgconfig:"
 
-                path_env            += "$(PATH)"
-                rubylib_env         += "$(RUBYLIB)"
-                pkgconfig_env       += "$(PKG_CONFIG_PATH)"
-                rock_dir_env        += "$(Rock_DIR)"
-                ld_library_path_env += "$(LD_LIBRARY_PATH)"
-                cmake_prefix_path   += "$(CMAKE_PREFIX_PATH)"
-                orogen_plugin_path  += "$(OROGEN_PLUGIN_PATH)"
+                path_env            += "\$$PATH"
+                rubylib_env         += "\$$RUBYLIB"
+                pkgconfig_env       += "\$$PKG_CONFIG_PATH"
+                rock_dir_env        += "\$$Rock_DIR"
+                ld_library_path_env += "\$$LD_LIBRARY_PATH"
+                cmake_prefix_path   += "\$$CMAKE_PREFIX_PATH"
+                orogen_plugin_path  += "\$$OROGEN_PLUGIN_PATH"
 
                 envsh +=  "env_setup =  #{path_env}\n"
                 envsh += "env_setup += #{home_env}\n"
@@ -2320,7 +2320,7 @@ END
                 envsh += "rock_library_dirs=#{rock_library_dirs}\n"
                 envsh += "rock_base_install_dir=#{rock_base_install_directory}\n"
                 envsh += "rock_release_install_dir=#{rock_release_install_directory}\n"
-                envsh += "rock_install_dir=#{install_prefix}"
+                envsh += "rock_install_dir=#{install_prefix}\n"
                 envsh
             end
 
