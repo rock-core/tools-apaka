@@ -725,20 +725,38 @@ module Apaka
                 def envsh(pkg_var, pkg_prefix)
                     s  = "#{pkg_var}=#{pkg_prefix}\n"
                     s += "export #{pkg_var}\n"
-                    envvars = Array.new
+                    env_vars = Hash.new
                     env_ops.each do |env_op|
-                        envvars << env_op.name
-                        s += "#{env_op.name}="
-                        env_op.values.each do |value|
-                            s += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":"
+                        env_vars[env_op.name] ||= Array.new
+                        env_vars[env_op.name] << env_op
+                    end
+
+                    env_vars.each do |var_name, ops|
+                        var_setup = "#{var_name}="
+                        op_type = nil
+                        ops.each do |op|
+                            op.values.each do |value|
+                                var_setup += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":"
+                            end
+
+                            if not op_type
+                                op_type = op.type
+                            elsif op_type != op.type
+                                raise RuntimeError, "Apaka::Packaging::Autoproj2Adaptor.envsh: #{pkg_var} -- setting of env var: #{var_name} failed" \
+                                    " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
+                            end
                         end
-                        case env_op.type
+                        next unless op_type
+
+                        case op_type
                         when :add_path
-                            s+= "${#{env_op.name}}\n"
+                            var_setup += "${#{var_name}}\n"
                         when :set_path
-                            s+= "\n"
+                            var_setup += "\n"
                         end
-                        s += "export #{env_op.name}\n"
+                        var_setup += "export #{var_name}\n"
+
+                        s += var_setup
                     end
                     return s
                 end
