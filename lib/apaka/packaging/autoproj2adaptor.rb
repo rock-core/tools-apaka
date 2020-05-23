@@ -750,9 +750,13 @@ module Apaka
 
                         case op_type
                         when :add_path
-                            var_setup += "${#{var_name}}\n"
-                        when :set_path
-                            var_setup += "\n"
+                            var_setup += ":${#{var_name}}\n"
+                        when :set
+                            if var_setup[-1] == ":"
+                                var_setup[-1] = "\n"
+                            else
+                                var_setup += "\n"
+                            end
                         end
                         var_setup += "export #{var_name}\n"
 
