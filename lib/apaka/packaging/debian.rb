@@ -197,9 +197,9 @@ module Apaka
             end
 
             def rock_install_directory
-                install_dir = File.join(rock_base_install_directory, rock_release_name)
-                if @current_pkginfo
-                    install_dir = File.join(install_dir, debian_name(@current_pkginfo))
+                install_dir = rock_release_install_directory
+                if @current_pkg_info
+                    install_dir = File.join(install_dir, debian_name(@current_pkg_info))
                 end
                 install_dir
             end
@@ -740,7 +740,7 @@ module Apaka
                     # correctly
                     # FIXME: needs to be refactored
                     @packager_lock.lock
-                    @current_pkginfo = pkginfo
+                    @current_pkg_info = pkginfo
 
                     if pkginfo.build_type == :orogen || pkginfo.build_type == :cmake || pkginfo.build_type == :autotools
                         package_deb(pkginfo, options)
@@ -827,7 +827,7 @@ module Apaka
 
                             Packager.info "Debian: creating gem from package #{pkginfo.name} [#{File.join(log_dir, logname)}]"
 
-                            if patch_pkg_dir(pkginfo.name, options[:patch_dir], ["*.gemspec", "Rakefile", "metadata.yml"])
+                            if patch_pkg_dir(pkginfo.name, options[:patch_dir], whitelist: ["*.gemspec", "Rakefile", "metadata.yml"])
                                 Packager.info "Patched build files for ruby package before gem building: #{pkginfo.name}"
                             end
 
@@ -1479,13 +1479,21 @@ module Apaka
                 if File.file?(file)
                     filetype = `file -b --mime-type #{file} | cut -d/ -f1`.strip
                     if filetype == "text"
-                        if options[:skip_install_dir]
+                        if not options[:skip_install_dir]
                             apaka_install_dir = options[:install_dir] || rock_install_directory
                             system("sed", "-i", "s#\@APAKA_INSTALL_DIR\@##{apaka_install_dir}#g", file, :close_others => true)
                         end
-                        if options[:skip_release_name]
+                        if not options[:skip_package_dir]
+                            apaka_package_dir = options[:package_dir] || rock_install_directory
+                            system("sed", "-i", "s#\@APAKA_PACKAGE_DIR\@##{apaka_package_dir}#g", file, :close_others => true)
+                        end
+                        if not options[:skip_release_name]
                             apaka_release_name = options[:release_name] || rock_release_name
                             system("sed", "-i", "s#\@APAKA_RELEASE_NAME\@##{apaka_release_name}#g", file, :close_others => true)
+                        end
+                        if not options[:skip_release_dir]
+                            apaka_release_dir = options[:release_dir] || rock_release_install_directory
+                            system("sed", "-i", "s#\@APAKA_RELEASE_DIR\@##{apaka_release_dir}#g", file, :close_others => true)
                         end
                     end
                 end
@@ -1622,6 +1630,15 @@ module Apaka
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
                     end
 
+                    debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
+                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*(\.rc[0-9]+)?$/,"")
+                    Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
+                    Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
+                    install_dir = rock_install_directory
+                    install_dir += "/#{debian_ruby_unversioned_name}" if not @current_pkg_info
+                    debian_install_dir = "debian/#{debian_ruby_unversioned_name}#{install_dir}"
+
+
                     ############
                     # Step 1: calling gem2tgz - if orig.tar.gz is not available
                     ############
@@ -1684,7 +1701,7 @@ module Apaka
                                     end
                                     patch_pkg_dir(package_name, options[:patch_dir],
                                                   whitelist: ["*.gemspec", "Rakefile", "metadata.yml"],
-                                                  options: { skip_install_dir: true }
+                                                  options: { install_dir: install_dir }
                                                  )
                                 end
                                 # Make sure we extract the original license
@@ -1803,18 +1820,13 @@ module Apaka
                          raise RuntimeError, "Failed to call #{cmd.join(" ")}"
                     end
 
-                    debian_ruby_name = debian_ruby_name(gem_versioned_name)# + '~' + distribution
-                    debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*(\.rc[0-9]+)?$/,"")
-                    Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
-                    Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
-
                     # Check if patching is needed
                     # To allow patching we need to split `gem2deb -S #{gem_name}`
                     # into its substeps
                     #
                     Dir.chdir(debian_ruby_name) do
                         package_name = options[:package_name] || gem_base_name
-                        if patch_pkg_dir(package_name, options[:patch_dir])
+                        if patch_pkg_dir(package_name, options[:patch_dir], options: { install_dir: install_dir})
                             dpkg_commit_changes("deb_autopackaging_overlay")
                             # the above may fail when we patched debian/control
                             # this is going to be fixed next
@@ -2043,10 +2055,7 @@ module Apaka
                         # Injecting environment setup in debian/rules
                         # packages like orocos.rb will require locally installed packages
                         # Append an installation override
-                        install_dir = rock_install_directory
-                        install_dir += "/#{debian_ruby_unversioned_name}" if not @current_pkg_info
-                        debian_install_dir = "debian/#{debian_ruby_unversioned_name}#{install_dir}"
-                        Packager.debug "Adapting the target installation directory from /usr to #{install_dir}"
+                       Packager.debug "Adapting the target installation directory from /usr to #{install_dir}"
 
                         ############################
                         # dh_ruby.mk
@@ -2064,9 +2073,9 @@ module Apaka
                         # This all is described in detail in "man dh_ruby"
                         ##############################
                         dh_ruby_mk = <<-END
-debian_install_dir=#{debian_install_dir}
+debian_install_prefix=#{debian_install_dir}
 install_dir=#{install_dir}
-rock_doc_install_dir=$(debian_install_dir)/share/doc/#{debian_ruby_unversioned_name}
+rock_doc_install_dir=$(debian_install_prefix)/share/doc/#{debian_ruby_unversioned_name}
 
 build:
 	-#{@gem_doc_alternatives.join(" || ")}
@@ -2080,22 +2089,17 @@ install:
 	$(if $(wildcard api/*),-cp -r api $(rock_doc_install_dir))
 
 	echo "Preparing installation of apaka-generated env.sh (current dir $PWD)"
-	touch $(debian_install_dir)/env.sh
+	touch $(debian_install_prefix)/env.sh
 END
 
 
-#	$(if $(wildcard lib/*),-echo "RUBYLIB=$(install_dir)/lib:\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
-#	$(if $(wildcard $(debian_install_dir)/lib/ruby/$(ruby_ver)),-echo "RUBYLIB=$(install_dir)/lib/ruby/$(ruby_ver):\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
-#	$(if $(wildcard $(debian_install_dir)/lib/$(arch)/ruby/$(ruby_ver)),-echo "RUBYLIB=$(install_dir)/lib/$(arch)/ruby/$(ruby_ver):\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
-#	$(if $(wildcard $(debian_install_dir)/lib/ruby/vendor_ruby),-echo "RUBYLIB=$(install_dir)/lib/ruby/vendor_ruby:\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
-#	$(if $(wildcard $(debian_install_dir)/lib/$(arch)/site_ruby),-echo "RUBYLIB=$(install_dir)/lib/$(arch)/site_ruby:\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
-#	$(if $(wildcard $(debian_install_dir)/lib/site_ruby),-echo "RUBYLIB=$(install_dir)/lib/site_ruby:\$${RUBYLIB}\\nexport RUBYLIB" >> $(debian_install_dir)/env.sh)
                         File.write("debian/dh_ruby.mk", dh_ruby_mk)
 
                         Packager.info "#{debian_ruby_name}: injecting environment variables into debian/rules"
                         Packager.debug "Allow custom rock name and installation path: #{install_dir}"
                         Packager.debug "Enable custom rock name and custom installation path"
 
+                        system("sed", "-i", "1 a debian_install_prefix = #{debian_install_dir}", "debian/rules", :close_others => true)
                         system("sed", "-i", "1 a env_setup += RUBY_CMAKE_INSTALL_PREFIX=#{debian_install_dir}", "debian/rules", :close_others => true)
                         envsh = Regexp.escape(env_setup(install_prefix: install_dir))
                         system("sed", "-i", "1 a #{envsh}", "debian/rules", :close_others => true)
@@ -2124,26 +2128,21 @@ END
                             file << "\noverride_dh_auto_install:\n"
                             file << "\techo \"Apaka's override_dh_auto_install called\"\n"
                             file << "\tdh_auto_install \n"
-                            file << "\tmkdir -p #{debian_install_dir}\n"
-                            file << "\tcp -R #{build_usr_dir}/* #{debian_install_dir}/\n"
+                            file << "\tmkdir -p $(debian_install_prefix)\n"
+                            file << "\tcp -R #{build_usr_dir}/* $(debian_install_prefix)/\n"
                             file << "\trm -rf #{build_usr_dir}/*\n"
-                            file << "\techo \"Result\"\n"
-                            file << "\tfind #{debian_install_dir}\n"
-                            file << "\techo \"TEST\"\n"
-                            file << "\tfind /build/#{debian_ruby_name}\n"
                             file << "\n"
                             # Make sure that env.sh is generated AFTER all file
                             # have been installed
                             file << "override_dh_installdocs:\n"
                             file << "\techo \"Apaka's override_dh_installdocs called\"\n"
-                            file << "\t$(if $(wildcard #{debian_install_dir}/lib/pkgconfig/*),-printf \"PKG_CONFIG_PATH=$(rock_install_dir)/lib/pkgconfig:\\\$${PKG_CONFIG_PATH}\\nexport PKG_CONFIG_PATH\\n\" >> #{debian_install_dir}/env.sh)\n"
-                            file << "\techo \"RUBYLIB=$(rock_install_dir)/lib/$(arch)/ruby/vendor_ruby/$(ruby_ver):\\\$${RUBYLIB}\\nexport RUBYLIB\\n\" >> #{debian_install_dir}/env.sh\n"
+                            file << env_create_exports(install_prefix: "$(debian_install_prefix)")
                             file << "\n"
                         end
 
                         ["debian","pkgconfig"].each do |subdir|
                             Dir.glob("#{subdir}/*").each do |file|
-                                system("sed", "-i", "s#\@APAKA_INSTALL_DIR\@##{install_dir}#g", file, :close_others => true)
+                                prepare_patch_file(file, options: { install_dir: install_dir })
                                 dpkg_commit_changes("adapt_rock_install_dir")
                             end
                         end
@@ -2322,6 +2321,53 @@ END
                 envsh += "rock_release_install_dir=#{rock_release_install_directory}\n"
                 envsh += "rock_install_dir=#{install_prefix}\n"
                 envsh
+            end
+
+            # Generate an export statement for a makefile, to test the
+            # existance of the given dir under the install_prefix and add it to
+            # the given variable
+            #
+            # $(if $(wildcard <install_prefix>/<dirname>/*),-printf
+            # \"PATH=$(rock_install_dir)/bin:\\\$${PATH}\\nexport PATH\\n\" >>
+            # <install_prefix>/env.sh\n"
+            def env_create_export(varname, dirname, install_prefix: "$(debian_install_prefix)", file_suffix: nil)
+                if dirname and !dirname.empty?
+                    test_path = File.join(install_prefix,dirname,"*#{file_suffix}")
+                else
+                    test_path = File.join(install_prefix,"*#{file_suffix}")
+                end
+                return "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
+            end
+
+            def env_create_exports(install_prefix: "$(debian_install_prefix)")
+                exports = ""
+                exports += env_create_export("PATH","bin", install_prefix: install_prefix)
+                exports += env_create_export("CMAKE_PREFIX_PATH","", install_prefix: install_prefix)
+	        # PKG_CONFIG_PATH
+                exports += env_create_export("PKG_CONFIG_PATH","lib/pkgconfig", install_prefix: install_prefix, file_suffix: "\.pc")
+                exports += env_create_export("PKG_CONFIG_PATH","lib/$(arch)/pkgconfig", install_prefix: install_prefix, file_suffix: "\.pc")
+                #RUBYLIB
+                exports += env_create_export("RUBYLIB","lib/ruby/$(ruby_ver)", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/$(arch)/ruby/$(ruby_ver)", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/site_ruby", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/$(arch)/site_ruby", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/ruby/vendor_ruby", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/$(arch)/ruby/vendor_ruby/$(ruby_ver)", install_prefix: install_prefix)
+                #RUBYLIB needed for qt(bindings)
+                exports += env_create_export("RUBYLIB","lib/ruby/vendor_ruby/standard", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/ruby/vendor_ruby/core", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/ruby", install_prefix: install_prefix)
+                exports += env_create_export("RUBYLIB","lib/$(arch)/ruby", install_prefix: install_prefix)
+
+                #LD_LIBRARY_PATH
+                exports += env_create_export("LD_LIBRARY_PATH","lib/$(arch)", install_prefix: install_prefix, file_suffix: "\.so")
+                exports += env_create_export("LD_LIBRARY_PATH","lib", install_prefix: install_prefix, file_suffix: "\.so")
+                #exports += env_create_export("LIBRARY_PATH","lib/$(arch)", install_prefix: install_prefix, file_suffix: "\.so")
+                #exports += env_create_export("LIBRARY_PATH","lib", install_prefix: install_prefix, file_suffix: "\.so")
+
+                # PYTHON
+                exports += env_create_export("PYTHONPATH","lib/python$(python_version)/site-packages", install_prefix: install_prefix)
+                exports
             end
 
             def set_compat_level(compatlevel = DEBHELPER_DEFAULT_COMPAT_LEVEL, compatfile = "debian/compat")
