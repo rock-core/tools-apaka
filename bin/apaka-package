@@ -406,7 +406,9 @@ end
 
 sync_packages = []
 
-gem2deb_packager = Apaka::Packaging::Deb::Gem2Deb.new(options)
+gem2deb_packager =
+    Apaka::Packaging::Deb::Gem2Deb.new(options.merge(release_name:
+                                                     o_rock_release_name))
 Dir.chdir(packager.build_dir) do
 
     if o_package

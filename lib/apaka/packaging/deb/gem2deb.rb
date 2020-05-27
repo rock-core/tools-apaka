@@ -425,25 +425,24 @@ module Apaka
                             # This all is described in detail in "man dh_ruby"
                             ##############################
                             dh_ruby_mk = <<-END
-    debian_install_prefix=#{debian_install_dir}
-    install_dir=#{install_dir}
-    rock_doc_install_dir=$(debian_install_prefix)/share/doc/#{debian_ruby_unversioned_name}
+debian_install_prefix=#{debian_install_dir}
+install_dir=#{install_dir}
+rock_doc_install_dir=$(debian_install_prefix)/share/doc/#{debian_ruby_unversioned_name}
 
-    build:
-            -#{Gem.doc_alternatives.join(" || ")}
+build:
+	-#{Gem.doc_alternatives.join(" || ")}
 
-    clean:
-    #	-rm -rf doc
+clean:
+#	-rm -rf doc
 
-    install:
-            mkdir -p $(rock_doc_install_dir)
-            $(if $(wildcard doc/*),-cp -r doc $(rock_doc_install_dir))
-            $(if $(wildcard api/*),-cp -r api $(rock_doc_install_dir))
+install:
+	mkdir -p $(rock_doc_install_dir)
+	$(if $(wildcard doc/*),-cp -r doc $(rock_doc_install_dir))
+	$(if $(wildcard api/*),-cp -r api $(rock_doc_install_dir))
 
-            echo "Preparing installation of apaka-generated env.sh (current dir $PWD)"
-            touch $(debian_install_prefix)/env.sh
-    END
-
+	echo "Preparing installation of apaka-generated env.sh (current dir $PWD)"
+	touch $(debian_install_prefix)/env.sh
+END
 
                             File.write("debian/dh_ruby.mk", dh_ruby_mk)
 
