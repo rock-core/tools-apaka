@@ -604,8 +604,11 @@ module Apaka
                 priority_lists.flatten
             end
 
-            # Import a package for packaging
+            # Import a package for packaging into the specified target dir
+            # @param pkg_target_importdir [String] Path to where the package
+            #     shall be imported
             def import_package(pkg, pkg_target_importdir)
+                orig_srcdir = pkg.srcdir
                 # Some packages, e.g. mars use a single git repository a split it artificially
                 # if this is the case, try to copy the content instead of doing a proper checkout
                 if pkg.srcdir != pkg.importdir
@@ -637,6 +640,7 @@ module Apaka
                         FileUtils.rm_f file
                     end
                 end
+                pkg.srcdir = orig_srcdir
             end
 
             class Autoproj2PackageInfo < PackageInfo
