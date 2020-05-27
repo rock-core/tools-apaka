@@ -105,4 +105,8 @@ class TestDebPackager < Minitest::Test
             assert(!Dir.glob(File.join(packaging_dir,"#{package_prefix}*#{suffix}")).empty?, "No file with suffix #{suffix}")
         end
     end
+
+    def test_meta_package
+        @package2deb.package_meta("default",[], version: "1.0")
+    end
 end

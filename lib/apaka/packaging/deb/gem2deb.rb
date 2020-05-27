@@ -137,7 +137,7 @@ module Apaka
                     Dir.chdir(File.dirname(gem_path)) do
 
                         gem_file_name = File.basename(gem_path)
-                        versioned_name, gem_base_name  = gem_versioned_name(gem_file_name)
+                        versioned_name, gem_base_name, gem_version = gem_versioned_name(gem_file_name)
 
                         debian_ruby_name = debian_ruby_name(versioned_name)# + '~' + distribution
                         debian_ruby_unversioned_name = debian_ruby_name.gsub(/-[0-9\.]*(\.rc[0-9]+)?$/,"")
@@ -151,7 +151,7 @@ module Apaka
                         # Step 1: calling gem2tgz - if orig.tar.gz is not available
                         ############
                         options[:install_dir] = install_dir
-                        gem2tgz(versioned_name, gem_file_name, options)
+                        gem2tgz(gem_file_name, options)
 
                         ############
                         # Step 2: calling dh-make-ruby
@@ -657,15 +657,15 @@ module Apaka
                     else
                         raise ArgumentError, "Converting gem: unknown formatting: '#{gem_versioned_name}' -- cannot extract version"
                     end
-                    [gem_versioned_name, gem_base_name]
+                    [gem_versioned_name, gem_base_name, gem_version]
                 end
 
                 # Create a new tgz file from an existing *.gem
                 # with the new name <gem_versioned_name>.tgz
-                # @param gem_versioned_name [String] Name of the new compressed
-                #   archive
                 # @param gem_file_name
-                def gem2tgz(gem_versioned_name, gem_file_name, options)
+                def gem2tgz(gem_file_name, options)
+                    gem_versioned_name, gem_base_name, gem_version  = gem_versioned_name(gem_file_name)
+
                     license = nil
                     copyright = nil
                     if !File.exist?("#{gem_versioned_name}.tar.gz")

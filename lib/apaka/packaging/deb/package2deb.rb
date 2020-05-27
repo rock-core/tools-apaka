@@ -25,7 +25,7 @@ module Apaka
 
             class Package2Deb < Packager
                 TEMPLATES = File.expand_path(File.join("..","templates", "debian"), __dir__)
-                TEMPLATES_META = File.expand_path(File.join("templates", "debian-meta"), __dir__)
+                TEMPLATES_META = File.expand_path(File.join("..","templates", "debian-meta"), __dir__)
                 DEPWHITELIST = ["debhelper","gem2deb","ruby","ruby-rspec"]
                 DEBHELPER_DEFAULT_COMPAT_LEVEL = 9
                 DEB_ARTIFACTS_SUFFIXES = [".dsc", ".orig.tar.gz", ".debian.tar.gz", ".debian.tar.xz"]
@@ -61,7 +61,7 @@ module Apaka
 
                     @rock_autobuild_deps = { :orogen => [], :cmake => [], :autotools => [], :ruby => [], :archive_importer => [], :importer_package => [] }
 
-                    if options.has_key?(:release_name)
+                    if options[:release_name]
                         self.rock_release_name = options[:release_name]
                     else
                         self.rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
@@ -355,13 +355,11 @@ module Apaka
                     set_compat_level(DEBHELPER_DEFAULT_COMPAT_LEVEL, File.join(dir,"compat"))
                 end
 
-                def generate_debian_dir_meta(name, depends, options)
-                    options, unknown_options = Kernel.filter_options options,
-                        :distribution => nil
-
-                    distribution = options[:distribution]
-
-                    existing_debian_dir = File.join("#{name}-0.1","debian-meta")
+                # Generate the debian_dir for a meta package
+                # i.e. representing a package set or a full release
+                #
+                def generate_debian_dir_meta(name, depends, version: "0.1", distribution: nil)
+                    existing_debian_dir = File.join("#{name}-#{version}","debian-meta")
                     template_dir =
                         if File.directory?(existing_debian_dir)
                             existing_debian_dir
@@ -369,20 +367,17 @@ module Apaka
                             TEMPLATES_META
                         end
 
-                    dir = File.join("#{name}-0.1", "debian")
+                    dir = File.join("#{name}-#{version}", "debian")
                     FileUtils.mkdir_p dir
                     debian_name = debian_meta_name(name)
-                    debian_version = "0.1"
+                    debian_version = "#{version}"
                     if distribution
                       debian_version += '~' + distribution
                     end
-    #                versioned_name = versioned_name(pkg, distribution)
 
-                    with_rock_prefix = true
                     deps_rock_packages = depends
                     deps_osdeps_packages = []
                     deps_nonnative_packages = []
-                    package = nil
 
                     Packager.info "Required OS Deps: #{deps_osdeps_packages}"
                     Packager.info "Required Nonnative Deps: #{deps_nonnative_packages}"
@@ -498,15 +493,15 @@ module Apaka
                 # Package the given meta package
                 # if an existing source directory is given this will be used
                 # for packaging, otherwise the package will be bootstrapped
-                def package_meta(name, depend, options = Hash.new)
-                    options, unknown_options = Kernel.filter_options options,
-                        :force_update => false,
-                        :distribution => nil, # allow to override global settings
-                        :architecture => nil
+                def package_meta(name, depend,
+                                 version: "0.1",
+                                 force_update: false,
+                                 distribution: nil,
+                                 architecture: nil)
 
                     debian_pkg_name = debian_meta_name(name)
 
-                    if options[:force_update]
+                    if force_update
                         dirname = packaging_dir(debian_pkg_name)
                         if File.directory?(dirname)
                             Packager.info "Debian: rebuild requested -- removing #{dirname}"
@@ -514,24 +509,28 @@ module Apaka
                         end
                     end
 
-                    options[:distribution] ||= target_platform.distribution_release_name
-                    options[:architecture] ||= target_platform.architecture
-                    pkg_dir = packaging_dir(debian_pkg_name)
-                    options[:packaging_dir] = pkg_dir
+                    distribution ||= target_platform.distribution_release_name
+                    architecture ||= target_platform.architecture
+                    packaging_dir = packaging_dir(debian_pkg_name)
 
-                    if not File.directory?(pkg_dir)
-                        FileUtils.mkdir_p pkg_dir
+                    if not File.directory?(packaging_dir)
+                        FileUtils.mkdir_p packaging_dir
                     end
 
-                    package_deb_meta(name, depend, options)
+                    package_deb_meta(name, depend,
+                                     version: version,
+                                     distribution: distribution,
+                                     packaging_dir: packaging_dir)
                 end
 
                 def package_ruby(pkginfo, options)
 
                     package2gem = Apaka::Packaging::Gem::Package2Gem.new(options)
-                    gem_path = package2gem.convert_package(pkginfo, 
+                    gem_path = package2gem.convert_package(pkginfo,
                                                            packaging_dir(pkginfo),
-                                                           gem_name: Deb.canonize(pkginfo.name))
+                                                           gem_name: Deb.canonize(pkginfo.name),
+                                                           patch_dir: options[:patch_dir]
+                                                          )
 
                     require_relative 'gem2deb'
                     gem2deb = Deb::Gem2Deb.new(options)
@@ -609,26 +608,25 @@ module Apaka
                     end
                 end
 
-                def package_deb_meta(name, depend, options)
-                    Packager.info "Package Deb meta: '#{name}' with options: #{options}"
+                def package_deb_meta(name, depend,
+                                     version: "0.1",
+                                     distribution: nil,
+                                     packaging_dir: nil)
 
-                    options, unknown_options = Kernel.filter_options options,
-                        :patch_dir => nil,
-                        :distribution => nil,
-                        :architecture => nil,
-                        :packaging_dir => nil
-                    distribution = options[:distribution]
+                    Packager.info "Package Deb meta: '#{name}' for distribution: #{distribution},"
+                        "packaging_dir: #{packaging_dir}"
+                    raise ArgumentError, "#{self.class}.package_deb_meta: missing packaging_dir" unless packaging_dir
 
-                    Packager.info "Changing into packaging dir: #{options[:packaging_dir]}"
-                    #todo: no pkg.
-                    Dir.chdir(options[:packaging_dir]) do
+                    Packager.info "Changing into packaging dir: #{packaging_dir}"
+                    Dir.chdir(packaging_dir) do
                         # Generate the debian directory as a subdirectory of meta
-
-                        generate_debian_dir_meta(name, depend, options)
+                        generate_debian_dir_meta(name, depend,
+                                                 version: version,
+                                                 distribution: distribution)
 
                         # Run dpkg-source
                         # Use the new tar ball as source
-                        if !system("dpkg-source", "-I", "-b", "#{name}-0.1", :close_others => true)
+                        if !system("dpkg-source", "-I", "-b", "#{name}-#{version}", :close_others => true)
                             Packager.warn "Package: #{name} failed to perform dpkg-source -- #{Dir.entries("meta")}"
                             raise RuntimeError, "Debian: #{name} failed to perform dpkg-source in meta"
                         end
@@ -776,7 +774,7 @@ module Apaka
                                                  rock_release_name,
                                                  "*.orig.tar.gz")
                     if registered_orig_tar_gz.empty?
-                        Packager.info "Apaka::Packaging::Debian::package_updated?: ro existing orig.tar.gz found in reprepro"
+                        Packager.info "Apaka::Packaging::Debian::package_updated?: no existing orig.tar.gz found in reprepro"
                     else
                         Packager.info "Apaka::Packaging::Debian::package_updated?: existing orig.tar.gz found in reprepro: #{registered_orig_tar_gz}"
                         FileUtils.cp registered_orig_tar_gz.first, Dir.pwd
@@ -789,7 +787,7 @@ module Apaka
                         Packager.info "No filename found for #{debian_name(pkginfo)} (existing files: #{Dir.entries('.')} -- package requires update (regeneration of orig.tar.gz)"
                         return true
                     elsif orig_file_name.size > 1
-                        Packager.warn "Multiple version of package #{debian_name(pkginfo)} in #{Dir.pwd} -- you have to fix this first"
+                        raise RuntimeError, "Multiple versions of package #{debian_name(pkginfo)} in #{Dir.pwd} -- you have to fix this first"
                     else
                         orig_file_name = orig_file_name.first
                     end
@@ -831,7 +829,7 @@ module Apaka
                     setup
                 end
 
-                # Define the default compat level 
+                # Define the default compat level
                 def set_compat_level(compatlevel = DEBHELPER_DEFAULT_COMPAT_LEVEL, compatfile = "debian/compat")
                     if !File.exist?(compatfile)
                         raise ArgumentError, "Apaka::Packaging::Debian::set_compat_level: could not find file '#{compatfile}', working directory is: '#{Dir.pwd}'"

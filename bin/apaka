@@ -370,9 +370,9 @@ if o_custom_meta
     meta_packages[o_custom_meta] =
         rock_pkginfos.collect {|pkginfo| pkginfo.name } +
         required_gems.select do |pkg|
-        native_name, is_osdeps = packager.native_dependency_name(pkg)
-        !is_osdeps
-    end
+            native_name, is_osdeps = packager.dep_manager.native_dependency_name(pkg)
+            !is_osdeps
+        end
 end
 
 # check if the current selection contains a metapackage
@@ -484,7 +484,7 @@ else
     index = 0
     required_gems.each do |pkg|
         is_osdeps = false
-        native_name, is_osdeps = packager.native_dependency_name(pkg)
+        native_name, is_osdeps = packager.dep_manager.native_dependency_name(pkg)
         if is_osdeps
             Apaka::Packaging.debug "Gem: #{pkg} is available as os dependency: #{native_name} (therefore it will not be build)"
             finished_jobs["ruby-#{pkg}"] = { :type => :nativegem,

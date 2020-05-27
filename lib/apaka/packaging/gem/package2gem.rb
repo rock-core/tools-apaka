@@ -36,7 +36,10 @@ module Apaka
                 # Create an gem of an existing ruby package
                 # @param gem_name [Hash] Instead of using the generated gem
                 #       from the pkginfo, rename allow to define the name of the created gem
-                def convert_package(pkginfo, packaging_dir, gem_name: nil)
+                def convert_package(pkginfo, packaging_dir,
+                                    gem_name: nil,
+                                    patch_dir: nil
+                                   )
                     Packager.info "Package Ruby: '#{pkginfo.name}' with gem_name: '#{gem_name}'"
 
                     # update dependencies in any case, i.e. independant if package exists or not
@@ -68,7 +71,7 @@ module Apaka
 
                                 Packager.info "#{self.class}: creating gem from package #{pkginfo.name} [#{File.join(log_dir, logname)}]"
 
-                                if patch_pkg_dir(pkginfo.name, options[:patch_dir], whitelist: ["*.gemspec", "Rakefile", "metadata.yml"])
+                                if patch_pkg_dir(pkginfo.name, patch_dir, whitelist: ["*.gemspec", "Rakefile", "metadata.yml"])
                                     Packager.info "#{self.class}: patched build files for ruby package before gem building: #{pkginfo.name}"
                                 end
 

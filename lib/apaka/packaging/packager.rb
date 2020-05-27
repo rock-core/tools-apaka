@@ -33,26 +33,6 @@ module Apaka
             File.join(build_dir, "cache")
         end
 
-        # Prepare the build directory, i.e. cleanup and obsolete file
-        def prepare
-            if not File.exist?(build_dir)
-                FileUtils.mkdir_p build_dir
-            end
-            cleanup
-        end
-
-        # Cleanup an existing local tmp folder in the build dir
-        def cleanup
-            tmpdir = File.join(build_dir,local_tmp_dir)
-            if File.exist?(tmpdir)
-                FileUtils.rm_rf(tmpdir)
-            end
-        end
-
-        def system(*args)
-            Kernel.system(*args)
-        end
-
         # Extract the base name from a path description
         # e.g. tools/metaruby => metaruby
         def self.basename(name)
@@ -96,24 +76,34 @@ module Apaka
                                      @target_platform.distribution_release_name, @target_platform.architecture)
                 @local_tmp_dir = File.join(@build_dir, ".apaka_packager",
                                      @target_platform.distribution_release_name, @target_platform.architecture)
+
+                @deb_repository = DEB_REPOSITORY
+
+                @reprepro = Reprepro::BaseRepo.new(DEB_REPOSITORY, @log_dir)
+
+                prepare
+            end
+
+            # Prepare the build directory, i.e. cleanup and obsolete file
+            def prepare
                 [@build_dir, @log_dir, @local_tmp_dir].each do |dir|
                     if not File.directory?(dir)
                         FileUtils.mkdir_p dir
                     end
                 end
+                cleanup
             end
 
-
-
-            end
-
-                    end
+            # Cleanup an existing local tmp folder in the build dir
+            def cleanup
+                tmpdir = File.join(build_dir,local_tmp_dir)
+                if File.exist?(tmpdir)
+                    FileUtils.rm_rf(tmpdir)
                 end
             end
 
-                end
-            end
-
+            def system(*args)
+                Kernel.system(*args)
             end
 
             def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
