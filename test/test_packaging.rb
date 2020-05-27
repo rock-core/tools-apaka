@@ -1,4 +1,4 @@
-require 'minitest/autorun'
+require_relative 'test_helper'
 require_relative '../lib/apaka'
 
 # TODO Testcases
@@ -13,17 +13,6 @@ require_relative '../lib/apaka'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
-Autoproj.root_dir = File.join(__dir__,"workspace")
-$autoprojadaptor = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
-
-def autoprojadaptor
-    $autoprojadaptor
-end
-
-Apaka::Packaging.root_dir = autoprojadaptor.root_dir
-
-Apaka::Packaging::TargetPlatform.osdeps_release_tags= autoprojadaptor.osdeps_release_tags
-
 class TestDebian < Minitest::Test
 
     attr_reader :packager

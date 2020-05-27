@@ -601,7 +601,7 @@ Dir.chdir(packager.build_dir) do
 
         pkginfos = all_packages[:pkginfos].sort_by { |pkginfo| pkginfo.name }
         pkginfos.each do |pkginfo|
-            packager.update_osdeps_lists(pkginfo, o_osdeps_list_dir)
+            Apaka::Packaging::Deb::Osdeps::update_osdeps_lists(packager, pkginfo, o_osdeps_list_dir)
         end
 
         gems = all_packages[:gems].sort
