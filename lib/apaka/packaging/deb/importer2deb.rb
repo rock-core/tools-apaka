@@ -44,7 +44,7 @@ module Apaka
                             package_with_update = true
                         end
 
-                        dsc_files = reprepro_registered_files(versioned_name(pkginfo, distribution),
+                        dsc_files = reprepro.registered_files(versioned_name(pkginfo, distribution),
                                                   rock_release_name,
                                                   "*#{target_platform.distribution_release_name}.dsc")
 

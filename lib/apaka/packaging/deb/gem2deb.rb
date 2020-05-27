@@ -851,7 +851,7 @@ module Apaka
                 # Compute the registered version of a gem
                 # @return nil if no gem is registered or the version information
                 def gem_get_registered_version(gem_name)
-                    registered_orig_tar_gz = reprepro_registered_files(debian_ruby_name(gem_name) + "_",
+                    registered_orig_tar_gz = reprepro.registered_files(debian_ruby_name(gem_name) + "_",
                                              rock_release_name,
                                              "*.orig.tar.gz")
                     if registered_orig_tar_gz.empty?

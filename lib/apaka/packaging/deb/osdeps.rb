@@ -49,7 +49,7 @@ module Apaka
                     end
 
                     if !is_osdep
-                        if !packager.reprepro_has_package?(dependency_debian_name, rock_release_name,
+                        if !packager.reprepro.has_package?(dependency_debian_name, rock_release_name,
                                                   selected_platform.distribution_release_name,
                                                   selected_platform.architecture)
 

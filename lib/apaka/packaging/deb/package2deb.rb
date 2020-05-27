@@ -63,6 +63,8 @@ module Apaka
                     else
                         self.rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
                     end
+                    @reprepro.init_repository(rock_release_name, target_platform)
+
                     @current_pkg_info = nil
 
                     @env = Deb::Environment.new(self)
@@ -562,7 +564,7 @@ module Apaka
                             package_with_update = true
                         end
 
-                        dsc_files = reprepro_registered_files(versioned_name(pkginfo, distribution),
+                        dsc_files = reprepro.registered_files(versioned_name(pkginfo, distribution),
                                                   rock_release_name,
                                                   "*#{target_platform.distribution_release_name}.dsc")
 
@@ -767,7 +769,7 @@ module Apaka
                 # Using 'diff' allows us to apply this test to all kind of packages
                 def package_updated?(pkginfo)
                     # append underscore to make sure version definition follows
-                    registered_orig_tar_gz = reprepro_registered_files(debian_name(pkginfo) + "_",
+                    registered_orig_tar_gz = reprepro.registered_files(debian_name(pkginfo) + "_",
                                                  rock_release_name,
                                                  "*.orig.tar.gz")
                     if registered_orig_tar_gz.empty?
