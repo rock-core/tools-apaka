@@ -162,12 +162,12 @@ module Apaka
                 # pick last, i.e. highest version
                 requirements = Array.new
                 version_requirements.each do |requirement|
-                    requirements << Gem::Version::Requirement.new(requirement)
+                    requirements << ::Gem::Version::Requirement.new(requirement)
                 end
                 versioned_gems = versioned_gems.select do |description|
                     do_select = true
                     requirements.each do |required_version|
-                        available_version = Gem::Version.new(description[:version])
+                        available_version = ::Gem::Version.new(description[:version])
                         if !required_version.satisfied_by?(available_version)
                             do_select = false
                         end
