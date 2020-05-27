@@ -13,14 +13,19 @@ require_relative '../lib/apaka'
 #    - tools-rubigen --> using debian packages only // with_rock_prefix
 # 3. resolve gem dependencies for a specific version
 #
+include Apaka::Packaging
+
 class TestDebian < Minitest::Test
 
     attr_reader :packager
 
     def setup
-        @packager = Apaka::Packaging::Debian.new
-        @packager.rock_release_name = "master"
+        @packager = Deb::Package2Deb.new(release_name: "master")
+        @gem_packager = Deb::Gem2Deb.new(release_name: "master")
+
         @packager.build_dir = File.join(Autoproj.root_dir, "build/test-rock-packager")
+        @gem_packager.build_dir = File.join(Autoproj.root_dir, "build/test-rock-packager")
+
         Dir.chdir(Autoproj.root_dir) do
             cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
             msg, status = Open3.capture2(cmd)
@@ -47,7 +52,7 @@ class TestDebian < Minitest::Test
                      "test_package" => "test-package",
                      "_a-b-c-d_e_f_"  => "-a-b-c-d-e-f-" }
         test_set.each do |tin,tout|
-           assert(packager.canonize(tin) == tout)
+           assert(Deb.canonize(tin) == tout)
         end
     end
 
@@ -55,7 +60,7 @@ class TestDebian < Minitest::Test
         test_set = { "tools/metapackage" => "metapackage" }
         test_set = { "tools/orogen/metapackage" => "metapackage" }
         test_set.each do |tin,tout|
-           assert(packager.basename(tin) == tout)
+           assert(Apaka::Packaging.basename(tin) == tout)
         end
     end
 
@@ -105,7 +110,7 @@ class TestDebian < Minitest::Test
         test_set.each do |pkg_name, expected_deps|
             pkg = autoprojadaptor.package_by_name(pkg_name)
             pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
-            deps = packager.recursive_dependencies(pkginfo)
+            deps = packager.dep_manager.recursive_dependencies(pkginfo)
             deps.delete_if { |dep| dep == "ccache" }
             assert_equal(expected_deps.uniq.sort, deps.uniq.sort, "Recursive dependencies for '#{pkg_name}': " \
                    " #{deps} expected #{expected_deps}")
@@ -151,11 +156,11 @@ class TestDebian < Minitest::Test
 
             sha256 = nil
             ['jessie','trusty','xenial'].each do |distribution|
-                packager.convert_gems([ [gem, version] ], {:distribution => distribution,
+                @gem_packager.convert_gems([ [gem, version] ], {:distribution => distribution,
                                                 :patch_dir => File.join(Autoproj.root_dir, "deb_patches")
                                                })
 
-                files = Dir.glob(File.join(packager.build_dir,'**','*.orig.tar.gz') )
+                files = Dir.glob(File.join(@gem_packager.build_dir,'**','*.orig.tar.gz') )
                 if files.empty?
                     raise RuntimeError, "Failed to generate orig.tar.gz"
                 end
@@ -166,136 +171,9 @@ class TestDebian < Minitest::Test
                     assert(sha256 == current_sha256, "File for distribution: #{distribution} -- with sha256: #{sha256}")
                 end
 
-                # Cleanup file to avoid redunant information
-                FileUtils.rm_rf packager.build_dir
+                # Cleanup file to avoid redundant information
+                FileUtils.rm_rf @gem_packager.build_dir
             end
         end
-    end
-
-end
-
-class TestTargetPlatform < Minitest::Test
-
-    attr_reader :platforms
-
-    def setup
-        @platforms = Array.new
-        @platforms << Apaka::Packaging::TargetPlatform.new("jessie","amd64")
-        @platforms << Apaka::Packaging::TargetPlatform.new("trusty","amd64")
-        @platforms << Apaka::Packaging::TargetPlatform.new("xenial","amd64")
-
-        @rock_platforms = Array.new
-        @rock_platforms << Apaka::Packaging::TargetPlatform.new("master","amd64")
-        Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
-            msg, status = Open3.capture2(cmd)
-            if !status.success?
-                raise RuntimeError, "Failed to prepare system for apaka -- #{msg}"
-            end
-        end
-    end
-
-    def test_distribution
-        ["jessie","sid"].each do |name|
-            assert(Apaka::Packaging::TargetPlatform::isDebian(name), "'#{name}' is debian distribution")
-        end
-        ["trusty","vivid","wily","xenial","yakkety"].each do |name|
-            assert(Apaka::Packaging::TargetPlatform::isUbuntu(name), "'#{name}' is ubuntu distribution")
-        end
-    end
-
-    def test_package_available
-        enforce_build = Apaka::Packaging::Config.packages_enforce_build
-        Apaka::Packaging::Config.packages_enforce_build = []
-        ["cucumber","bundler","ruby-facets","cmake"].each do |pkg|
-            platforms.each do |platform|
-                assert( platform.contains(pkg), "'#{pkg} is available for #{platform}" )
-            end
-        end
-        Apaka::Packaging::Config.packages_enforce_build = enforce_build
-    end
-
-    def test_package_unavailable
-        ["ruby-cucumber"].each do |pkg|
-            platforms.each do |platform|
-                assert( !platform.contains(pkg), "'#{pkg}' is unavailable for #{platform}" )
-            end
-        end
-    end
-
-    def test_rock_package_available
-        Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --rebuild --release-name master base/cmake"
-            msg, status = Open3.capture2(cmd)
-        end
-        ["rock-master-base-cmake"].each do |pkg|
-            @rock_platforms.each do |platform|
-                assert( platform.contains(pkg), "'#{pkg}' is available for #{platform}" )
-            end
-        end
-    end
-    def test_rock_package_unavailable
-        ["rock-master-nopackage"].each do |pkg|
-            @rock_platforms.each do |platform|
-                assert( !platform.contains(pkg), "'#{pkg}' is not available for #{platform}" )
-            end
-        end
-    end
-    def test_ruby_package_unavailable
-        ["nonsense","concurrent-ruby"].each do |pkg|
-            @platforms.each do |platform|
-                assert( !platform.contains(pkg), "'#{pkg}' is not available for #{platform}")
-            end
-        end
-    end
-
-    def test_rock_all_parents
-        assert( Apaka::Packaging::TargetPlatform.ancestors("transterra").include?("master"), "Ancestors of transterra bootstrap contains master" )
-        assert( Apaka::Packaging::TargetPlatform.ancestors("master").empty?, "Ancestors of master release do not exist" )
-    end
-
-    def test_rock_parent_contains
-        Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --release-name master base/cmake"
-            msg, status = Open3.capture2(cmd)
-        end
-        Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
-        transterra = Apaka::Packaging::TargetPlatform.new("transterra","amd64")
-        ["rock-master-base-cmake"].each do |pkg|
-            assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
-        end
-    end
-
-    def test_rock_release_name
-        d = Apaka::Packaging::Debian.new
-        valid_names = ["master-18.01","master","master-18-01.1"]
-        valid_names.each do |name|
-            begin
-                d.rock_release_name = name
-                assert(true, "Valid release names #{valid_names.join(',')} detected")
-            rescue ArgumentError => e
-                assert(false, "Valid release names #{valid_names.join(',')} detected - #{e}")
-            end
-        end
-
-        invalid_names = ["1-master","master_18.01"]
-        invalid_names.each do |name|
-            begin
-                d.rock_release_name = name
-	        assert(false, "Invalid release name #{name} is detected")
-	    rescue ArgumentError => e
-	        assert(true, "Invalid release name #{name} is detected - #{e}")
-	    end
-        end
-    end
-
-    def test_apt_show
-        package_type = Apaka::Packaging::TargetPlatform.aptShow("yard","Section")
-        expected_package_type = "universe/ruby"
-        assert(expected_package_type == package_type , "Yard" \
-               " correctly extracted section information: expected '#{expected_package_type}', was '" + package_type + "'")
-
-        assert(Apaka::Packaging::TargetPlatform::isRuby("yard"), "Yard" \
-               " correctly identified as ruby package")
     end
 end
