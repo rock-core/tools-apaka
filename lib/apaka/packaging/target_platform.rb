@@ -1,5 +1,7 @@
-require 'apaka/packaging/packager'
 require 'open3'
+
+require_relative 'packager'
+require_relative 'config'
 
 module Apaka
     module Packaging
@@ -69,9 +71,11 @@ module Apaka
             # configuration file
             def self.autodetect_linux_distribution_release
                 release = nil
-                osdeps_release_tags.each do |tag|
-                    if Config.linux_distribution_releases.include?(tag)
-                        return tag
+                if osdeps_release_tags
+                    osdeps_release_tags.each do |tag|
+                        if Config.linux_distribution_releases.include?(tag)
+                            return tag
+                        end
                     end
                 end
                 raise RuntimeError, "#{self} Failed to autodetect linux distribution release"
