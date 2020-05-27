@@ -345,7 +345,7 @@ if !o_architectures.empty?
     options[:architecture] = o_architectures.first
 end
 Apaka::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
-packager = Apaka::Packaging::Debian.new(options)
+packager = Apaka::Packaging::Deb::Package2Deb.new(options)
 
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
@@ -377,8 +377,6 @@ Apaka::Packaging.info "selected_packages: #{o_selected_packages} --> rock_packag
 selection = package_info_ask.autoproj_init_and_load(selected_rock_packages)
 selection = package_info_ask.resolve_user_selection_packages(selection)
 
-packager.prepare
-
 if o_build_dir
     packager.build_dir = o_build_dir
 end
@@ -408,6 +406,7 @@ end
 
 sync_packages = []
 
+gem2deb_packager = Apaka::Packaging::Deb::Gem2Deb.new(options)
 Dir.chdir(packager.build_dir) do
 
     if o_package
@@ -417,7 +416,7 @@ Dir.chdir(packager.build_dir) do
             Apaka::Packaging.info "Converting ruby gem: '#{pkg_name}'"
             # Fails to be detected as normal package
             # so we assume it is a ruby gem
-            packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir})
+            gem2deb_packager.convert_gems([ [pkg_name, version] ], {:force_update => o_rebuild, :patch_dir => o_patch_dir})
 
             debian_pkg_name = packager.debian_ruby_name(pkg_name)
             sync_packages << debian_pkg_name

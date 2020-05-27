@@ -264,7 +264,7 @@ Apaka::Packaging.info "Selected packages: #{o_selected_packages}"
 
 Apaka::Packaging.root_dir = package_info_ask.root_dir
 Apaka::Packaging::TargetPlatform.osdeps_release_tags= package_info_ask.osdeps_release_tags
-packager = Apaka::Packaging::Debian.new(build_options)
+packager = Apaka::Packaging::Deb::Package2Deb.new(build_options)
 
 if o_prepare_local_build
     puts "Preparing local building of packages"
@@ -322,7 +322,6 @@ end
 
 packager.rock_autobuild_deps[:orogen] = [ package_info_ask.pkginfo_from_pkg(package_info_ask.package_by_name("orogen")) ]
 
-packager.rock_release_name = build_options[:release_name]
 build_options[:packager] = packager
 puts "Building local package for: #{packager.target_platform}"
 
@@ -456,7 +455,7 @@ Apaka::Packaging::TargetPlatform::ancestor_blacklist.merge(
         packager.debian_meta_name(name, false)
     end)
 
-all_rock_packages = packager.filter_all_required_packages all_rock_packages
+all_rock_packages = packager.dep_manager.filter_all_required_packages all_rock_packages
 rock_pkginfos = all_rock_packages[:pkginfos]
 required_gems = all_rock_packages[:gems]
 required_gems_versions = all_rock_packages[:gem_versions]
