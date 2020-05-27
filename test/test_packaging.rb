@@ -97,7 +97,7 @@ class TestDebian < Minitest::Test
             test_set["utilrb"] = ["bundler", "ruby-facets"]
         end
 
-        test_set["rtt"] = ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
+        test_set["rtt"] = ["build-essential","cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
                                 "libboost-iostreams-dev","libboost-system-dev","libxml-xpath-perl"]
@@ -107,7 +107,7 @@ class TestDebian < Minitest::Test
             pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
             deps = packager.recursive_dependencies(pkginfo)
             deps.delete_if { |dep| dep == "ccache" }
-            assert(deps.uniq.sort == expected_deps.uniq.sort, "Recursive dependencies for '#{pkg_name}': " \
+            assert_equal(expected_deps.uniq.sort, deps.uniq.sort, "Recursive dependencies for '#{pkg_name}': " \
                    " #{deps} expected #{expected_deps}")
         end
     end
