@@ -436,6 +436,56 @@ module Apaka
                     end
                 end
 
+                def package_selection(selection,
+                                force_update: nil,
+                                patch_dir: nil,
+                                package_set_dir: nil,
+                                use_remote_repository: false)
+                    sync_packages = []
+                    selected_gems = []
+
+                    selection.each_with_index do |pkg_name, i|
+                        if pkg = package_info_ask.package(pkg_name)
+                            pkg = pkg.autobuild
+                            Apaka::Packaging.warn "Package: #{pkg_name} is a known rock package"
+                        else
+                            Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
+                            next
+                        end
+
+                        pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
+                        puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+                        # Making sure all packages that require base/cmake due to using Rock CMake macros have
+                        # a dependency on base/cmake
+                        if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
+                            cmakelists_txt = File.read(File.join(pkg.srcdir, "CMakeLists.txt"))
+                            if cmakelists_txt =~ /include\(Rock\)|Rock\.cmake/ || cmakelists_txt =~ /find_package\(Rock\)/
+                                pkg.depends_on "base/cmake" unless pkg.name == "base/cmake"
+                            end
+                        end
+
+                        begin
+                            options = {:force_update => force_update, :patch_dir => patch_dir, :package_set_dir => package_set_dir}
+                            if !use_remote_repository
+                                options[:existing_source_dir] = pkg.srcdir
+                            end
+                            # just to update the required gem property
+                            selected_gems.concat pkginfo.dependencies[:extra_gems]
+
+                            # Perform the actual packaging
+                            package(pkginfo, options)
+
+                            sync_packages << debian_name(pkginfo)
+                        rescue Interrupt
+                            raise
+                        rescue Exception => e
+                            Apaka::Packaging.warn "failed to package #{pkg.name}: #{e.message} #{e.backtrace}"
+                            next
+                        end
+                    end
+                    [sync_packages, selected_gems.uniq]
+                end
+
                 # Package the given package
                 # if an existing source directory is given this will be used
                 # for packaging, otherwise the package will be bootstrapped

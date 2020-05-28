@@ -22,6 +22,7 @@
   <depend package="qemu" />
   <depend package="gem2deb" />
   <depend package="curl" />
+  <depend package="thor" />
   <stage>1</stage>
   <activity>active</activity>
   <keywords>

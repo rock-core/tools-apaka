@@ -328,6 +328,11 @@ module Apaka
                 end
                 s
             end
+
+            def self.is_active?(distribution, architecture)
+                return Apaka::Packaging::Config.architectures.include?(architecture) &&
+                    Apaka::Packaging::Config.architectures[architecture].include?(distribution)
+            end
         end # end Config
     end # Packaging
 end # Apaka

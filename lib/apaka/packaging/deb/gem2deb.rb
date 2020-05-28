@@ -22,6 +22,18 @@ module Apaka
                     convert_gem(gem_path, options)
                 end
 
+                def package_gems(selected_gems, force_update: nil, patch_dir: nil)
+                    packages = []
+                    selected_gems.each do |pkg_name, version|
+                        Apaka::Packaging.info "Converting ruby gem: '#{pkg_name}'"
+                        # Fails to be detected as normal package
+                        # so we assume it is a ruby gem
+                        convert_gems([ [pkg_name, version] ], {:force_update => force_update, :patch_dir => patch_dir})
+                        packages << debian_ruby_name(pkg_name)
+                    end
+                    packages
+                end
+
                 ## requires_access_to
                 #
                 # target_platform

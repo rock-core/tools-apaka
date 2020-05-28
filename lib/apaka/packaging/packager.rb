@@ -22,7 +22,7 @@ module Apaka
         end
 
         def self.root_dir
-            @root_dir
+            @root_dir || Autoproj.workspace.root_dir
         end
 
         def self.build_dir
@@ -57,6 +57,8 @@ module Apaka
             attr_reader :target_platform
             attr_reader :reprepro
 
+            attr_reader :package_info_ask
+
             # Initialize the packager
             # @options
             #     :distribution [String] representation of a linux distribution,
@@ -70,6 +72,9 @@ module Apaka
                     :architecture => TargetPlatform.autodetect_dpkg_architecture
 
                 @target_platform = TargetPlatform.new(options[:distribution], options[:architecture])
+                @package_info_ask = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
+                root_dir = package_info_ask.root_dir
+                Apaka::Packaging::TargetPlatform.osdeps_release_tags = package_info_ask.osdeps_release_tags
 
                 @build_dir = Apaka::Packaging.build_dir
                 @log_dir = File.join(@build_dir, "logs",
