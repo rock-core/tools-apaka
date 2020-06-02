@@ -70,6 +70,8 @@ module Apaka
                 desc: "Retrieve activation status of distribution"
             option :exists, type: :boolean,
                 desc: "Test if package exists for distribution/architecture"
+            option :current_os, type: :boolean,
+                desc: "Output the currently detected os"
             def query(*args)
                 run_apaka_cli(:query, "Query", Hash[], *args)
             end
