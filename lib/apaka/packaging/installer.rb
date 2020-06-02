@@ -394,7 +394,7 @@ module Apaka
             #
             def self.build_package_from_dsc(dsc_file, distribution, architecture, release_prefix, options)
                 build_options, unknown_build_options = Kernel.filter_options options,
-                    :result_dir => Dir.pwd,
+                    :dest_dir => Dir.pwd,
                     :log_file => nil
 
                 image_setup(distribution, architecture, release_prefix, options)
@@ -403,7 +403,7 @@ module Apaka
                 cmd  = ["sudo", "DIST=#{distribution}", "ARCH=#{architecture}"]
                 cmd << "cowbuilder" << "--build" << dsc_file
                 cmd << "--basepath" << image_basepath(distribution, architecture)
-                cmd << "--buildresult" << build_options[:result_dir]
+                cmd << "--buildresult" << build_options[:dest_dir]
                 cmd << "--debbuildopts" << "-sa"
                 bindmounts = [File.join(DEB_REPOSITORY, release_prefix)]
                 rock_release_platform.ancestors.each do |ancestor_name|
