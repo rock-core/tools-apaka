@@ -47,6 +47,34 @@ module Apaka
                 run_apaka_cli(:package, "Package", Hash[], *args)
             end
 
+            desc "build [PackageName]", "Build a (debian) package from a given autoproj package, or a gem"
+            option :version, type: :string,
+                desc: "Version of the package to create for"
+            option :architecture, type: :string,
+                desc: "Architecture to build for"
+            option :distribution, type: :string,
+                desc: "Distribution to build for"
+            option :build_dir, type: :string,
+                desc: "Build folder of the source package -- needs to be within"
+                    "an autoproj installation"
+            option :dest_dir, type: :string,
+                desc: "Destination folder of the source package"
+            option :patch_dir, type: :string,
+                desc: "Overlay directory to patch existing packages"
+            option :pkg_set_dir, type: :string,
+                desc: "Package set directory"
+            option :rebuild, type: :boolean,
+                desc: "Force rebuilding / repackaging"
+            option :no_deps, type: :boolean, default: false,
+                desc: "Do not build dependencies"
+            option :ancestor_blacklist , type: :array,
+                desc: "Packages added to the ancestor blacklist, i.e., if needed as dependency, use a package from the current release name"
+                    " instead of an ancesotr release"
+            option :install, type: :boolean, default: false,
+                desc: "Install the built package on the local platform"
+            def build(*args)
+                run_apaka_cli(:build, "Build", Hash[], *args)
+            end
             desc "osdeps", "Generate osdeps files for a package release"
             option :dest_dir, type: :string,
                 desc: "Destination folder of the generated osdeps files"
