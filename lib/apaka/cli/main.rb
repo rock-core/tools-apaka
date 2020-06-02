@@ -10,9 +10,9 @@ module Apaka
             class_option :debug, type: :boolean, default: false,
                  desc: 'turns debug output on of off'
 
-            class_option :config_file, type: :string, 
+            class_option :config_file, type: :string,
                 desc: "Configuration file to use"
-            class_option :release_name, type: :string, 
+            class_option :release_name, type: :string,
                 desc: "Release name to use"
 
             desc "meta_package [PackageName]", "Prepare a metapackage from an existing package set"
@@ -21,14 +21,12 @@ module Apaka
 
 
             desc "package [PackageName]", "Prepare the artifact to build a (debian) package from a given autoproj package"
-            option :version, type: :string, 
+            option :version, type: :string,
                 desc: "Version of the package to create for"
             option :architecture, type: :string,
                 desc: "Architecture to build for"
             option :distribution, type: :string,
                 desc: "Distribution to build for"
-            option :skip_existing, type: :boolean,
-                desc: "Skip already existing packages"
             option :build_dir, type: :string,
                 desc: "Build folder of the source package -- needs to be within"
                     "an autoproj installation"
@@ -40,9 +38,9 @@ module Apaka
                 desc: "Package set directory"
             option :rebuild, type: :boolean,
                 desc: "Force rebuilding / repackaging"
-            option :no_deps, type: :boolean, default: true,
+            option :no_deps, type: :boolean, default: false,
                 desc: "Do not package dependencies"
-            option :ancestor_blacklist , type: :array, 
+            option :ancestor_blacklist , type: :array,
                 desc: "Packages added to the ancestor blacklist, i.e., if needed as dependency, use a package from the current release name"
                     " instead of an ancesotr release"
             def package(*args)

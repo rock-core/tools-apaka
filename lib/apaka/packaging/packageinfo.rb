@@ -48,10 +48,14 @@ module Apaka
             # source files
             attr_accessor :source_files
 
-            def initialize()
+            # The package object in the original format
+            attr_accessor :pkg
+
+            def initialize(pkg: nil)
                 @licenses = nil
                 @copyright = nil
                 @source_files = []
+                @pkg = pkg
             end
             # imports the package to the importdir
             # generally, that is a copy if a different source dir exists, but

@@ -259,6 +259,11 @@ module Apaka
                 pkgmanifest_by_name(package_name).package
             end
 
+            def pkginfo_by_name(package_name)
+                pkg = package_by_name(package_name)
+                pkginfo_from_pkg(pkg)
+            end
+
             private
 
             # Compute all packages that are required and their corresponding
@@ -645,8 +650,7 @@ module Apaka
 
             class Autoproj2PackageInfo < PackageInfo
                 def initialize(pkg,pkginfoask)
-                    super()
-                    @pkg = pkg
+                    super(pkg: pkg)
                     @pkginfoask = pkginfoask
                 end
 

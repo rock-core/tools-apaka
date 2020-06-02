@@ -436,6 +436,7 @@ module Apaka
                     end
                 end
 
+                # Package selection is a collection of pkginfo
                 def package_selection(selection,
                                 force_update: nil,
                                 patch_dir: nil,
@@ -444,16 +445,10 @@ module Apaka
                     sync_packages = []
                     selected_gems = []
 
-                    selection.each_with_index do |pkg_name, i|
-                        if pkg = package_info_ask.package(pkg_name)
-                            pkg = pkg.autobuild
-                            Apaka::Packaging.warn "Package: #{pkg_name} is a known rock package"
-                        else
-                            Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
-                            next
-                        end
+                    selection.each_with_index do |pkginfo, i|
+                        pkg_name = pkginfo.name
+                        pkg = pkginfo.pkg
 
-                        pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
                         puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
                         # Making sure all packages that require base/cmake due to using Rock CMake macros have
                         # a dependency on base/cmake
@@ -795,8 +790,8 @@ module Apaka
                     end
                 end
 
-                # Install package
-                def install(pkg_name, options)
+                # Install package name, where pkg is the debian package name
+                def install(pkg_name)
                     begin
                         pkg_build_dir = packaging_dir(pkg_name)
                         filepath = Dir.glob("#{pkg_build_dir}/*.deb")

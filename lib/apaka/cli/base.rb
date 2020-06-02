@@ -85,6 +85,70 @@ module Apaka
                 end
             end
 
+            # Handling selection to split between 'normal' packages and gems,
+            # also handle special packages which have been moved in the layout, in case the user is
+            # using the 'moved' package name
+            # return [Hash] { pkginfos: [], gems: { gem_name => gem_version, ...] }
+            def prepare_selection(selection, no_deps: false)
+                Autoproj.manifest.moved_packages.each do |original_name, moved_name|
+                    if selection.include?(moved_name)
+                        selection.delete(moved_name)
+                        selection << original_name
+                        Apaka::Packaging.info "Identified package '#{moved_name}' as moved package, hence using its original name '#{original_name}'"
+                    end
+                end
+
+                selected_gems = []
+                selected_packages = selection.select do |name|
+                    if pkg = package_info_ask.package(name)
+                        Apaka::Packaging.debug "Package: #{name} is a known rock package"
+                        true
+                    elsif package_info_ask.is_metapackage?(name)
+                        Apaka::Packaging.debug "Package: #{name} is a known rock meta package"
+                        #we want the dependencies(which it will resolve to)
+                        true
+                    elsif Apaka::Packaging::GemDependencies::is_gem?(name)
+                        Apaka::Packaging.debug "Package: #{name} is a gem"
+                        selected_gems << [name, nil]
+                        false
+                    else
+                        true
+                    end
+                end
+
+                meta_packages = {}
+                if !selected_packages.empty?
+                    selection = package_info_ask.autoproj_init_and_load(selected_packages)
+                    selection = package_info_ask.resolve_user_selection_packages(selection)
+                    # Make sure that when we request a package build we only get this one,
+                    # and not the pattern matched to other packages, e.g. for orogen
+                    selection = selection.select do |pkg_name, i|
+                        if selected_packages.empty? or selected_packages.include?(pkg_name)
+                            if package_info_ask.is_metapackage?(pkg_name)
+                                meta_packages[pkg_name] = package_info_ask.resolve_user_selection_packages([pkg_name])
+                            end
+
+                            Apaka::Packaging.info "Package: #{pkg_name} is in selection"
+                            true
+                        else
+                            false
+                        end
+                    end
+                else
+                    selection = Array.new
+                end
+
+                # Compute dependencies for a given selection
+                package_info_ask.package_set_order = ["orocos.toolchain","rock.core","rock"]
+                all_packages = package_info_ask.all_required_packages selection, selected_gems, no_deps: no_deps
+
+                gems = {}
+                all_packages[:gems].each_with_index do |val, index|
+                    gems[val] = all_packages[:gem_versions][val]
+                end
+
+                {pkginfos: all_packages[:pkginfos], gems: gems, meta_packages: meta_packages}
+            end
             def self.validate_options(args, options)
                 options, remaining = filter_options options,
                     silent: false,
