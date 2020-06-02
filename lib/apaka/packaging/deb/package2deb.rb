@@ -481,7 +481,8 @@ module Apaka
                     [sync_packages, selected_gems.uniq]
                 end
 
-                # Package the given package
+                # Package the given package unless already registerd in reprepro
+                #
                 # if an existing source directory is given this will be used
                 # for packaging, otherwise the package will be bootstrapped
                 def package(pkginfo, options = Hash.new)
@@ -491,6 +492,11 @@ module Apaka
                         :distribution => nil, # allow to override global settings
                         :architecture => nil
 
+                    options[:distribution] ||= target_platform.distribution_release_name
+                    options[:architecture] ||= target_platform.architecture
+
+                    debian_pkg_name = debian_name(pkginfo)
+
                     if options[:force_update]
                         dirname = packaging_dir(pkginfo)
                         if File.directory?(dirname)
@@ -499,8 +505,6 @@ module Apaka
                         end
                     end
 
-                    options[:distribution] ||= target_platform.distribution_release_name
-                    options[:architecture] ||= target_platform.architecture
                     options[:packaging_dir] = packaging_dir(pkginfo)
                     options[:release_name] = rock_release_name
 
