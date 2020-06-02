@@ -45,6 +45,10 @@ module Apaka
             name.gsub(/[\/-]/, '_').upcase
         end
 
+        def self.default_release_name
+            "release-#{Time.now.strftime("%y.%m")}"
+        end
+
         
         class Packager
             extend Logger::Root("Packager", Logger::INFO)

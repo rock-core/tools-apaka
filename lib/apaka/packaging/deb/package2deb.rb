@@ -64,7 +64,7 @@ module Apaka
                     if options[:release_name]
                         self.rock_release_name = options[:release_name]
                     else
-                        self.rock_release_name = "release-#{Time.now.strftime("%y.%m")}"
+                        self.rock_release_name = Packaging.default_release_name
                     end
                     @reprepro.init_repository(rock_release_name, target_platform)
 
