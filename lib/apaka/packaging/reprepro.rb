@@ -251,6 +251,33 @@ module Apaka
                     reprepro_dir = File.join(@base_dir, release_name)
                     Dir.glob(File.join(reprepro_dir,"pool","main","**","#{debian_pkg_name}#{suffix_regexp}"))
                 end
+
+                def list_registered(release_name, distribution, arch, exclude_meta: false)
+                    @reprepro_lock.lock
+                    packages = []
+                    begin
+                        reprepro_dir = File.join(@base_dir, release_name)
+                        cmd = "#{reprepro_bin} -A #{arch} -b #{reprepro_dir} list #{distribution}"
+                        msg, status = Open3.capture2e(cmd)
+                        if status.success?
+                            lines = msg.split("\n")
+                            lines.each do |line|
+                                if line =~ /#{distribution}\|main\|#{arch}: (.+) (.+)/
+                                    package = $1
+                                    version = $2
+
+                                    if exclude_meta && package =~ /-meta-/
+                                        next
+                                    end
+                                    packages << package
+                                end
+                            end
+                        end
+                    ensure
+                        @reprepro_lock.unlock
+                    end
+                    return packages
+                end
             end
         end
     end
