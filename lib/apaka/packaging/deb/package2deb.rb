@@ -369,7 +369,8 @@ module Apaka
                 # Generate the debian_dir for a meta package
                 # i.e. representing a package set or a full release
                 #
-                def generate_debian_dir_meta(name, depends, version: "0.1", distribution: nil)
+                # return [String] the main packages directory
+                def generate_debian_dir_meta(name, depends, base_dir: Dir.pwd, version: "0.1", distribution: nil)
                     existing_debian_dir = File.join("#{name}-#{version}","debian-meta")
                     template_dir =
                         if File.directory?(existing_debian_dir)
@@ -378,7 +379,7 @@ module Apaka
                             TEMPLATES_META
                         end
 
-                    dir = File.join("#{name}-#{version}", "debian")
+                    dir = File.join(base_dir, "debian")
                     FileUtils.mkdir_p dir
                     debian_name = debian_meta_name(name)
                     debian_version = "#{version}"
@@ -409,6 +410,8 @@ module Apaka
                             io.write(rendered)
                         end
                     end
+
+                    return dir
                 end
 
                 # A tar gzip version that reproduces
@@ -678,22 +681,36 @@ module Apaka
                     raise ArgumentError, "#{self.class}.package_deb_meta: missing packaging_dir" unless packaging_dir
 
                     Packager.info "Changing into packaging dir: #{packaging_dir}"
-                    Dir.chdir(packaging_dir) do
+                    pkg_dir = File.join(packaging_dir, "#{name}-#{version}")
+                    if not File.directory?(pkg_dir)
+                        FileUtils.mkdir_p pkg_dir
+                    end
+
+                    Dir.chdir(pkg_dir) do
                         # Generate the debian directory as a subdirectory of meta
                         generate_debian_dir_meta(name, depend,
                                                  version: version,
                                                  distribution: distribution)
 
+                        File.open("env.sh","w") do |file|
+                            depend.each do |debian_pkg_name|
+                                envsh = File.join(rock_install_directory(package_name: debian_pkg_name), "env.sh")
+                                file.write ". #{envsh}\n"
+                            end
+                        end
+                        dpkg_commit_changes("envsh")
+
                         # Run dpkg-source
                         # Use the new tar ball as source
-                        if !system("dpkg-source", "-I", "-b", "#{name}-#{version}", :close_others => true)
+                        if !system("dpkg-source", "-I", "-b", ".", :close_others => true)
                             Packager.warn "Package: #{name} failed to perform dpkg-source -- #{Dir.entries("meta")}"
                             raise RuntimeError, "Debian: #{name} failed to perform dpkg-source in meta"
                         end
-                        ["#{name}.debian.tar.gz",
-                         "#{name}.orig.tar.gz",
-                         "#{name}.dsc"]
                     end
+
+                    ["#{name}.debian.tar.gz",
+                     "#{name}.orig.tar.gz",
+                     "#{name}.dsc"]
                 end
 
 

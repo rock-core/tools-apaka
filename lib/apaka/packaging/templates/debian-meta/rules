@@ -1,6 +1,18 @@
 #!/usr/bin/make -f
 
-#this is all that's needed if there is nothing to compile
+SHELL := /bin/bash
+
+<%= env_setup(install_prefix: rock_install_directory(package_name: debian_name) ) %>
 
 include /usr/share/cdbs/1/rules/debhelper.mk
 
+common-install-arch common-install-indep:: install-apaka-envsh
+
+install-apaka-envsh::
+	echo "Installing apaka-env.sh in $(rock_install_dir)"
+	mkdir -p $(DEB_DESTDIR)$(rock_install_dir)
+	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(DEB_DESTDIR)$(rock_install_dir)")
+
+clean::
+	rm -f debian/stamp-rock-doc
+	rm -rf $(DEB_SRCDIR)/doc/html
