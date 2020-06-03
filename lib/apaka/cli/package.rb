@@ -4,7 +4,6 @@ require 'apaka/packaging/config'
 module Apaka
     module CLI
         class Package < Base
-            attr_reader :lock_file
             # The packager to use
             attr_reader :packager
 
@@ -14,9 +13,6 @@ module Apaka
 
             def initialize
                 super()
-
-                @lock_file = File.open("/tmp/apaka-package.lock",File::CREAT)
-
                 @selected_packages = []
                 @selected_rock_package = []
                 @selected_gems = []
@@ -70,16 +66,6 @@ module Apaka
                 end
                 Apaka::Packaging.info "selection: #{selected_names}"
                 return selection, options
-            end
-
-            def acquire_lock
-                # Prevent deb_package from parallel execution since autoproj configuration loading
-                # does not account for parallelism
-                Apaka::Packaging.debug "deb_package: waiting for execution lock"
-                lock_time = Time.now
-                lock_file.flock(File::LOCK_EX)
-                lock_wait_time_in_s = Time.now - lock_time
-                Apaka::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
             end
 
             # Run the packaging with options

@@ -5,6 +5,7 @@ require 'apaka'
 module Apaka
     module CLI
         class Base
+            attr_reader :lock_file
             attr_reader :active_platform
             attr_reader :package_info_ask
 
@@ -12,6 +13,17 @@ module Apaka
                 @package_info_ask = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
                 Apaka::Packaging::TargetPlatform.osdeps_release_tags = package_info_ask.osdeps_release_tags
                 @active_platform = Apaka::Packaging::TargetPlatform.autodetect_target_platform
+                @lock_file = File.open("/tmp/apaka-package.lock",File::CREAT)
+            end
+
+            def acquire_lock
+                # Prevent deb_package from parallel execution since autoproj configuration loading
+                # does not account for parallelism
+                Apaka::Packaging.debug "deb_package: waiting for execution lock"
+                lock_time = Time.now
+                lock_file.flock(File::LOCK_EX)
+                lock_wait_time_in_s = Time.now - lock_time
+                Apaka::Packaging.debug "deb_package: execution lock acquired after #{lock_wait_time_in_s} seconds"
             end
 
             def validate_options(args, options)
