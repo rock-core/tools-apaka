@@ -107,7 +107,16 @@ module Apaka
                     end
                     name = pkginfo.name
 
-                    if pkginfo.build_type == :ruby
+                    debianize_name(name,
+                                build_type: pkginfo.build_type,
+                                with_rock_release_prefix: with_rock_release_prefix,
+                                release_name: release_name)
+                end
+
+                # Create a debian package name from a given plain name according
+                # to build type, release name and release_prefix setting
+                def debianize_name(name, build_type: :cmake, with_rock_release_prefix: true, release_name: rock_release_name)
+                    if build_type == :ruby
                         if with_rock_release_prefix
                             rock_release_prefix(release_name) + "ruby-" + Deb.canonize(name)
                         else
