@@ -7,15 +7,8 @@ module Apaka
             # The packager to use
             attr_reader :packager
 
-            attr_reader :selected_packages
-            attr_reader :selected_rock_packages
-            attr_reader :selected_gems
-
             def initialize
                 super()
-                @selected_packages = []
-                @selected_rock_package = []
-                @selected_gems = []
             end
 
             def activate_distribution(distribution)
@@ -52,19 +45,12 @@ module Apaka
                 options[:architecture] = validate_architecture(options)
                 options[:distribution] = validate_distribution(options)
 
-                @selected_packages = args
+                selected_packages = args
                 if selected_packages.size > 1 && options[:version]
                     raise InvalidArguments, "Cannot use version option with multiple packages as argument"
                 end
 
-                selection = prepare_selection(@selected_packages, no_deps: options[:no_deps])
-                selected_names = selection[:pkginfos].collect do |pkg|
-                    pkg.name
-                end
-                selection[:gems].each do |gem, version|
-                    selected_names << gem
-                end
-                Apaka::Packaging.info "selection: #{selected_names}"
+                selection = prepare_selection(selected_packages, no_deps: options[:no_deps])
                 return selection, options
             end
 
@@ -176,38 +162,6 @@ module Apaka
 #                    Apaka::Packaging.warn "Local build failed: #{e}"
 #                    puts e.backtrace
 #                    exit 10
-#                end
-#            end
-#
-#            def install
-#                begin
-#                    selected_gems.each do |gem_name, gem_version|
-#                        is_osdeps = false
-#                        native_name, is_osdeps = packager.native_dependency_name(gem_name)
-#                        if !is_osdeps
-#                            puts "Installing locally: '#{gem_name}'"
-#                            debian_name = packager.debian_ruby_name(gem_name, true)
-#                            packager.install debian_name, :distributions => o_distributions
-#                        else
-#                            puts "Package '#{gem_name}' is available as os dependency: #{native_name}"
-#                        end
-#                    end
-#                    selection.each_with_index do |pkg_name, i|
-#                        if pkg = package_info_ask.package(pkg_name)
-#                            pkg = pkg.autobuild
-#                        else
-#                            Apaka::Packaging.warn "Package: #{pkg_name} is not a known rock package (but maybe a ruby gem?)"
-#                            next
-#                        end
-#                        pkginfo = package_info_ask.pkginfo_from_pkg(pkg)
-#                        debian_name = packager.debian_name(pkginfo)
-#
-#                        puts "Installing locally: '#{pkg.name}'"
-#                        packager.install debian_name, :distributions => o_distributions, :verbose => Autobuild.verbose
-#                    end
-#                rescue Exception => e
-#                    puts "Local install failed: #{e}"
-#                    exit 20
 #                end
 #            end
         end
