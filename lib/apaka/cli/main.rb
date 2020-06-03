@@ -2,6 +2,8 @@ require 'thor'
 require 'tty/color'
 require 'autoproj'
 
+require_relative '../../apaka/packaging/packager'
+
 module Apaka
     module CLI
         class Main < Thor
@@ -12,7 +14,7 @@ module Apaka
 
             class_option :config_file, type: :string,
                 desc: "Configuration file to use"
-            class_option :release_name, type: :string,
+            class_option :release_name, type: :string, default: Apaka::Packaging.default_release_name,
                 desc: "Release name to use"
 
             desc "meta_package [PackageName]", "Prepare a metapackage from an existing package set"
