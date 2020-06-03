@@ -96,7 +96,6 @@ module Apaka
             end
 
             def install(packager, debian_pkg_name, options)
-                binding.pry
                 if Apaka::Packaging::Installer.installed?(debian_pkg_name)
                     puts "Package: #{debian_pkg_name} is already installed"
                 end
@@ -153,9 +152,7 @@ module Apaka
                 packaging_results = package.run(args, options)
                 packaging_results.each do |packager, debian_pkg_names|
                     debian_pkg_names.each do |debian_pkg_name|
-                        binding.pry
                         build(packager, debian_pkg_name, options)
-                        binding.pry
                         install(packager, debian_pkg_name, options) if options[:install]
                     end
                 end
