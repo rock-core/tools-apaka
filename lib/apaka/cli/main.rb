@@ -93,6 +93,25 @@ module Apaka
                 run_apaka_cli(:package_meta, "PackageMeta", Hash[], *args)
             end
 
+            desc "build_meta [PackageName]", "Build a (debian) meta package"
+            option :dependencies, type: :array,
+                desc: "The list of packages this meta package should depend upon."
+                    " If no dependencies are listed, all available / already"
+                    " built and registered dependencies in this release are"
+                    " used."
+            option :package_version, type: :string, default: "0.1",
+                desc: "The version of this meta package"
+            option :build_dir, type: :string,
+                desc: "Build folder of the source package -- needs to be within"
+                    "an autoproj installation"
+            option :rebuild, type: :boolean, default: false,
+                desc: "Force rebuilding / repackaging"
+            option :install, type: :boolean, default: false,
+                desc: "Install the built package on the local platform"
+            def build_meta(*args)
+                run_apaka_cli(:build_meta, "BuildMeta", Hash[], *args)
+            end
+
             desc "osdeps", "Generate osdeps files for a package release"
             option :dest_dir, type: :string,
                 desc: "Destination folder of the generated osdeps files"
