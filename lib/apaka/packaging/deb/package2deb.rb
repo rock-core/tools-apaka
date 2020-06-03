@@ -197,9 +197,11 @@ module Apaka
                     File.join(rock_base_install_directory, rock_release_name)
                 end
 
-                def rock_install_directory
+                def rock_install_directory(package_name: nil)
                     install_dir = rock_release_install_directory
-                    if @current_pkg_info
+                    if package_name
+                        install_dir = File.join(install_dir, package_name)
+                    elsif @current_pkg_info
                         install_dir = File.join(install_dir, debian_name(@current_pkg_info))
                     end
                     install_dir
