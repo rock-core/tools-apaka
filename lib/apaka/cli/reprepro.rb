@@ -1,6 +1,8 @@
 require_relative 'base'
 require_relative 'package'
 
+require 'apaka/packaging/deb/package2deb'
+
 module Apaka
     module CLI
         class Reprepro < Base
@@ -25,19 +27,21 @@ module Apaka
 
             def run(args, options)
                 selected_packages = args
+
+                packager = Apaka::Packaging::Deb::Package2Deb.new(options)
                 if options[:register]
                     selected_packages.each do |pkg_name_expression|
                         packager.reprepro.register_debian_package(pkg_name_expression,
-                                                           build_options[:release_name],
-                                                           build_options[:distribution])
+                                                           options[:release_name],
+                                                           options[:distribution])
                     end
                 end
 
                 if options[:deregister]
                     selected_packages.each do |pkg_name_expression|
                         packager.reprepro.deregister_debian_package(pkg_name_expression,
-                                                           build_options[:release_name],
-                                                           build_options[:distribution])
+                                                           options[:release_name],
+                                                           options[:distribution])
                     end
                 end
 

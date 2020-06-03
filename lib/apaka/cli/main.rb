@@ -104,6 +104,19 @@ module Apaka
                 run_apaka_cli(:query, "Query", Hash[], *args)
             end
 
+            desc "reprepro [Package]", "Manipulate the reprepro instance for a particular release"
+            option :architecture, type: :string,
+                desc: "Architecture to build for"
+            option :distribution, type: :string,
+                desc: "Distribution to build for"
+            option :register, type: :boolean,
+                desc: "Register the build artifacts of the selected packages (by debian package name)"
+            option :deregister, type: :boolean,
+                desc: "Deregister the build artifact of the selected packages (by debian package name)"
+            def reprepro(*args)
+                run_apaka_cli(:reprepro, "Reprepro", Hash[], *args)
+            end
+
             no_commands do
                 def default_report_on_package_failures
                    if (override = Main.default_report_on_package_failures)
