@@ -132,15 +132,15 @@ module Apaka
                 end
 
                 # The debian name of a meta package --
-                # rock[-<release-name>]-<canonized-package-name>
+                # rock[-<release-name>]-meta-<canonized-package-name>
                 # and the release-name can be avoided by setting
                 # with_rock_release_prefix to false
                 #
                 def debian_meta_name(name, with_rock_release_prefix = true)
                     if with_rock_release_prefix
-                        rock_release_prefix + Deb.canonize(name)
+                        rock_release_prefix + "meta-" + Deb.canonize(name)
                     else
-                        pkg_prefix_base + "-" + Deb.canonize(name)
+                        pkg_prefix_base + "meta-" + Deb.canonize(name)
                     end
                 end
 
