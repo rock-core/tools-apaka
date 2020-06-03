@@ -154,13 +154,21 @@ module Apaka
                 package_info_ask.package_set_order = ["orocos.toolchain","rock.core","rock"]
                 all_packages = package_info_ask.all_required_packages selection, selected_gems, no_deps: no_deps
 
+                selected_names = all_packages[:pkginfos].collect do |pkg|
+                    pkg.name
+                end
+
                 gems = {}
                 all_packages[:gems].each_with_index do |val, index|
                     gems[val] = all_packages[:gem_versions][val]
+                    selected_names << gem
                 end
+
+                Apaka::Packaging.info "Selection: #{selected_names}"
 
                 {pkginfos: all_packages[:pkginfos], gems: gems, meta_packages: meta_packages}
             end
+
             def self.validate_options(args, options)
                 options, remaining = filter_options options,
                     silent: false,
