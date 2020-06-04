@@ -177,8 +177,7 @@ module Apaka
                     verbose: false,
                     debug: false,
                     color: TTY::Color.color?,
-                    progress: TTY::Color.color?,
-                    parallel: nil
+                    progress: TTY::Color.color?
 
                 Autoproj.silent = options[:silent]
                 Autobuild.color = options[:color]
@@ -194,9 +193,6 @@ module Apaka
                     Autoproj.verbose  = true
                     Autobuild.verbose = true
                     Autobuild.debug = true
-                end
-
-                if level = options[:parallel]
                 end
 
                 return args, remaining.to_sym_keys

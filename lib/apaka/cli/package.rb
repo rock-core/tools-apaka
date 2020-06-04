@@ -98,7 +98,7 @@ module Apaka
 
                 packaging_results << [ @gem2deb_packager, gems ]
 
-                sync_packages = packages + gems
+                sync_packages = packages.merge(gems)
                 if options[:dest_dir]
                     sync_packages.each do |debian_pkg_name|
                         # sync the directory in build/debian and the target directory based on an existing

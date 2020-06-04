@@ -456,7 +456,7 @@ module Apaka
                                 patch_dir: nil,
                                 package_set_dir: nil,
                                 use_remote_repository: false)
-                    sync_packages = []
+                    sync_packages = {}
                     selected_gems = []
 
                     selection.each_with_index do |pkginfo, i|
@@ -484,7 +484,10 @@ module Apaka
                             # Perform the actual packaging
                             package(pkginfo, options)
 
-                            sync_packages << debian_name(pkginfo)
+                            sync_packages[pkg_name] = { :debian_name => debian_name(pkginfo),
+                                                        :build_deps => build_dependencies(pkginfo),
+                                                        :type => :package
+                            }
                         rescue Interrupt
                             raise
                         rescue Exception => e
@@ -922,6 +925,30 @@ module Apaka
 
                 def env_create_exports(install_prefix: "$(debian_install_prefix)")
                     @env.create_exports(install_prefix: install_prefix)
+                end
+
+                # Compute the build dependencies for a packag info object
+                # return [Array] list of dependencies
+                #
+                def build_dependencies(pkginfo)
+                    dependencies = []
+                    pkgdeps = pkginfo.dependencies
+                    deps = pkgdeps[:rock_pkginfo].select do |pkginfo|
+                        pkg_name = debian_name(pkginfo, true)
+                        !rock_release_platform.ancestorContains(pkg_name)
+                    end .map { |p| p.name }
+
+                    gems = pkgdeps[:nonnative].select do |gem,version|
+                            pkg_ruby_name = debian_ruby_name(gem, false)
+                            pkg_prefixed_name = debian_ruby_name(gem, true)
+
+                            !( rock_release_platform.ancestorContains(gem) ||
+                               rock_release_platform.ancestorContains(pkg_ruby_name) ||
+                               rock_release_platform.ancestorContains(pkg_prefixed_name))
+                    end .map{ |p| p[0] }
+
+                    deps.concat(gems)
+                    deps
                 end
             end
         end

@@ -74,6 +74,12 @@ module Apaka
                     " instead of an ancesotr release"
             option :install, type: :boolean, default: false,
                 desc: "Install the built package on the local platform"
+            option :parallel, type: :numeric, default: 1,
+                desc: "Number of threads to use for building"
+            option :dry_run, type: :boolean, default: false,
+                desc: "Do not perform the actual building"
+            option :log_dir, type: :string,
+                desc: "Directory for the result report yaml"
             def build(*args)
                 run_apaka_cli(:build, "Build", Hash[], *args)
             end
