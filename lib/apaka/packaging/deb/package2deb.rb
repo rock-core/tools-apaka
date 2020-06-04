@@ -20,7 +20,7 @@ module Apaka
         module Deb
             # Canonize that name -- downcase and replace _ with -
             def self.canonize(name)
-                name.gsub(/[\/_\.]/, '-').downcase
+                name.gsub(/[\/_]/, '-').downcase
             end
 
             class Package2Deb < Packager
