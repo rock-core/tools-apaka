@@ -163,7 +163,7 @@ module Apaka
                 gems = {}
                 all_packages[:gems].each_with_index do |val, index|
                     gems[val] = all_packages[:gem_versions][val]
-                    selected_names << gem
+                    selected_names << val
                 end
 
                 Apaka::Packaging.info "Selection: #{selected_names}"
