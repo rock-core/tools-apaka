@@ -34,6 +34,8 @@ module Apaka
                 if path = options[option_name]
                     if !File.exist?(path)
                         raise InvalidArguments, "Given path for #{option_name} does not exist: #{path}"
+                    else
+                        options[option_name] = File.expand_path(path)
                     end
                 end
             end
