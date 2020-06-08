@@ -30,7 +30,7 @@ module Apaka
                         # so we assume it is a ruby gem
                         convert_gems([ [pkg_name, version] ], {:force_update => force_update, :patch_dir => patch_dir})
                         packages[pkg_name] = { :debian_name => debian_ruby_name(pkg_name),
-                                               :build_deps => build_dependencies(pkg_name),
+                                               :build_deps => build_dependencies(pkg_name, version),
                                                :type => :gem
                         }
                     end
@@ -892,13 +892,8 @@ END
                     end
                 end
 
-                def build_dependencies(gem_name)
-                    #is_osdeps = false
-                    #native_name, is_osdeps = @dep_manager.native_dependency_name(gem_name)
-                    #if is_osdeps
-                    #    raise ArgumentError, "Gem: #{gem_name} is available as os dependency: #{native_name}, no build dependencies can be computed"
-                    #end
-                    deps = package_info_ask.all_required_gems({gem_name => []})
+                def build_dependencies(gem_name, version = nil)
+                    deps = package_info_ask.all_required_gems({gem_name => [version]})
                     deps = deps[:gem_versions].to_a.select do |gem,versions|
                         pkg_ruby_name = debian_ruby_name(gem, false)
                         pkg_prefixed_name = debian_ruby_name(gem, true)
