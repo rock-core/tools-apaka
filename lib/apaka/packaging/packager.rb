@@ -336,9 +336,7 @@ module Apaka
                         diff_name = File.join(local_tmp_dir, "#{archive_filename}.diff")
                         system("diff", "-urN", "--exclude", ".*", "--exclude", "CVS", "--exclude", "debian", "--exclude", "build", pkginfo.srcdir, ".", :out  => diff_name)
                         Packager.info "Package: '#{pkginfo.name}' checking diff file '#{diff_name}'"
-                        if File.open(diff_name).lines.any?
-                            return true
-                        end
+                        return File.empty?(diff_name)
                     end
                 end
                 return false
