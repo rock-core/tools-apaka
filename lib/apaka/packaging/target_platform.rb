@@ -149,7 +149,7 @@ module Apaka
                     if platform.contains(pkg_name)
                         return ancestor_release_name
                     else
-                        Apaka::Packaging::info "#{self} ancestor #{platform} does not contain #{pkg_name}"
+                        Apaka::Packaging.debug "#{self} ancestor #{platform} does not contain #{pkg_name}"
                     end
                 end
                 return ""
@@ -184,7 +184,7 @@ module Apaka
                 if !File.exist?(outfile)
                     cmd = ["dcontrol"]
                     cmd << "#{package}@#{architecture}/#{distribution_release_name}"
-                    Apaka::Packaging.info "TargetPlatform::debianContains: #{cmd.join(" ")} &> #{outfile}"
+                    Apaka::Packaging.debug "TargetPlatform::debianContains: #{cmd.join(" ")} &> #{outfile}"
                     if !system(*cmd, [:out, :err] => outfile, :close_others => true)
                         return false
                     end
@@ -234,7 +234,7 @@ module Apaka
                 end
                 # handle corner cases, e.g. rgl
                 if Packaging::Config.packages_enforce_build.include?(package)
-                    Apaka::Packaging.info "Distribution::contains returns false -- since configuration set to forced manual build #{package}"
+                    Apaka::Packaging.warn "Distribution::contains for '#{package}' returns false -- since configuration set to forced manual build #{package}"
                     return false
                 end
                 release_name = distribution_release_name
@@ -282,10 +282,10 @@ module Apaka
                     else
                         cmd = ["wget"]
                         cmd << "-O" << outfile << "-o" << errorfile << url
-                        Apaka::Packaging.info "TargetPlatform::contains: query with #{cmd.join(" ")}"
+                        Apaka::Packaging.debug "TargetPlatform::contains: query with #{cmd.join(" ")}"
                         _,_, status = Open3.capture3(cmd.join(" "))
                         if !status.success?
-                            Apaka::Packaging.info "TargetPlatform::contains: wget failed"
+                            Apaka::Packaging.warn "TargetPlatform::contains: wget failed"
                             next
                         end
                     end
@@ -336,7 +336,7 @@ module Apaka
                                 # allow all users to read and write file
                                 FileUtils.chmod 0666, file
                             rescue
-                                Apaka::Packaging.info "TargetPlatform::contains could not change permissions for #{file}"
+                                Apaka::Packaging.warn "TargetPlatform::contains could not change permissions for #{file}"
                             end
                         end
                     end
