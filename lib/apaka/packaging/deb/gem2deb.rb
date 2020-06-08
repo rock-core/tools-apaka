@@ -471,6 +471,7 @@ END
                             system("sed", "-i", "1 a #{envsh}", "debian/rules", :close_others => true)
                             ruby_arch_env = ruby_arch_setup(true)
                             system("sed", "-i", "1 a #{ruby_arch_env}", "debian/rules", :close_others => true)
+                            system("sed", "-i", "1 a SHELL := /bin/bash", "debian/rules", :close_others => true)
 
                             system("sed", "-i", "s#\\(dh .*\\)#__SOURCE_ALL__ $(env_setup) \\1#", "debian/rules", :close_others => true)
                             system("sed", "-i", "s#__SOURCE_ALL__#for file in `find \\$(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source \"\\$$file\"; done;#", "debian/rules", :close_others => true)
