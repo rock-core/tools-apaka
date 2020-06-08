@@ -40,6 +40,21 @@ module Apaka
                     packages
                 end
 
+                # Retrieve the right load path for a gem and the corresponding
+                # version
+                def get_load_path(gem_name, version)
+                    gem_load_paths = []
+                    begin
+                        gem gem_name, "=#{version}"
+
+                        gem_load_paths = $LOAD_PATH.select do |path|
+                            path =~ /#{gem_name}/
+                        end
+                    rescue LoadError => e
+                        # package might not be available
+                    end
+                    gem_load_paths
+                end
                 ## requires_access_to
                 #
                 # target_platform
@@ -183,12 +198,30 @@ module Apaka
                         #
                         # By default generate for all ruby versions
                         # rename to the rock specific format: use option -p
-                        cmd = ["dh-make-ruby"]
+                        cmd = []
+                        env_setting = {}
+
+                        # Note that here, we have tray to make sure the right
+                        # environment is used for for dh-make-ruby, otherwise
+                        # ruby gems that are installed system wide might be
+                        # picked up and the wrong version information is
+                        # extracted
+                        load_path = get_load_path(gem_base_name, gem_version)
+                        if load_path && !load_path.empty?
+                            env_setting = {}
+                            env_setting["RUBYLIB"] = "#{load_path.join(':')}:\$RUBYLIB"
+                        end
+
+                        if File.directory?(versioned_name)
+                            FileUtils.rm_rf versioned_name
+                        end
+
+                        cmd << "dh-make-ruby"
                         cmd << "--ruby-versions" << "all" <<
                             "#{versioned_name}.tar.gz" <<
                             "-p" << "#{debian_ruby_unversioned_name}"
                         Packager.info "calling: #{cmd.join(" ")}"
-                        if !system(*cmd, :close_others => true)
+                        if !system(env_setting, *cmd, :close_others => true)
                              Packager.warn "calling: #{cmd.join(" ")} failed"
                              raise RuntimeError, "Failed to call #{cmd.join(" ")}"
                         end
