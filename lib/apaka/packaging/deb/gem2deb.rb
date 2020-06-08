@@ -731,6 +731,9 @@ END
                                     if File.exists?(apaka_control)
                                         Packager.info "apaka.control file available: #{apaka_control}"
                                         File.open(apaka_control,"r").each do |line|
+                                            if line =~/^\s*#/
+                                                next
+                                            end
                                             if line =~/RENAME (.*) (.*)/
                                                 orig_file = $1
                                                 renamed_file = $2
@@ -740,8 +743,18 @@ END
                                                     FileUtils.mkdir_p target_dir unless File.exists?(target_dir)
                                                     FileUtils.mv orig_file, renamed_file
                                                 else
-                                                    raise RuntimeError, "Failed to rename file for #{package_name} - please check "\
-                                                        " #{apaka_control} on correctness"
+                                                    raise RuntimeError, "Failed to rename file #{orig_file} for #{package_name} - file does not exist, so please check "\
+                                                        " #{apaka_control} on correctness and update"
+                                                end
+                                            end
+                                            if line =~ /DEL (.*)/
+                                                file = $1
+                                                if File.exists?(file)
+                                                    Packager.info "Removing file: #{file}"
+                                                    FileUtils.rm file
+                                                else
+                                                    raise RuntimeError, "Failed to remove file #{file} for #{package_name} - file does not exist, so please check "\
+                                                        " #{apaka_control} on correctness and update"
                                                 end
                                             end
                                         end
