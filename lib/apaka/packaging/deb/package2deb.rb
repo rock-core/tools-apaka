@@ -14,6 +14,7 @@ require_relative '../gem_dependencies'
 require_relative 'env'
 require_relative 'dependency_manager'
 require_relative '../gem/package2gem'
+require_relative 'importer2deb'
 
 module Apaka
     module Packaging
@@ -689,6 +690,11 @@ module Apaka
                         end
                         FileUtils.rm_rf( File.basename(pkginfo.srcdir) )
                     end
+                end
+
+                def package_importer(pkginfo, options)
+                    importer = Packaging::Deb::Importer2Deb.new(self)
+                    importer.package(pkginfo, options)
                 end
 
                 def package_deb_meta(name, depend,
