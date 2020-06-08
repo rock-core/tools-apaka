@@ -122,7 +122,7 @@ module Apaka
                     exports += create_export("RUBYLIB","lib/$(arch)/site_ruby", install_prefix: install_prefix)
                     exports += create_export("RUBYLIB","lib/ruby/vendor_ruby", install_prefix: install_prefix)
                     exports += create_export("RUBYLIB","lib/$(arch)/ruby/vendor_ruby/$(ruby_ver)", install_prefix: install_prefix)
-                    #RUBYLIB needed for qt(bindings)
+                    #RUBYLIB needed for qt(bindings) which does require #'2.5/qtruby4' for instance
                     exports += create_export("RUBYLIB","lib/ruby/vendor_ruby/standard", install_prefix: install_prefix)
                     exports += create_export("RUBYLIB","lib/ruby/vendor_ruby/core", install_prefix: install_prefix)
                     exports += create_export("RUBYLIB","lib/ruby", install_prefix: install_prefix)
