@@ -55,6 +55,7 @@ module Apaka
                     end
                     gem_load_paths
                 end
+
                 ## requires_access_to
                 #
                 # target_platform
@@ -75,6 +76,7 @@ module Apaka
                         :distribution => target_platform.distribution_release_name,
                         :architecture => target_platform.architecture,
                         :logfile => STDOUT
+
 
                     if unknown_options.size > 0
                         Packager.warn "Apaka::Packaging Unknown options provided to convert gems: #{unknown_options}"
@@ -610,7 +612,7 @@ END
 
 
                 # Validate and sync the used gem version
-                # 
+                #
                 def sync_gem_version(gem_name, version)
                     existing_gem_version = gem_get_registered_version(gem_name)
                     if existing_gem_version
@@ -829,7 +831,7 @@ END
 
 
                             tgz_date = nil
-                            if pkg_commit_time = options[:latest_commit_time] 
+                            if pkg_commit_time = options[:latest_commit_time]
                                 tgz_date = pkg_commit_time
                             else
                                 tgz_date = GemDependencies.get_release_date(gem_base_name, version = gem_version)
