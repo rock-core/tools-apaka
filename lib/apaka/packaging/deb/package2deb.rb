@@ -890,7 +890,7 @@ module Apaka
                         orig_file_name = orig_file_name.first
                     end
 
-                    return equal_pkg_content?(pkginfo, orig_file_name)
+                    !equal_pkg_content?(pkginfo, orig_file_name)
                 end
 
                 def file_suffix_patterns
