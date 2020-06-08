@@ -185,7 +185,7 @@ module Apaka
             # Returns[Hash] with keys as required gems and versioned dependencies
             # as values (a Ruby Set)
             def self.resolve_all(gems)
-                Apaka::Packaging.info "Resolve all: #{gems}"
+                Apaka::Packaging.debug "#{self.class} resolve gem versions for: #{gems.collect {|p| p[0]}.join(' ')}"
 
                 dependencies = Hash.new
                 handled_gems = Set.new
@@ -212,10 +212,10 @@ module Apaka
                     remaining_gems = gems
                 end
 
-                Apaka::Packaging.info "Resolve remaining: #{remaining_gems}"
-
+                Apaka::Packaging.info "Resolving gem dependencies for: #{remaining_gems.collect {|p| p[0]}.join(' ')}\n" \
+                    "This might take some time ..."
+                total_number = remaining_gems.size
                 while !remaining_gems.empty?
-                    Apaka::Packaging.info "Resolve all: #{remaining_gems.to_a}"
                     remaining = Hash.new
                     remaining_gems.each do |gem_name, gem_versions|
                         deps = resolve_by_name(gem_name, gem_versions)[:deps]
@@ -231,6 +231,7 @@ module Apaka
                                 remaining[gem_dep_name] += gem_dep_version
                             end
                         end
+                        print "\rProcessed gems: #{handled_gems.size}"
                     end
                     remaining_gems.select! { |g| !handled_gems.include?(g) }
                     remaining.each do |name, versions|
@@ -238,6 +239,8 @@ module Apaka
                         remaining_gems[name] = (remaining_gems[name] + versions).uniq
                     end
                 end
+                print "\n"
+                Apaka::Packaging.info "Gem dependencies: #{dependencies.to_a}"
                 dependencies
             end
 

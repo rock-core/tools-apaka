@@ -470,7 +470,7 @@ module Apaka
                         pkg_name = pkginfo.name
                         pkg = pkginfo.pkg
 
-                        puts "packaging #{pkg_name} (#{i + 1}/#{selection.size})"
+                        Autoproj.message "Packaging #{pkg_name} (#{i + 1}/#{selection.size})", :green
                         # Making sure all packages that require base/cmake due to using Rock CMake macros have
                         # a dependency on base/cmake
                         if File.file?(File.join(pkg.srcdir, "CMakeLists.txt"))
@@ -696,6 +696,7 @@ module Apaka
                     importer = Packaging::Deb::Importer2Deb.new(self)
                     importer.package(pkginfo, options)
                 end
+
 
                 def package_deb_meta(name, depend,
                                      version: "0.1",
@@ -929,7 +930,7 @@ module Apaka
                         setup += "rockruby_archdir=$(subst /usr,,$(ruby_arch_dir))\n"
                         setup += "rockruby_libdir=$(subst /usr,,$(ruby_libdir))\n"
                     end
-                    Packager.info "Setup is: #{setup}"
+                    Packager.info "Ruby env setup is:\n#{setup}"
                     setup
                 end
 
