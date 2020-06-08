@@ -156,6 +156,9 @@ This should finally install all required Debian packages and remaining required 
 
 ### Features
 
+* packages have separate installation folder and each provide and env.sh to
+  setup the environment, but note that this env.sh does not include the settings for
+  a packages dependencies
 * multiple autoproj workspace can reuse the existing set of Rock Debian packages
 * multiple releases of the Rock Debian packages can be installed in parallel, the target folder is typically /opt/rock/*release-name*
 * in order to enforce the usage of a source package in a workspace create a file
@@ -167,7 +170,8 @@ This should finally install all required Debian packages and remaining required 
 ```
     ---
     - base/types
-    - simulation/*
+    - simulation/.*
+    - ^orogen$
 ```
 
 You will be informed about the disabled packages:
@@ -197,7 +201,7 @@ distributions:
         ruby_version: ruby23
 ```
 
-Adapt the template for /etc/pbuilerrc i.e., lib/apaka/packaging/templates/etc-pbuilderrc
+Adapt the template for /etc/pbuilderrc i.e., lib/apaka/packaging/templates/etc-pbuilderrc
 In order to bootstrap new images, pbuilder has to be informed, whether an
 distribution label such as 'bionic' or 'stretch' has to be interpreted as
 Ubuntu or Debian distribution (currently apaka consider only these two).
@@ -287,145 +291,69 @@ E.g. _deb http://rock.hb.dfki.de/rock-releases/mantis-19.05/ bionic main_
 
 ## Script interface description
 
-### deb_package
+The main interface is the 'apaka' binary which can be used with a number of
+modes:
+```
+$>apaka --help                                                                                                                                                    [23:11:47]
+Commands:
+  apaka build [PackageName]         # Build a (debian) package from a given autoproj package, or a gem
+  apaka build_meta [PackageName]    # Build a (debian) meta package
+  apaka config                      # Show the current configuration
+  apaka help [COMMAND]              # Describe available commands or one specific command
+  apaka osdeps                      # Generate osdeps files for a package release
+  apaka package [PackageName]       # Prepare the artifact to build a (debian) package from a given autoproj package
+  apaka package_meta [PackageName]  # Create artifacts required to build a (debian) meta package
+  apaka query [Package]             # Query the current database
+  apaka reprepro [Package]          # Manipulate the reprepro instance for a particular release
 
-    deb_package <global options> <action> <action specific options>
+Options:
+  [--verbose], [--no-verbose]    # turns verbose output
+  [--debug], [--no-debug]        # turns debug output on of off
+  [--config-file=CONFIG_FILE]    # Configuration file to use
+  [--release-name=RELEASE_NAME]  # Release name to use
+                                 # Default: release-20.06
+```
 
-#### Global options:
+The help for each mode can be called by:
+```
+$>apaka help package
+Usage:
+  apaka package [PackageName]
 
-    deb_package [--[no-]verbose] [--[no-]debug] [--config-file CONFIG]
+Options:
+  [--package-set-dir=PACKAGE_SET_DIR]   # Directory with the binary-package set to update
+  [--version=VERSION]                   # Version of the package to create for
+  [--architecture=ARCHITECTURE]         # Architecture to build for
+  [--distribution=DISTRIBUTION]         # Distribution to build for
+  [--build-dir=BUILD_DIR]               # Build folder of the source package -- needs to be within
+  [--dest-dir=DEST_DIR]                 # Destination folder of the source package
+  [--patch-dir=PATCH_DIR]               # Overlay directory to patch existing packages
+  [--pkg-set-dir=PKG_SET_DIR]           # Package set directory
+  [--rebuild], [--no-rebuild]           # Force rebuilding / repackaging
+  [--no-deps], [--no-no-deps]           # Do not package dependencies
+  [--ancestor-blacklist=one two three]  # Packages added to the ancestor blacklist, i.e., if needed as dependency, use a package from the current release name
+  [--verbose], [--no-verbose]           # turns verbose output
+  [--debug], [--no-debug]               # turns debug output on of off
+  [--config-file=CONFIG_FILE]           # Configuration file to use
+  [--release-name=RELEASE_NAME]         # Release name to use
+                                        # Default: release-20.06
 
-#### Actions and options:
+Prepare the artifact to build a (debian) package from a given autoproj package
+```
 
-    deb_package --package [--patch-dir DIR] [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--rebuild] [--skip] [--dest-dir DIR] [--build-dir DIR] [--use-remote-repository] [--package-set-dir DIR] [--rock-base-install-dir DIR] SELECTION
-    deb_package --meta NAME [--patch-dir DIR] [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--rebuild] [--build-dir DIR] [--package-set-dir DIR] [--rock-base-install-dir DIR] SELECTION
-    deb_package --build-local [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--dest-dir DIR] [--build-dir DIR] [--rock-base-install-dir DIR] SELECTION
-    deb_package --install [--build-dir DIR] [--architectures ARCHS] [--distributions DISTS] [--release-name NAME] [--package-version VERSION] [--rock-base-install-dir DIR] SELECTION
-    deb_package --update-osdeps-lists DIR --release-name NAME [--package-version VERSION] SELECTION
-    deb_package --exists TUPLE
-    deb_package --activation-status [--architectures ARCHS] [--distributions DISTS]
+## A typical workflow
 
-    deb_package --create-job [--architectures ARCHS] [--distributions DISTS] [--package-version VERSION] [--overwrite] SELECTION
-    deb_package --create-ruby-job [--architectures ARCHS] [--distributions DISTS] [--package-version VERSION] [--overwrite] SELECTION
-    deb_package --create-flow-job NAME [--architectures ARCHS] [--distributions DISTS] [--package-version VERSION] [--overwrite] [--parallel] [--flavor name] SELECTION
-    deb_package --create-control-job NAME [--overwrite]
-    deb_package --create-control-jobs [--overwrite]
-    deb_package --create-cleanup-jobs
-    deb_package --cleanup-job NAME
-    deb_package --cleanup-all-jobs
-    deb_package --remove-job NAME
-    deb_package --remove-all-jobs
+A typical workflow to build all packages for `drivers/orogen/iodrivers_base` will look as follows:
+```
+$>apaka build --patch-dir tools/apaka-rock_patches --config-file apaka-master-20.06.yml --release-name master-20.06 drivers/orogen/iodrivers_base
+```
 
-    deb_package --show-config
+If you want to create a meta package for your release which will be named
+`rock-master-20.06-meta-full`, then you can use the following call:
 
-The order of the options is not important.
-
-#### Global options:
-Option | Description
--------|------------
-`--[no-]verbose` | display output of commands on stdout
-`--[no-]debug` | debug information (for debugging purposes)
-`--config-file CONFIG` | Read configuration file
-
-#### Actions for rock_osdeps on Debian:
-Option | Description
--------|------------
-`--package` | Create chosen packages
-`--meta NAME` | Create a meta package for the chosen packages
-`--update-osdeps-lists DIR` | Update the osdeps files in the given directory
-`--build-local` | Build a debian-package locally and without Buildserver (Jenkins)
-`--install` | Build an environment up to the given package based on debian-packages
-`--exists TUPLE` | Test availablility of a package in a given distribution <distribution>,<package_name>
-`--activation-status` | Check the configuration setting for building this particualr distribution and release combination
-`--update-list FILE` | deprecated, use `--update-osdeps-lists` instead
-
-#### Actions for Jenkins jobs:
-Option | Description
--------|------------
-`--create-job` | Create jenkins-jobs
-`--create-ruby-job` | Create jenkins-ruby-job
-`--create-flow-job NAME` | Create the jenkins-FLOW-job
-`--create-control-job NAME` | Create control-job named 0_<NAME>
-`--create-control-jobs` | Create all control-jobs in the templates-folder
-`--create-cleanup-jobs` | Create cleanup jobs
-`--cleanup-job Name` | Cleanup jenkins-job
-`--cleanup-all-jobs` | Cleanup all jenkins jobs
-`--remove-job Name` | Remove jenkins-job
-`--remove-all-jobs` | Remove all jenkins jobs except flow- and control-jobs (a_/0_)
-
-#### Actions for Configuration:
-Option | Description
--------|------------
-`--show-config` | Show the current configuration
-
-#### Action dependent options:
-Option | Description
--------|------------
-`--skip` | Skip existing packages
-`--dest-dir DIR` | Destination Folder of the source-package
-`--build-dir DIR` | Build Folder of the source package -- needs to be within an autoproj installation
-`--patch-dir DIR` | Overlay directory to patch existing packages (and created gems) during the packaging process
-`--rebuild` | rebuild package
-`--use-remote-repository` | don't use local repository, but import from known remote
-`--package-set-dir DIR` | Directory with the binary-package set to update
-`--architectures ARCHS` | Comma separated list of architectures to build for (only the first one is actually built!)
-`--distributions DISTS` | Comma separated list of distributions to build for (only the first one is actually built!)
-`--overwrite` | Overwrite existing Jenkins Jobs (History-loss!)
-`--flavor name` | Use a specific flavor (defaults to directory-name)
-`--rock-base-install-dir DIR` | Rock base installation directory (prefix) for deployment of debian packages
-`--release-name NAME` | Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir
-`--package-version VERSION` | The version requirement for the package to install use 'noversion' if no specific version is required, but option needs to be present
-
-The default configuration file has support for distributions: trusty, xenial, jessie and architectures: amd64, i386, armel(jessie only), armhf(jessie only).
-
-#### Unused options:
-Option | Description
--------|------------
-`--parallel` | Build jenkins-jobs in parallel, might be more unstable but much faster. Only useful with `--create-flow-job`
-`--recursive` | package and/or build packages with their recursive dependencies
-
-### deb_local
-
-    deb_local [--patch-dir DIR] [--architecture NAME] [--distribution NAME] [--release-name NAME] [--rebuild] [--jobs JOBS] [--build-meta] [--meta-only] [--custom-meta NAME] [--reinstall] [--dry-run] [--rock-base-install-dir DIR]
-    deb_local --prepare [--architecture NAME] [--distribution NAME] [--release-name NAME]
-    deb_local --register [--distribution NAME] [--release-name NAME] SELECTION
-    deb_local --deregister [--distribution NAME] [--release-name NAME] SELECTION
-
-
-#### Actions
-Option | Description
--------|------------
-default | Build all packages in SELECTION
-`--prepare` | Prepare the local building of packages
-`--register` | Register a package
-`--deregister` | Deregister/remove a package. SELECTION also allows wildcards: "*".
-
-#### General options
-Option | Descriptioncopyright
--------|------------
-`--architecture NAME` | Target architecture to build for
-`--distribution NAME` | Target distribution release to build for, e.g. trusty
-`--release-name NAME` | Release name for the generated set of packages -- debian package will be installed in a subfolder with this name in base dir
-
-#### Options for building packages
-Option | Description
--------|------------
-`--patch-dir DIR` | Overlay directory to patch existing packages (and created gems) during the packaging process
-`--rock-base-install-dir DIR` | Rock base installation directory (prefix) for deployment of the local debian packages
-`--rebuild` | Rebuild package (otherwise the existing packaged deb will be used)
-`--custom-meta NAME` | Build a meta package for all packages on the command line
-`--build-meta` | Build meta packages from autoproj meta packages found on the command line
-`--meta-only` | Build only meta packages(from `--custom-meta` and `--build-meta`)
-`--reinstall` | Reinstall already installed packages
-`--dry-run` | Show the packages that will be build
-`-j JOBS`, `--jobs JOBS` | Maximum number of parallel jobs
-
-#### Unused options
-Option | Description
--------|------------
-`--verbose` | Display output
-`--no-deps` | Ignore building dependencies
-
+```
+$>apaka build_meta --config-file apaka-master-20.06.yml --release-name master-20.06
+```
 
 ## References and Publications
 Please refer to the following publication when citing Apaka:
