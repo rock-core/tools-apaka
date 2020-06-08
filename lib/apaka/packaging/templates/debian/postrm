@@ -5,16 +5,22 @@
 use strict;
 use File::Find;
 
-my $rock_install_dir = "<%= rock_install_directory %>";
-my $rock_doc_install_dir = "$rock_install_dir/share/doc";
+my $apaka_release_install_dir = "<%= rock_release_install_directory %>";
 
 sub update_index_html() {
+    my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
+    my $apaka_doc_dirs = "$apaka_release_install_dir/*/share/doc";
+
+    #make sure $apaka_release_doc_install_dir exists
+    system("mkdir","-p",$apaka_release_doc_install_dir);
     #collect candidate files
-    my @dirs = glob("$rock_doc_install_dir/*/");
+    my @dirs = glob("$apaka_doc_dirs/*");
     my @indexfiles;
     my @indexes = map {
 	my $dir = $_;
-	$dir =~ m!/([^/]+)/+$!;
+        # Identify package by parent folder of
+        # share folder
+        $dir =~ m!/([^/]+)\/share/+!;
 	my $pkg = $1;
 	$dir =~ s!/+$!!;
 
@@ -31,14 +37,13 @@ sub update_index_html() {
 	    length($a) <=> length($b);
 	} @indexfiles;
 
-	my $idx = substr $candidates[0],length($dir);
-	$idx =~ s!^/+!!;
+	my $idx = $candidates[0];
 	$idx ? ({ pkg => $pkg, index => $idx }) : ();
     } @dirs;
 
     #create html on the fly. we can only rely on perl core packages.
     my $index;
-    open $index,">","$rock_doc_install_dir/index.html" or die "Could not create $rock_doc_install_dir/index.html";
+    open $index,">","$apaka_release_doc_install_dir/index.html" or die "Could not create $apaka_release_doc_install_dir/index.html";
     print $index <<"[END]";
 <html>
 <head>
@@ -51,7 +56,7 @@ sub update_index_html() {
     foreach my $idx (@indexes) {
 	my ($pkg,$file) = ($idx->{pkg},$idx->{index});
 	print $index <<"[END]";
-<li> <a href="$pkg/$file">$pkg</a>
+<li> <a href="$file">$pkg</a>
 [END]
     }
     print $index <<"[END]";

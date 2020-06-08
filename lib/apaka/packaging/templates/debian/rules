@@ -28,7 +28,7 @@ extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
 # (not that this is different from the linker arguments)
 DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_library_dirs)
 
-rock_doc_install_dir=$(rock_install_dir)/share/doc/<%= debian_name %>
+rock_doc_install_dir=$(rock_install_dir)/share
 SOURCE_ENVSH=for file in `find $(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source "$$file"; done;
 
 pre-build::

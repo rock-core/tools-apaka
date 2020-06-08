@@ -484,7 +484,7 @@ module Apaka
                             dh_ruby_mk = <<-END
 debian_install_prefix=#{debian_install_dir}
 install_dir=#{install_dir}
-rock_doc_install_dir=$(debian_install_prefix)/share/doc/#{debian_ruby_unversioned_name}
+rock_doc_install_dir=$(debian_install_prefix)/share/doc/
 
 build:
 	-#{Gem.doc_alternatives.join(" || ")}
@@ -494,8 +494,8 @@ clean:
 
 install:
 	mkdir -p $(rock_doc_install_dir)
-	$(if $(wildcard doc/*),-cp -r doc $(rock_doc_install_dir))
-	$(if $(wildcard api/*),-cp -r api $(rock_doc_install_dir))
+	$(if $(wildcard doc/*),-cp -r doc/ $(rock_doc_install_dir))
+	$(if $(wildcard api/*),-cp -r api/ $(rock_doc_install_dir))
 
 	echo "Preparing installation of apaka-generated env.sh (current dir $PWD)"
 	touch $(debian_install_prefix)/env.sh
