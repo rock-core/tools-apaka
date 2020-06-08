@@ -115,6 +115,14 @@ module Apaka
                 Kernel.system(*args)
             end
 
+            def redirection(logfile, io_mode="w")
+                if logfile && logfile.kind_of?(String)
+                    [logfile, io_mode]
+                else
+                    STDOUT
+                end
+            end
+
             def remove_excluded_dirs(target_dir, excluded_dirs = EXCLUDED_DIRS_PREFIX)
                 Dir.chdir(target_dir) do
                     excluded_dirs.each do |excluded_dir|

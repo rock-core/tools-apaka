@@ -25,10 +25,13 @@ module Apaka
                 def package_gems(selected_gems, force_update: nil, patch_dir: nil)
                     packages = {}
                     selected_gems.each do |pkg_name, version|
-                        Apaka::Packaging.info "Converting ruby gem: '#{pkg_name}'"
+                        logfile = File.join(self.log_dir, "#{debian_ruby_name(pkg_name)}-apaka-package.log")
+                        Autoproj.message "Converting ruby gem: '#{pkg_name}' (see #{logfile})", :green
                         # Fails to be detected as normal package
                         # so we assume it is a ruby gem
-                        convert_gems([ [pkg_name, version] ], {:force_update => force_update, :patch_dir => patch_dir})
+                        convert_gems([ [pkg_name, version] ], {:force_update => force_update,
+                                                               :patch_dir => patch_dir,
+                                                               :log_file => logfile })
                         packages[pkg_name] = { :debian_name => debian_ruby_name(pkg_name),
                                                :build_deps => build_dependencies(pkg_name, version),
                                                :type => :gem
@@ -55,7 +58,8 @@ module Apaka
                         :patch_dir => nil,
                         :local_pkg => false,
                         :distribution => target_platform.distribution_release_name,
-                        :architecture => target_platform.architecture
+                        :architecture => target_platform.architecture,
+                        :logfile => STDOUT
 
                     if unknown_options.size > 0
                         Packager.warn "Apaka::Packaging Unknown options provided to convert gems: #{unknown_options}"
@@ -138,7 +142,8 @@ module Apaka
                         :package_name => nil,
                         :recursive_deps => nil,
                         :latest_commit_time => nil,
-                        :origin_information => []
+                        :origin_information => [],
+                        :logfile => STDOUT
 
                     pkg_commit_time = options[:latest_commit_time]
 
@@ -147,6 +152,7 @@ module Apaka
                     end
 
                     distribution = options[:distribution]
+                    logfile = options[:logfile]
 
                     gem_base_name = ""
                     Dir.chdir(File.dirname(gem_path)) do
@@ -194,7 +200,8 @@ module Apaka
                         Dir.chdir(debian_ruby_name) do
                             package_name = options[:package_name] || gem_base_name
                             if patch_pkg_dir(package_name, options[:patch_dir], options: { install_dir: install_dir})
-                                dpkg_commit_changes("deb_autopackaging_overlay")
+                                dpkg_commit_changes("deb_autopackaging_overlay",
+                                                    logfile: logfile)
                                 # the above may fail when we patched debian/control
                                 # this is going to be fixed next
                             end
@@ -331,7 +338,7 @@ module Apaka
 
                             debcontrol.source["Build-Depends"] = build_depends.uniq.join(", ")
                             debcontrol.save("debian/control")
-                            dpkg_commit_changes("deb_extra_dependencies")
+                            dpkg_commit_changes("deb_extra_dependencies", logfile: logfile)
 
                             Packager.info "Relaxing version requirement for: debhelper and gem2deb"
                             # Relaxing the required gem2deb version to allow for for multiplatform support
@@ -353,7 +360,7 @@ module Apaka
                               pkg["Architecture"] = "any"
                             end
                             File.write("debian/control", DebianControl::generate(debcontrol))
-                            dpkg_commit_changes("any-architecture")
+                            dpkg_commit_changes("any-architecture", logfile: logfile)
 
                             #-- e.g. for overlays use the original name in the control file
                             # which will be overwritten here
@@ -365,7 +372,7 @@ module Apaka
                             system("sed", "-i", "s##{release_name}##{original_name}#g", "debian/*", :close_others => true)
                             # Inject the true name
                             system("sed", "-i", "s##{original_name}##{release_name}#g", "debian/*", :close_others => true)
-                            dpkg_commit_changes("adapt_original_package_name")
+                            dpkg_commit_changes("adapt_original_package_name", logfile: logfile)
 
                             ################
                             # postinst and postrm
@@ -374,7 +381,7 @@ module Apaka
                             ["postinst","postrm"].each do |action|
                                 if File.exist?("debian/package.#{action}")
                                     FileUtils.mv "debian/package.#{action}", "debian/#{debian_ruby_unversioned_name}.#{action}"
-                                    dpkg_commit_changes("add_#{action}_script")
+                                    dpkg_commit_changes("add_#{action}_script", logfile: logfile)
                                 end
 
                                 path = File.join(TEMPLATES,action)
@@ -411,7 +418,8 @@ module Apaka
                             ################
                             if File.exist?("debian/install")
                                 system("sed", "-i", "s#/usr##{rock_install_directory}#g", "debian/install")
-                                dpkg_commit_changes("install_to_rock_specific_directory")
+                                dpkg_commit_changes("install_to_rock_specific_directory",
+                                                   logfile: logfile)
                                 # the above may fail when we patched debian/control
                             end
 
@@ -487,7 +495,8 @@ END
                             # Add DEB_BUILD_OPTIONS=nocheck
                             # https://www.debian.org/doc/debian-policy/ch-source.html
                             system("sed", "-i", "1 a export DEB_BUILD_OPTIONS=nocheck", "debian/rules", :close_others => true)
-                            dpkg_commit_changes("disable_tests")
+                            dpkg_commit_changes("disable_tests",
+                                               logfile: logfile)
                             build_usr_dir = "debian/#{debian_ruby_unversioned_name}/usr"
                             open('debian/rules','a') do |file|
                                 file << "\n"
@@ -510,7 +519,8 @@ END
                             ["debian","pkgconfig"].each do |subdir|
                                 Dir.glob("#{subdir}/*").each do |file|
                                     prepare_patch_file(file, options: { install_dir: install_dir })
-                                    dpkg_commit_changes("adapt_rock_install_dir")
+                                    dpkg_commit_changes("adapt_rock_install_dir",
+                                                       logfile: logfile)
                                 end
                             end
 

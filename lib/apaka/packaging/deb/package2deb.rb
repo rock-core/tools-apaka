@@ -227,14 +227,19 @@ module Apaka
                 end
                 # Commit changes of a debian package using dpkg-source --commit
                 # in a given directory (or the current one by default)
-                def dpkg_commit_changes(patch_name, directory = Dir.pwd, prefix = "apaka-")
+                def dpkg_commit_changes(patch_name, directory = Dir.pwd,
+                                        prefix: "apaka-",
+                                        logfile: nil
+                                       )
                     Dir.chdir(directory) do
                         Packager.debug ("commit changes to debian pkg: #{patch_name}")
                         # Since dpkg-source will open an editor we have to
                         # take this approach to make it pass directly in an
                         # automated workflow
                         ENV['EDITOR'] = "/bin/true"
-                        system("dpkg-source", "--commit", ".", prefix + patch_name, :close_others => true)
+                        system("dpkg-source", "--commit", ".", prefix + patch_name,
+                               [:out, :err] => redirection(logfile,"a"),
+                               :close_others => true)
                     end
                 end
 
@@ -418,7 +423,8 @@ module Apaka
                 # same checksums on the same day when file content does not change
                 #
                 # Required to package orig.tar.gz
-                def tar_gzip(archive, tarfile, pkg_time, distribution = nil)
+                def tar_gzip(archive, tarfile, pkg_time, distribution = nil,
+                            logfile: nil)
 
                     # Make sure no distribution information leaks into the package
                     if distribution and archive =~ /~#{distribution}/
@@ -439,7 +445,7 @@ module Apaka
                     # Exclude hidden files and directories at top level
                     cmd_tar = "tar --mtime='#{mtime}' --format=gnu -c --exclude '.+' --exclude-backups --exclude-vcs --exclude #{archive_plain_name}/debian --exclude build #{archive_plain_name} | gzip --no-name > #{tarfile}"
 
-                    if system(cmd_tar)
+                    if system(cmd_tar, [:out,:err] => redirection(logfile, "a"))
                         Packager.info "Package: successfully created archive using command '#{cmd_tar}' -- pwd #{Dir.pwd} -- #{Dir.glob("**")}"
                         checksum = `sha256sum #{tarfile}`
                         Packager.info "Package: sha256sum: #{checksum}"
@@ -611,6 +617,9 @@ module Apaka
                         :distribution => nil,
                         :architecture => nil
 
+                    logfile = File.join(self.log_dir, "#{debian_name(pkginfo)}-apaka-package.log")
+                    Autoproj.message "Perform packaging: including patching and running dpkg-source (see #{logfile})", :green
+
                     distribution = options[:distribution]
 
                     Packager.info "Changing into packaging dir: #{packaging_dir(pkginfo)}"
@@ -626,10 +635,14 @@ module Apaka
 
                             Packager.warn "Package: #{pkginfo.name} requires update #{pkginfo.srcdir}"
 
-                            if !tar_gzip(File.basename(pkginfo.srcdir), tarball, pkginfo.latest_commit_time, distribution)
+                            if !tar_gzip(File.basename(pkginfo.srcdir), tarball,
+                                    pkginfo.latest_commit_time, distribution,
+                                        logfile: logfile)
                                 raise RuntimeError, "Debian: #{pkginfo.name} failed to create archive"
                             end
                             package_with_update = true
+                        else
+                            Packager.info "Package: #{pkginfo.name} (*.orig.tar.gz) does not require update #{pkginfo.srcdir}"
                         end
 
                         dsc_files = reprepro.registered_files(versioned_name(pkginfo, distribution),
@@ -648,7 +661,8 @@ module Apaka
                                     Packager.warn "Overlay patch applied to #{pkginfo.name}"
                                 end
                             end
-                            dpkg_commit_changes("overlay", pkginfo.srcdir)
+                            dpkg_commit_changes("overlay", pkginfo.srcdir,
+                                                logfile: logfile)
 
                             envsh = File.join(pkginfo.srcdir, "env.sh")
                             Packager.warn("Preparing env.sh #{envsh}")
@@ -656,11 +670,14 @@ module Apaka
                                 envdata = pkginfo.envsh( Packaging.as_var_name(pkginfo.name), rock_install_directory)
                                 file.write(envdata)
                             end
-                            dpkg_commit_changes("envsh", pkginfo.srcdir)
+                            dpkg_commit_changes("envsh", pkginfo.srcdir,
+                                                logfile: logfile)
 
                             # Run dpkg-source
                             # Use the new tar ball as source
-                            if !system("dpkg-source", "-I", "-b", pkginfo.srcdir, :close_others => true)
+                            if !system("dpkg-source", "-I", "-b", pkginfo.srcdir,
+                                    [:out, :err] => redirection(logfile,"a"),
+                                    :close_others => true)
                                 Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source -- #{Dir.entries(pkginfo.srcdir)}"
                                 raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
                             end
@@ -689,6 +706,7 @@ module Apaka
                         FileUtils.mkdir_p pkg_dir
                     end
 
+                    logfile = File.join(self.log_dir, "#{debian_meta_name(name)}-apaka-package.log")
                     Dir.chdir(pkg_dir) do
                         # Generate the debian directory as a subdirectory of meta
                         generate_debian_dir_meta(name, depend,
@@ -701,7 +719,7 @@ module Apaka
                                 file.write ". #{envsh}\n"
                             end
                         end
-                        dpkg_commit_changes("envsh")
+                        dpkg_commit_changes("envsh", logfile: logfile)
 
                         # Run dpkg-source
                         # Use the new tar ball as source
