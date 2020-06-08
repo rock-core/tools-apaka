@@ -102,7 +102,8 @@ module Apaka
 
                         # Assuming if the .gem file has been download we do not need to update
                         gem_globname = "#{packaging_dirname}/#{gem_name}*.gem"
-                        if options[:force_update] or Dir.glob(gem_globname).empty?
+                        dsc_globname = "#{packaging_dirname}/*#{debian_ruby_name(gem_name)}*.dsc"
+                        if options[:force_update] or Dir.glob(gem_globname).empty? or Dir.glob(dsc_globname).empty?
                             Packager.debug "Converting gem: '#{gem_name}' to debian source package"
                             if !File.directory?( packaging_dirname )
                                 FileUtils.mkdir_p packaging_dirname
@@ -124,7 +125,7 @@ module Apaka
                             end
                             convert_gem(gem_file_name, options)
                         else
-                            Packager.info "gem: #{gem_name} up to date"
+                            Autoproj.message "gem: #{gem_name} up to date (use --rebuild to enforce repackaging)", :green
                         end
                     end
                 end
