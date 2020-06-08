@@ -339,7 +339,7 @@ module Apaka
                     end
                 end
 
-                all_required_packages = Array.new
+                all_required_packages = Set.new
                 resolve_packages = []
                 while true
                     if resolve_packages.empty?
@@ -352,7 +352,7 @@ module Apaka
                     end
 
                     # Contains the name of all handled packages
-                    handled_packages = Array.new
+                    handled_packages = Set.new
                     resolve_packages.each do |pkg_name|
                         name, dependencies = reverse_dependencies.find { |p| p.first == pkg_name }
                         if dependencies.empty?
@@ -445,7 +445,6 @@ module Apaka
                             if version
                                 gem_versions[dep] << version
                             end
-                            all_pkginfos << pkginfo_from_pkg(pkg)
                         end
                     rescue Exception => e
                         Packager.warn "Apaka::Packaging::Autoproj2Adaptor: failed to process package " \
@@ -525,7 +524,6 @@ module Apaka
                 _, native_pkg_list = pkg_osdeps.find { |manager, _| manager == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packaging.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
                     if handler != native_package_manager
@@ -551,7 +549,10 @@ module Apaka
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
                     end
                 end
-                Packaging.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
+                Packaging.info "'#{pkg.name}'\n" \
+                    "\tpackage deps: '#{deps_rock_pkginfo.collect {|p| p.name}}'\n" \
+                    "\tos deps: '#{deps_osdeps_packages.join(' ')}'\n" \
+                    "\tnon-native deps: #{non_native_dependencies.to_a.join(' ')}"
 
                 # Return rock packages, osdeps and non native deps (here gems)
                 { :rock_pkginfo => deps_rock_pkginfo, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
