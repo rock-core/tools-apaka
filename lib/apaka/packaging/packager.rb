@@ -169,6 +169,10 @@ module Apaka
             # Import from a local src directory into the packaging directory for the debian packaging
             def import_from_local_src_dir(pkginfo, local_src_dir, pkg_target_importdir)
                 Packager.info "Preparing source dir #{pkginfo.name} from existing: '#{local_src_dir}' -- import into: #{pkg_target_importdir}"
+                if File.directory?(pkg_target_importdir)
+                    Packager.info "Target import dir #{pkg_target_importdir} already exists - removing before import"
+                    FileUtils.rm_rf(pkg_target_importdir)
+                end
                 if !pkginfo.importer_type || !pkginfo.importer_type == :git
                     Packager.info "Package importer requires copying into target directory"
                     FileUtils.cp_r local_src_dir, pkg_target_importdir
