@@ -745,7 +745,7 @@ module Apaka
                         op_type = nil
                         ops.each do |op|
                             op.values.each do |value|
-                                var_setup += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":"
+                                var_setup += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":" if value
                             end
 
                             if not op_type
