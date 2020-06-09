@@ -878,6 +878,11 @@ module Apaka
                     registered_orig_tar_gz = reprepro.registered_files(debian_name(pkginfo) + "_",
                                                  rock_release_name,
                                                  "*.orig.tar.gz")
+                    orig_file_names = Dir.glob("#{debian_name(pkginfo)}*.orig.tar.gz")
+                    orig_file_names.each do |file|
+                        FileUtils.rm file
+                    end
+
                     if registered_orig_tar_gz.empty?
                         Packager.info "Apaka::Packaging::Debian::package_updated?: no existing orig.tar.gz found in reprepro"
                     else
