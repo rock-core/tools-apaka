@@ -65,6 +65,15 @@ sub update_index_html() {
 </html>
 [END]
     close $index;
+
+    # Cleaning up if no packages can be found
+    my $number_of_pkgs = @indexes;
+    if ($number_of_pkgs == 0) {
+        my $index_file = "$apaka_release_doc_install_dir/index.html";
+        if(-e $index_file) {
+            unlink($index_file);
+        }
+    }
 }
 
 my $cmd = shift;
