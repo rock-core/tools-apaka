@@ -131,25 +131,23 @@ module Apaka
                 end
 
                 meta_packages = {}
-                if !selected_packages.empty?
-                    selection = package_info_ask.autoproj_init_and_load(selected_packages)
-                    selection = package_info_ask.resolve_user_selection_packages(selection)
-                    # Make sure that when we request a package build we only get this one,
-                    # and not the pattern matched to other packages, e.g. for orogen
-                    selection = selection.select do |pkg_name, i|
-                        if selected_packages.empty? or selected_packages.include?(pkg_name)
-                            if package_info_ask.is_metapackage?(pkg_name)
-                                meta_packages[pkg_name] = package_info_ask.resolve_user_selection_packages([pkg_name])
-                            end
 
-                            Apaka::Packaging.info "Package: #{pkg_name} is in selection"
-                            true
-                        else
-                            false
+                # If no package has been selected then the full manifest is used
+                selection = package_info_ask.autoproj_init_and_load(selected_packages)
+                selection = package_info_ask.resolve_user_selection_packages(selection)
+                # Make sure that when we request a package build we only get this one,
+                # and not the pattern matched to other packages, e.g. for orogen
+                selection = selection.select do |pkg_name, i|
+                    if selected_packages.empty? or selected_packages.include?(pkg_name)
+                        if package_info_ask.is_metapackage?(pkg_name)
+                            meta_packages[pkg_name] = package_info_ask.resolve_user_selection_packages([pkg_name])
                         end
+
+                        Apaka::Packaging.info "Package: #{pkg_name} is in selection"
+                        true
+                    else
+                        false
                     end
-                else
-                    selection = Array.new
                 end
 
                 # Compute dependencies for a given selection
