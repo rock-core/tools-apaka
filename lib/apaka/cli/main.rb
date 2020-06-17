@@ -119,7 +119,7 @@ module Apaka
             end
 
             desc "osdeps", "Generate osdeps files for a package release"
-            option :dest_dir, type: :string,
+            option :dest_dir, type: :string, default: "/tmp/apaka-osdeps",
                 desc: "Destination folder of the generated osdeps files"
             def osdeps(*args)
                 run_apaka_cli(:osdeps, "Osdeps", Hash[], *args)

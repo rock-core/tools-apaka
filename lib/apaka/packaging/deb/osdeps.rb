@@ -18,7 +18,7 @@ module Apaka
                     Dir.chdir(osdeps_files_dir) do
                         Packaging::Config.active_configurations.each do |release,arch|
                             selected_platform = TargetPlatform.new(release, arch)
-                            file = File.absolute_path("#{rock_release_name}-#{arch}.yml")
+                            file = File.absolute_path("#{packager.rock_release_name}-#{arch}.yml")
                             update_osdeps_list(packager, pkginfo, file, selected_platform)
                         end
                     end
@@ -39,21 +39,21 @@ module Apaka
                     if pkginfo.is_a? String
                         # Handling of ruby and other gems
                         pkg_name = pkginfo
-                        release_name, is_osdep = packager.native_dependency_name(pkg_name, selected_platform)
+                        release_name, is_osdep = packager.dep_manager.native_dependency_name(pkg_name, selected_platform)
                         Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
                         dependency_debian_name = release_name
                     else
                         pkg_name = pkginfo.name
                         # Handling of rock packages
-                        dependency_debian_name = Deb.debian_name(pkginfo)
+                        dependency_debian_name = packager.debian_name(pkginfo)
                     end
 
                     if !is_osdep
-                        if !packager.reprepro.has_package?(dependency_debian_name, rock_release_name,
+                        if !packager.reprepro.has_package?(dependency_debian_name, packager.rock_release_name,
                                                   selected_platform.distribution_release_name,
                                                   selected_platform.architecture)
 
-                            Packager.warn "Package #{dependency_debian_name} is not available for #{selected_platform} in release #{rock_release_name} -- not added to osdeps file"
+                            Packager.warn "Package #{dependency_debian_name} is not available for #{selected_platform} in release #{packager.rock_release_name} -- not added to osdeps file"
                             return
                         end
                     else
