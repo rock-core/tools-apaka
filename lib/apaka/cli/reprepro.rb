@@ -45,6 +45,17 @@ module Apaka
                     end
                 end
 
+                if options[:clear]
+                    if selected_packages.empty?
+                        selected_packages = ["*"]
+                    end
+
+                    selected_packages.each do |pkg_name_expression|
+                        packager.reprepro.deregister_debian_package(pkg_name_expression,
+                                                           options[:release_name],
+                                                           options[:distribution])
+                    end
+                end
             end
         end
     end

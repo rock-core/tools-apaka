@@ -156,6 +156,8 @@ module Apaka
                 desc: "Register the build artifacts of the selected packages (by debian package name)"
             option :deregister, type: :boolean,
                 desc: "Deregister the build artifact of the selected packages (by debian package name)"
+            option :clear, type: :boolean,
+                desc: "Clear packages that match the filter (as package name) or all if no package is given"
             def reprepro(*args)
                 run_apaka_cli(:reprepro, "Reprepro", Hash[], *args)
             end
