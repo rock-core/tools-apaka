@@ -73,11 +73,6 @@ module Apaka
 
                     @env = Deb::Environment.new(self)
                     @dep_manager = Deb::DependencyManager.new(self)
-                    @patch_options = { install_dir: rock_install_directory,
-                                       package_dir: rock_install_directory,
-                                       release_name: rock_release_name,
-                                       release_dir: rock_release_install_directory
-                    }
                 end
 
                 # Get the current rock-release-based prefix for rock packages
@@ -226,6 +221,15 @@ module Apaka
                         @rock_release_hierarchy += release_hierarchy
                     end
                 end
+
+                def patch_options
+                    { install_dir: rock_install_directory(),
+                      package_dir: rock_install_directory(),
+                      release_name: rock_release_name,
+                      release_dir: rock_release_install_directory()
+                    }
+                end
+
                 # Commit changes of a debian package using dpkg-source --commit
                 # in a given directory (or the current one by default)
                 def dpkg_commit_changes(patch_name, directory = Dir.pwd,
@@ -361,7 +365,7 @@ module Apaka
                         if patch_pkg_dir(pkginfo.name, options[:patch_dir],
                                 whitelist: whitelist,
                                 pkg_dir: pkginfo.srcdir,
-                                options: @patch_options)
+                                options: patch_options())
                             Packager.warn "Overlay patch applied to debian folder of #{pkginfo.name}"
                         end
                     end
@@ -658,7 +662,7 @@ module Apaka
                                 if patch_pkg_dir(pkginfo.name, options[:patch_dir],
                                         whitelist: nil,
                                         pkg_dir: pkginfo.srcdir,
-                                        options: @patch_options)
+                                        options: patch_options())
                                     Packager.warn "Overlay patch applied to #{pkginfo.name}"
                                 end
                             end
