@@ -190,7 +190,17 @@ module Apaka
                         # Step 1: calling gem2tgz - if orig.tar.gz is not available
                         ############
                         options[:install_dir] = install_dir
-                        gem2tgz(gem_file_name, options)
+                        registered_orig_tar_gz = reprepro.registered_files(debian_ruby_name(gem_base_name) + "_",
+                                             rock_release_name,
+                                             "*.orig.tar.gz")
+
+                        if registered_orig_tar_gz.empty?
+                            gem2tgz(gem_file_name, options)
+                        elsif registered_orig_tar_gz.size == 1
+                            FileUtils.cp registered_orig_tar_gz.first, "#{versioned_name}.tar.gz"
+                        else
+                            raise ArgumentError, "#{self.class}.convert_gem: multiple orig.tar.gz file registered - #{registered_orig_tar_gz}"
+                        end
 
                         ############
                         # Step 2: calling dh-make-ruby
@@ -631,9 +641,6 @@ END
                                 " with version '#{version}' requested, which is the first registration for this gem in the release"
                     end
                     version
-                end
-
-                def gem_to_orig_tar_gz
                 end
 
                 # Retrieve a gem from cache
