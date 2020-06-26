@@ -28,6 +28,7 @@ extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
 # (not that this is different from the linker arguments)
 DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_library_dirs)
 
+debian_install_prefix=$(DEB_DESTDIR)$(rock_install_dir)
 rock_doc_install_dir=$(rock_install_dir)/share
 SOURCE_ENVSH=for file in `find $(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source "$$file"; done;
 
@@ -130,7 +131,7 @@ debian/stamp-rock-doc:
 	-+$(DEB_MAKE_INVOKE) doc
 	touch $@
 
-common-install-arch common-install-indep:: common-install-rock-doc install-extensions install-apaka-envsh
+common-install-arch common-install-indep:: common-install-rock-doc install-extensions
 common-install-rock-doc::
 	mkdir -p $(DEB_DESTDIR)$(rock_doc_install_dir)
 	$(if $(wildcard $(DEB_SRCDIR)/doc/html),-cp -r "$(DEB_SRCDIR)/doc/html" "$(DEB_DESTDIR)$(rock_doc_install_dir)",$(if $(wildcard $(DEB_SRCDIR)/doc),-cp -r "$(DEB_SRCDIR)/doc" "$(DEB_DESTDIR)$(rock_doc_install_dir)"))
@@ -144,20 +145,26 @@ ifneq ("$(python_setup_dir)","")
 	cd $(python_setup_dir); $(python_cmd) setup.py build; PYTHONPATH=$(DEB_DESTDIR)$(rock_install_dir)/lib/python$(python_version)/site-packages/ $(python_cmd) setup.py install --prefix=$(DEB_DESTDIR)$(rock_install_dir); cd -
 endif
 
-install-apaka-envsh::
-	echo "Installing env.yml (and env.yml.append) in $(rock_install_dir)"
-	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml" "$(DEB_DESTDIR)$(rock_install_dir)")
-	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
-	echo "Installing env.sh in $(rock_install_dir)"
-	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(DEB_DESTDIR)$(rock_install_dir)")
-	# PATH
-<%= env_create_exports(install_prefix: "$(DEB_DESTDIR)$(rock_install_dir)") %>
-
 clean::
 	rm -f debian/stamp-rock-doc
 	rm -rf $(DEB_SRCDIR)/doc/html
-
 <% end %>
 
 # END DOCS
 ###########################################
+
+<%= env.gen_export_variable %>
+
+#install/<%= debian_name %>::
+#	echo "Running post-install for package <%= debian_name %>"
+
+# see https://github.com/Debian/cdbs/blob/master/1/rules/debhelper.mk.in for
+# target
+common-binary-fixup-arch::
+	echo "Apaka: doing all the custom adaptions, once all patches have been applied"
+	echo "Installing env.yml (and env.yml.append) in $(rock_install_dir)"
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml" "$(DEB_DESTDIR)$(rock_install_dir)")
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
+	echo "Updating env.sh in $(rock_install_dir)"
+	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(debian_install_prefix)")
+<%= env_create_exports() %>

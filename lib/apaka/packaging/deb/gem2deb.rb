@@ -557,12 +557,17 @@ END
                                 file << "\tcp -R #{build_usr_dir}/* $(debian_install_prefix)/\n"
                                 file << "\trm -rf #{build_usr_dir}/*\n"
                                 file << "\n"
+
+                                file << @env.gen_export_variable
+                                file << "\n"
+
                                 # Make sure that env.sh and env.yml are generated AFTER all files
                                 # have been installed
                                 file << "override_dh_installdocs:\n"
                                 file << "\techo \"Apaka's override_dh_installdocs called\"\n"
-                                file << env_create_exports(install_prefix: "$(debian_install_prefix)")
+                                file << env_create_exports()
                                 file << "\n"
+
                             end
 
                             ["debian","pkgconfig"].each do |subdir|

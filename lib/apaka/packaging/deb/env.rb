@@ -92,6 +92,17 @@ module Apaka
                     envsh
                 end
 
+                # Allow to generate a makefile function to
+                # export variable into the packages env.sh
+                def gen_export_variable
+                    s  = ""
+                    s += "define export_variable\n"
+                    s += "\tfind $(debian_install_prefix) -type f -name '*$2' -exec dirname {} + | uniq | xargs -i printf \"$1={}:\\$${$1}\\nexport $1\\n\" >> $(debian_install_prefix)/env.sh\n"
+                    s += "\tsed -i s\#$(debian_install_prefix)\#$(rock_install_dir)\#g $(debian_install_prefix)/env.sh\n"
+                    s += "endef\n"
+                    s
+                end
+
                 # Generate an export statement for a makefile, to test the
                 # existance of the given dir under the install_prefix and add it to
                 # the given variable
@@ -114,9 +125,10 @@ module Apaka
                     exports = ""
                     exports += create_export("PATH","bin", install_prefix: install_prefix)
                     exports += create_export("CMAKE_PREFIX_PATH","", install_prefix: install_prefix)
-                    # PKG_CONFIG_PATH
-                    exports += create_export("PKG_CONFIG_PATH","lib/pkgconfig", install_prefix: install_prefix, file_suffix: "\.pc")
-                    exports += create_export("PKG_CONFIG_PATH","lib/$(arch)/pkgconfig", install_prefix: install_prefix, file_suffix: "\.pc")
+                    # CMAKE_PREFIX_PATH for all .cmake files found
+                    exports += "\t$(call export_variable,CMAKE_PREFIX_PATH,\\.cmake)\n"
+                    # PKG_CONFIG_PATH for all .pc files found
+                    exports += "\t$(call export_variable,PKG_CONFIG_PATH,\\.pc)\n"
                     #RUBYLIB
                     exports += create_export("RUBYLIB","lib/ruby/$(ruby_ver)", install_prefix: install_prefix)
                     exports += create_export("RUBYLIB","lib/$(arch)/ruby/$(ruby_ver)", install_prefix: install_prefix)
