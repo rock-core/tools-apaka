@@ -134,7 +134,7 @@ module Apaka
 
                 # If no package has been selected then the full manifest is used
                 selection = package_info_ask.autoproj_init_and_load(selected_packages)
-                selection = package_info_ask.resolve_user_selection_packages(selection)
+                selection = package_info_ask.resolve_user_selection_packages(selection) unless selected_packages.empty? and !selected_gems.empty?
                 # Make sure that when we request a package build we only get this one,
                 # and not the pattern matched to other packages, e.g. for orogen
                 selection = selection.select do |pkg_name, i|
