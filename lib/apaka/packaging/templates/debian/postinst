@@ -8,26 +8,26 @@ use YAML::XS qw(LoadFile DumpFile);
 
 my $apaka_release_install_dir = "<%= rock_release_install_directory %>";
 my $apaka_pkg_install_dir = "<%= rock_install_directory %>";
+my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
 
 # Trim a trim
 sub trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
 
+my @indexfiles = ();
 sub update_index_html() {
-    my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
-    my $apaka_doc_dirs = "$apaka_release_install_dir/*/share/doc";
+    my $apaka_doc_dirs = "$apaka_release_install_dir/*/share/[a-zA-Z]*";
 
     #make sure $apaka_release_doc_install_dir exists
     system("mkdir","-p",$apaka_release_doc_install_dir);
     #collect candidate files
-    my @dirs = glob("$apaka_doc_dirs/*");
-    my @indexfiles;
+    my @dirs = glob("$apaka_doc_dirs");
     my @indexes = map {
-	my $dir = $_;
+        my $dir = $_;
         # Identify package by parent folder of
         # share folder
-        $dir =~ m!/([^/]+)\/share/+!;
-	my $pkg = $1;
-	$dir =~ s!/+$!!;
+        $dir =~ m!/([^\/]+)\/share\/(.+)!;
+        my $pkg = $1;
+        $dir =~ s!/+$!!;
 
         @indexfiles = ();
         find(\&wanted, $dir);
@@ -38,12 +38,14 @@ sub update_index_html() {
                 push @indexfiles, $File::Find::name;
             }
         }
-	my @candidates = sort {
-	    length($a) <=> length($b);
-	} @indexfiles;
+        my @candidates = sort {
+            length($a) <=> length($b);
+        } @indexfiles;
 
-	my $idx = $candidates[0];
-	$idx ? ({ pkg => $pkg, index => $idx }) : ();
+        my $idx = substr $candidates[0],length($dir);
+        $idx =~ s!^/+!!;
+
+        $idx ? ({ pkg => $pkg, dir => $dir, index => $idx }) : ();
     } @dirs;
 
     #create html on the fly. we can only rely on perl core packages.
@@ -59,9 +61,18 @@ sub update_index_html() {
 <ul>
 [END]
     foreach my $idx (@indexes) {
-	my ($pkg,$file) = ($idx->{pkg},$idx->{index});
-	print $index <<"[END]";
-<li> <a href="$file">$pkg</a>
+        my ($pkg,$dir,$file) = ($idx->{pkg},$idx->{dir},$idx->{index});
+
+        # Link into the main release folder
+        my $doc_pkg_link = "$apaka_release_install_dir/share/doc/$pkg";
+        if(! -e "$doc_pkg_link") {
+            system("cd $apaka_release_doc_install_dir; ln -rs $dir $pkg");
+        } elsif(lstat $doc_pkg_link and not stat $doc_pkg_link) {
+            unlink($doc_pkg_link);
+        }
+
+        print $index <<"[END]";
+<li> <a href="$pkg/$file">$pkg</a>
 [END]
     }
     print $index <<"[END]";
@@ -117,28 +128,28 @@ if ($0 =~ /postinst$/) {
 	update_index_html();
         update_env_yml();
     } elsif ($cmd == "abort-upgrade") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "abort-remove") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "abort-deconfigure") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     }
 } elsif ($0 =~ /postrm$/) {
     if ($cmd == "remove") {
-	#called after removal of the packages files during removal of the
-	#package
-	update_index_html();
+        #called after removal of the packages files during removal of the
+        #package
+        update_index_html();
     } elsif ($cmd == "purge") {
-	#called after "remove"
+        #called after "remove"
     } elsif ($cmd == "upgrade") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "disappear") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "failed-upgrade") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "abort-install") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     } elsif ($cmd == "abort-upgrade") {
-	#called during package upgrade/install
+        #called during package upgrade/install
     }
 }
