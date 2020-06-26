@@ -13,8 +13,6 @@ require_relative '../gem_dependencies'
 
 require_relative 'env'
 require_relative 'dependency_manager'
-require_relative '../gem/package2gem'
-require_relative 'importer2deb'
 
 module Apaka
     module Packaging
@@ -601,7 +599,7 @@ module Apaka
                 end
 
                 def package_ruby(pkginfo, options)
-
+                    require_relative '../gem/package2gem'
                     package2gem = Apaka::Packaging::Gem::Package2Gem.new(options)
                     gem_path = package2gem.convert_package(pkginfo,
                                                            packaging_dir(pkginfo),
@@ -707,10 +705,10 @@ module Apaka
                 end
 
                 def package_importer(pkginfo, options)
-                    importer = Packaging::Deb::Importer2Deb.new(self)
+                    require_relative 'importer2deb'
+                    importer = Packaging::Deb::Importer2Deb.new(options)
                     importer.package(pkginfo, options)
                 end
-
 
                 def package_deb_meta(name, depend,
                                      version: "0.1",

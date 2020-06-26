@@ -1,9 +1,10 @@
+require_relative 'package2deb'
 module Apaka
     module Packaging
         module Deb
-            class Importer2Deb
-                def initialize(packager)
-                    @packager = packager
+            class Importer2Deb < Package2Deb
+                def initialize(options = Hash.new)
+                    super(options)
                 end
 
                 def package(pkginfo, options)
