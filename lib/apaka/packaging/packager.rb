@@ -111,6 +111,83 @@ module Apaka
                 end
             end
 
+            # Cleanup an existing debian directory and hidden files
+            def cleanup_existing_dir(dir, options)
+                Dir.chdir(dir) do
+                    # Check if a debian directory exists
+                    dirs = Dir.glob("debian")
+                    if options[:override_existing]
+                        dirs.each do |d|
+                            Packager.info "Removing existing debian directory: #{d} -- in #{Dir.pwd}"
+                            FileUtils.rm_rf d
+                        end
+                    end
+
+                    dirs = Dir.glob("**/.*")
+                    if options[:override_existing]
+                        dirs.each do |d|
+                            Packager.info "Removing existing hidden files: #{d} -- in #{Dir.pwd}"
+                            FileUtils.rm_rf d
+                        end
+                    end
+                end
+                File.join(dir, "debian")
+            end
+
+            # Process apaka control file and apply to the current directory
+            def process_apaka_control(apaka_control)
+                Packager.info "apaka.control file available: #{apaka_control}"
+                if File.exists?(apaka_control)
+                    File.open(apaka_control,"r").each do |line|
+                        if line =~/^\s*#/
+                            next
+                        end
+                        if line =~/RENAME (.*) (.*)/
+                            orig_file = $1
+                            renamed_file = $2
+                            if File.exists?(orig_file)
+                                Packager.info "Renaming file: #{orig_file} to #{renamed_file}"
+                                target_dir = File.dirname(renamed_file)
+                                FileUtils.mkdir_p target_dir unless File.exists?(target_dir)
+                                FileUtils.mv orig_file, renamed_file
+                            else
+                                raise RuntimeError, "Failed to rename file #{orig_file} for #{package_name} - file does not exist, so please check "\
+                                    " #{apaka_control} on correctness and update"
+                            end
+                        end
+                        if line =~ /DEL (.*)/
+                            path = $1
+                            p = Pathname.new(path)
+                            if p.absolute?
+                                raise RuntimeError, "Failed to remove path '#{path}'. Absolute paths are not permitted"
+                            end
+
+                            if File.directory?(path)
+                                Packager.info "Removing dir: #{path}"
+                                FileUtils.rm_rf path
+                            elsif File.exists?(path)
+                                Packager.info "Removing file: #{path}"
+                                FileUtils.rm path
+                            else
+                                raise RuntimeError, "Failed to remove path '#{path}' for #{package_name} - file does not exist, so please check "\
+                                    " #{apaka_control} on correctness and update"
+                            end
+                        end
+                        if line =~ /ENVSH_SOURCE_PATH (.*)/
+                            path = $1
+                            File.open("env.sh","a+") do |file|
+                                file.puts ". #{path}"
+                            end
+                        end
+                    end
+                    # Delete apaka.control in the current (patched) directory
+                    filename = File.basename(apaka_control)
+                    FileUtils.rm filename if File.exist?(filename)
+                else
+                    Packager.warn "apaka.control file is not available: #{apaka_control}"
+                end
+            end
+
             def system(*args)
                 Kernel.system(*args)
             end

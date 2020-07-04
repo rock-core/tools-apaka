@@ -246,29 +246,6 @@ module Apaka
                     end
                 end
 
-                # Cleanup an existing debian directory and hidden files
-                def cleanup_existing_dir(dir, options)
-                    Dir.chdir(dir) do
-                        # Check if a debian directory exists
-                        dirs = Dir.glob("debian")
-                        if options[:override_existing]
-                            dirs.each do |d|
-                                Packager.info "Removing existing debian directory: #{d} -- in #{Dir.pwd}"
-                                FileUtils.rm_rf d
-                            end
-                        end
-
-                        dirs = Dir.glob("**/.*")
-                        if options[:override_existing]
-                            dirs.each do |d|
-                                Packager.info "Removing existing hidden files: #{d} -- in #{Dir.pwd}"
-                                FileUtils.rm_rf d
-                            end
-                        end
-                    end
-                    File.join(dir, "debian")
-                end
-
                 # Generate the debian/ subfolder cindlugin control/rules/install
                 # files to prepare the debian package build instructions
                 def generate_debian_dir(pkginfo, dir, options)
@@ -662,6 +639,9 @@ module Apaka
                                         pkg_dir: pkginfo.srcdir,
                                         options: patch_options())
                                     Packager.warn "Overlay patch applied to #{pkginfo.name}"
+                                end
+                                Dir.chdir(pkginfo.srcdir) do
+                                    process_apaka_control("apaka.control")
                                 end
                             end
                             dpkg_commit_changes("overlay", pkginfo.srcdir,
