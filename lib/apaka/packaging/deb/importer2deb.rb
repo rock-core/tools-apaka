@@ -8,6 +8,8 @@ module Apaka
                 end
 
                 def package(pkginfo, options)
+                    @current_pkg_info = pkginfo
+
                     Packager.info "Using package_importer for #{pkginfo.name}"
                     options, unknown_options = Kernel.filter_options options,
                         :distribution => nil,
