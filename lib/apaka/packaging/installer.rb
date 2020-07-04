@@ -267,6 +267,18 @@ module Apaka
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/ruby2.0 1")
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/gem2.0 1")
                 end
+
+                # Set default python version
+                if ["bionic","buster"].include?(distribution)
+                    #make sure a usable ruby version is installed
+                    image_install_pkg(distribution, architecture, "python3.6")
+                    image_install_pkg(distribution, architecture, "python3-pip")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/python.divert /usr/bin/python")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/python.divert /usr/bin/python")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/pip.divert /usr/bin/pip")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/python python /usr/bin/python3 1")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1")
+                end
             end
 
             # Execute a command in the given chroot
