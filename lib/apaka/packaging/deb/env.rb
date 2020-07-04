@@ -97,7 +97,8 @@ module Apaka
                 def gen_export_variable
                     s  = ""
                     s += "define export_variable\n"
-                    s += "\tfind $(debian_install_prefix) -type f -name '*$2' -exec dirname {} + | uniq | xargs -i printf \"$1={}:\\$${$1}\\nexport $1\\n\" >> $(debian_install_prefix)/env.sh\n"
+                    # ignore files in build folders of CMake
+                    s += "\tfind $(debian_install_prefix) -type f -name '*$2' -exec dirname {} + | grep -v CMakeFiles | uniq | xargs -i printf \"$1={}:\\$${$1}\\nexport $1\\n\" >> $(debian_install_prefix)/env.sh\n"
                     s += "\tsed -i s\#$(debian_install_prefix)\#$(rock_install_dir)\#g $(debian_install_prefix)/env.sh\n"
                     s += "endef\n"
                     s
