@@ -225,8 +225,8 @@ module Apaka
                             env_setting["RUBYLIB"] = "#{load_path.join(':')}:\$RUBYLIB"
                         end
 
-                        if File.directory?(versioned_name)
-                            FileUtils.rm_rf versioned_name
+                        if File.directory?(debian_ruby_name)
+                            FileUtils.rm_rf debian_ruby_name
                         end
 
                         cmd << "dh-make-ruby"
