@@ -142,6 +142,15 @@ module Apaka
                         if line =~/^\s*#/
                             next
                         end
+                        # Allow to a script that will be embedded in
+                        # debian/rules to the post install hook
+                        if line =~ /DEBIAN_RULES_EXTENSION (.*)/
+                            script = $1
+                            File.open("debian/rules","a") do |f|
+                                f.puts "#{script}"
+                            end
+                        end
+
                         if line =~/RENAME (.*) (.*)/
                             orig_file = $1
                             renamed_file = $2
