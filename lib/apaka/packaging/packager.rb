@@ -28,7 +28,7 @@ module Apaka
         def self.build_dir
             File.join(root_dir, "build", "apaka-packager")
         end
-        
+
         def self.cache_dir
             File.join(build_dir, "cache")
         end
@@ -49,7 +49,7 @@ module Apaka
             "release-#{Time.now.strftime("%y.%m")}"
         end
 
-        
+
         class Packager
             extend Logger::Root("Packager", Logger::INFO)
 
@@ -182,6 +182,8 @@ module Apaka
                                     " #{apaka_control} on correctness and update"
                             end
                         end
+                        # Allow to add a custom source path that is added
+                        # to the generated env.sh
                         if line =~ /ENVSH_SOURCE_PATH (.*)/
                             path = $1
                             File.open("env.sh","a+") do |file|
@@ -294,7 +296,7 @@ module Apaka
                 end
 
                 Packager.debug "Preparing source dir #{pkginfo.name}"
-                # If we have given an existing source directory we should use it, 
+                # If we have given an existing source directory we should use it,
                 # but only if it is a git repository
                 pkg_target_importdir = File.join(pkg_dir, plain_dir_name(pkginfo))
                 if support_local_import && existing_source_dir = options[:existing_source_dir]
