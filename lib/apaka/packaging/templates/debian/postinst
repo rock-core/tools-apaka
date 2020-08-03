@@ -4,8 +4,13 @@
 
 use strict;
 use File::Find;
+use YAML::XS qw(LoadFile DumpFile);
 
 my $apaka_release_install_dir = "<%= rock_release_install_directory %>";
+my $apaka_pkg_install_dir = "<%= rock_install_directory %>";
+
+# Trim a trim
+sub trim { my $s = shift; $s =~ s/^\s+|\s+$//g; return $s };
 
 sub update_index_html() {
     my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
@@ -76,6 +81,33 @@ sub update_index_html() {
     }
 }
 
+# Update the env.yml file with the information provided in the env.yml
+# file
+sub update_env_yml() {
+
+    my $env_data = LoadFile("$apaka_pkg_install_dir/env.yml");
+
+    my $append_file = "$apaka_pkg_install_dir/env.yml.append";
+    if (-e $append_file)
+    {
+        open my $handle, '<', $append_file;
+        while (<$handle>) {
+            my ($variable, $value) = split / /;
+            if(exists $env_data->{$variable})
+            {
+                push( @{ $env_data->{$variable}->{':values'} }, trim($value) )
+            } else {
+                $env_data->{$variable} = { ":type" => ":add",
+                    ":values" => [ trim($value) ] };
+            }
+        }
+        close $handle;
+        DumpFile("$apaka_pkg_install_dir/env.yml",$env_data);
+
+        unlink($append_file)
+    }
+}
+
 my $cmd = shift;
 
 if ($0 =~ /postinst$/) {
@@ -83,6 +115,7 @@ if ($0 =~ /postinst$/) {
 	#called when the package files have been installed during installation
 	#of the package
 	update_index_html();
+        update_env_yml();
     } elsif ($cmd == "abort-upgrade") {
 	#called during package upgrade/install
     } elsif ($cmd == "abort-remove") {

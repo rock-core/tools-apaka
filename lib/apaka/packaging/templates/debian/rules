@@ -145,7 +145,10 @@ ifneq ("$(python_setup_dir)","")
 endif
 
 install-apaka-envsh::
-	echo "Installing apaka-env.sh in $(rock_install_dir)"
+	echo "Installing env.yml (and env.yml.append) in $(rock_install_dir)"
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml" "$(DEB_DESTDIR)$(rock_install_dir)")
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
+	echo "Installing env.sh in $(rock_install_dir)"
 	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(DEB_DESTDIR)$(rock_install_dir)")
 	# PATH
 <%= env_create_exports(install_prefix: "$(DEB_DESTDIR)$(rock_install_dir)") %>

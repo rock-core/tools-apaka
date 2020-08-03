@@ -43,7 +43,7 @@ module Apaka
                 Autoproj::workspace.config.save
                 Autoproj::workspace.setup_all_package_directories
                 Autoproj::workspace.finalize_package_setup
-                
+
                 @cli = Autoproj::CLI::Base.new(Autoproj::workspace)
             end
 
@@ -252,7 +252,7 @@ module Apaka
                 end
                 @pkg_manifest_cache[package_name]
             end
-            
+
             public
 
             def package_by_name(package_name)
@@ -454,7 +454,7 @@ module Apaka
                 end
 
                 required_gems = all_required_gems(gem_versions, no_deps: no_deps )
-                
+
                 {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_packages, :excluded => excluded_packages }.merge required_gems
             end
 
@@ -482,7 +482,7 @@ module Apaka
 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end
-            
+
             private
 
             def resolve_optional_dependencies(pkg)
@@ -498,7 +498,7 @@ module Apaka
                     end
                 end
             end
-            
+
             # Compute dependencies of this package
             # Returns [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
@@ -684,7 +684,7 @@ module Apaka
                         xml_file  = File.join(@pkg.srcdir, file)
                         if File.exists?(xml_file)
                             data = File.read(xml_file)
-                            # check over multilines, then filter out newlines to 
+                            # check over multilines, then filter out newlines to
                             # get a consistent/unformatted text block
                             if data =~ /<license>(.*)<\/license>/m
                                 @licenses += $1.split("\n").map { |x| x.strip }.reject {|x| x.empty? }.join(", ")
@@ -729,35 +729,57 @@ module Apaka
                     @pkg.env
                 end
 
-                # Generate an envsh file for this package
-                # base on the custom update of environment variables
-                def envsh(pkg_var, pkg_prefix)
-                    s  = "#{pkg_var}=#{pkg_prefix}\n"
-                    s += "export #{pkg_var}\n"
-                    env_vars = Hash.new
-                    env_ops.each do |env_op|
-                        env_vars[env_op.name] ||= Array.new
-                        env_vars[env_op.name] << env_op
+                # Generate an environment data structure:
+                # { VAR_NAME => { :type => :add_path, :values => [ ... ] } }
+                # @return env data
+                def generate_env_data(pkg_var, pkg_prefix)
+                    env_data = {}
+                    env_data[pkg_var] = { :type => :set,
+                                          :values => [ pkg_prefix ],
+                                          :priority => 0
+                                        }
+
+                    env_ops.each do |op|
+                        var_name = op.name
+                        env_data[var_name] ||= { :type => nil,
+                                                :values => [],
+                                                :priority => -1
+                                              }
+                        op.values.each do |value|
+                            env_data[var_name][:values] << value.gsub(@pkg.prefix, "${#{pkg_var}}") if value
+                        end
+
+                        op_type = env_data[var_name][:type]
+                        if not op_type
+                            env_data[var_name][:type] = op.type
+                        elsif op_type != op.type
+                            raise RuntimeError, "Apaka::Packaging::Autoproj2Adaptor.envsh: #{pkg_var} -- setting of env var: #{var_name} failed" \
+                                " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
+                        end
                     end
 
-                    env_vars.each do |var_name, ops|
+                    if is_bundle?
+                        env_data["ROCK_BUNDLE_PATH"] = {
+                            :type => :add_path,
+                            :values => [ File.join(pkg_prefix,"share","rock","bundles") ],
+                            :priority => -1
+                        }
+                    end
+
+                    env_data.sort_by { |k,v| v[:priority] }
+                    env_data
+                end
+
+                # Convert env data to string
+                def envsh(env_data)
+                    s = ""
+                    env_data.each do | var_name, spec|
                         var_setup = "#{var_name}="
-                        op_type = nil
-                        ops.each do |op|
-                            op.values.each do |value|
-                                var_setup += value.gsub(@pkg.prefix, "${#{pkg_var}}") + ":" if value
-                            end
-
-                            if not op_type
-                                op_type = op.type
-                            elsif op_type != op.type
-                                raise RuntimeError, "Apaka::Packaging::Autoproj2Adaptor.envsh: #{pkg_var} -- setting of env var: #{var_name} failed" \
-                                    " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
-                            end
+                        spec[:values].each do |value|
+                            var_setup += value + ":" if value
                         end
-                        next unless op_type
 
-                        case op_type
+                        case spec[:type]
                         when :add_path
                             if var_setup[-1] != ":"
                                 var_setup += ":"
@@ -771,7 +793,6 @@ module Apaka
                             end
                         end
                         var_setup += "export #{var_name}\n"
-
                         s += var_setup
                     end
                     return s
@@ -789,6 +810,12 @@ module Apaka
                     @env
                 end
 
+                def is_bundle?
+                    raise RuntimeError, "#{self.class}#{__method__}: pkginfo is not properly initialized" if not name or not srcdir
+                    return false if build_type != :ruby
+
+                    name =~ /bundles/ || File.exist?(File.join(srcdir,"config","init.rb"))
+                end
             end #class Autoproj2PackageInfo
 
         end #class Autoproj2Adaptor

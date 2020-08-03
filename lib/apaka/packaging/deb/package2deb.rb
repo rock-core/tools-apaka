@@ -324,7 +324,7 @@ module Apaka
                         build_dependencies << "automake"
                         build_dependencies << "dh-autoreconf"
                     elsif pkginfo.build_type == :ruby
-                        if pkginfo.name =~ /bundles/
+                        if pkginfo.is_bundle?
                             build_dependencies << "cmake"
                         else
                             raise "debian/control: cannot handle ruby package"
@@ -669,13 +669,23 @@ module Apaka
                             dpkg_commit_changes("overlay", pkginfo.srcdir,
                                                 logfile: logfile)
 
+                            env_data = pkginfo.generate_env_data(Packaging.as_var_name(pkginfo.name), rock_install_directory)
+
                             envsh = File.join(pkginfo.srcdir, "env.sh")
                             Packager.warn("Preparing env.sh #{envsh}")
                             File.open(envsh, "w") do |file|
-                                envdata = pkginfo.envsh( Packaging.as_var_name(pkginfo.name), rock_install_directory)
-                                file.write(envdata)
+                                env_txt = pkginfo.envsh(env_data)
+                                file.write(env_txt)
                             end
                             dpkg_commit_changes("envsh", pkginfo.srcdir,
+                                                logfile: logfile)
+
+                            envyml = File.join(pkginfo.srcdir, "env.yml")
+                            Packager.warn("Preparing env.yml #{envyml}")
+                            File.open(envyml, "w") do |file|
+                                file.write(env_data.to_yaml)
+                            end
+                            dpkg_commit_changes("envyml", pkginfo.srcdir,
                                                 logfile: logfile)
 
                             # Run dpkg-source

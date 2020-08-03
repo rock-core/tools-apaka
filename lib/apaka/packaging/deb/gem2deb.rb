@@ -511,6 +511,8 @@ install:
 
 	echo "Preparing installation of apaka-generated env.sh (current dir $PWD)"
 	touch $(debian_install_prefix)/env.sh
+	echo "Preparing installation of apaka-generated env.yml (current dir $PWD)"
+	touch $(debian_install_prefix)/env.yml
 END
 
                             File.write("debian/dh_ruby.mk", dh_ruby_mk)
@@ -554,7 +556,7 @@ END
                                 file << "\tcp -R #{build_usr_dir}/* $(debian_install_prefix)/\n"
                                 file << "\trm -rf #{build_usr_dir}/*\n"
                                 file << "\n"
-                                # Make sure that env.sh is generated AFTER all file
+                                # Make sure that env.sh and env.yml are generated AFTER all files
                                 # have been installed
                                 file << "override_dh_installdocs:\n"
                                 file << "\techo \"Apaka's override_dh_installdocs called\"\n"

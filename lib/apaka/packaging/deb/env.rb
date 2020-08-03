@@ -105,7 +105,9 @@ module Apaka
                     else
                         test_path = File.join(install_prefix,"*#{file_suffix}")
                     end
-                    return "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
+                    s = "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
+                    s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)/#{dirname}\" >> #{install_prefix}/env.yml.append)\n"
+                    return s
                 end
 
                 def create_exports(install_prefix: "$(debian_install_prefix)")
