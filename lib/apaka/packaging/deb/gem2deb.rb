@@ -282,7 +282,8 @@ module Apaka
                             if !nonnative_packages.empty?
                                 gem_deps = GemDependencies::resolve_all(nonnative_packages)
                             elsif !options[:local_pkg]
-                                gem_deps = GemDependencies::resolve_by_name(gem_base_name, gem_version)[:deps]
+                                gem_deps =
+                                    GemDependencies::resolve_by_name(gem_base_name, version: gem_version)[:deps]
                             end
 
                             # Check if the plain package name exists in the given distribution

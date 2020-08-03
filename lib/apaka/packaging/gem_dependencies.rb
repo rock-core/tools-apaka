@@ -9,6 +9,84 @@ require 'apaka/packaging/packager'
 module Apaka
     module Packaging
         class GemDependencies
+            # Active gem list mapped to detected versions
+            @@active_gems = {}
+            # Hash with gem name as key, and dependencies as Hash<String,Array> name->[version]
+            @@gems = {}
+
+            def self.prepare_cache
+                if @@active_gems.empty?
+                    @@active_gems = bundler_status
+
+                    @@gems = gems_dependency_tree
+                end
+            end
+
+            def self.gems_dependency_tree
+                dependencies = Hash.new
+                handled_gems = Set.new
+
+
+                remaining_gems = @@active_gems.dup
+                Apaka::Packaging.info "Resolving gem dependencies for: #{remaining_gems.collect {|p| p[0]}.join(' ')}\n" \
+                    "This might take some time ..."
+                total_number = remaining_gems.size
+                while !remaining_gems.empty?
+                    remaining = Hash.new
+                    remaining_gems.each do |gem_name, gem_versions|
+                        deps = resolve_by_name(gem_name,
+                                              version: gem_versions,
+                                              use_cache: false)[:deps]
+                        handled_gems << gem_name
+
+                        dependencies[gem_name] = Hash.new
+                        deps.each do |gem_dep_name, gem_dep_version|
+
+                            version = gem_dep_version.dup
+                            if @@active_gems[gem_dep_name]
+                                version = [ @@active_gems[gem_dep_name] ]
+                            end
+
+                            dependencies[gem_name][gem_dep_name] ||= Array.new
+                            dependencies[gem_name][gem_dep_name] += version
+
+                            if !handled_gems.include?(gem_dep_name)
+                                remaining[gem_dep_name] ||= Array.new
+                                remaining[gem_dep_name] += version
+                            end
+                        end
+                        print "\rProcessed gems: #{handled_gems.size}"
+                    end
+                    remaining_gems.select! { |g| !handled_gems.include?(g) }
+                    remaining.each do |name, versions|
+                        remaining_gems[name] ||= Array.new
+                        remaining_gems[name] = (remaining_gems[name] + versions).uniq
+                    end
+                end
+                print "\n"
+                Apaka::Packaging.info "Gem dependencies: #{dependencies.to_a}"
+                dependencies
+            end
+
+            def self.bundler_status
+                gems = {}
+                msg, status = Open3.capture2e("bundler list")
+                if not status.success?
+                    raise RuntimeError, "#{self.class}.#{__method__}: failed to run"
+                        "bundler list -- #{msg}"
+                end
+
+                msg.each_line do |line|
+                    if line =~ / \* (.*) \(([0-9\.]*).*\)/
+                        gem_name = $1
+                        version = $2
+
+                        gems[gem_name] = version unless gem_name =~ /gem_build_flags/
+                    end
+                end
+                gems
+            end
+
             # Parse gem dependencies and return the dependencies
             def self.parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only = true)
                 dependencies = Hash.new
@@ -129,14 +207,22 @@ module Apaka
                 end
                 return gem_dependency
             end
+
             # Resolve the dependency of a gem using `gem dependency <gem_name>`
             # This will only work if the local installation is update to date
             # regarding the gems
             # return [:deps => , :version =>  ]
-            def self.resolve_by_name(gem_name, version = nil, runtime_deps_only = true)
+            def self.resolve_by_name(gem_name,
+                                     version: nil,
+                                     runtime_deps_only: true,
+                                     use_cache: true)
+
+                GemDependencies.prepare_cache if use_cache
+
                 if not gem_name.kind_of?(String)
                     raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
                 end
+
                 version_requirements = Array.new
                 if version
                     if version.kind_of?(Set)
@@ -146,6 +232,30 @@ module Apaka
                     else
                         version_requirements = version
                     end
+                end
+
+                requirements = Array.new
+                version_requirements.each do |requirement|
+                    requirements << ::Gem::Version::Requirement.new(requirement)
+                end
+
+                if use_cache && @@gems.has_key?(gem_name)
+                    cached_result = @@gems[gem_name]
+                    # if cached result is available and version is not relevant
+                    # do return
+                    return cached_result if not version
+
+                    cached_version = ::Gem::Version.new(cached_result[:version])
+                    use_cached_result = false
+                    requirements.each do |required_version|
+                        if !required_version.satisfied_by?(cached_version)
+                            use_cached_result = false
+                            break
+                        end
+                    end
+                    # if cached result is available and version is relevant and
+                    # matches the one in the cache do return
+                    return cached_result if use_cached_result
                 end
 
                 installed, gem_dependency = installation_status(gem_name, version_requirements, runtime_deps_only: runtime_deps_only)
@@ -159,11 +269,6 @@ module Apaka
                 end
 
                 versioned_gems = gem_dependency
-                # pick last, i.e. highest version
-                requirements = Array.new
-                version_requirements.each do |requirement|
-                    requirements << ::Gem::Version::Requirement.new(requirement)
-                end
                 versioned_gems = versioned_gems.select do |description|
                     do_select = true
                     requirements.each do |required_version|
@@ -177,14 +282,19 @@ module Apaka
                 if versioned_gems.empty?
                     raise RuntimeError, "GemDependencies::resolve_by_name failed to find a (locally installed) gem '#{gem_name}' that satisfies the version requirements: #{version_requirements}"
                 else
-                    versioned_gems.last
+                    if use_cache
+                        description = versioned_gems.last
+                        @@gems[gem_name] = description[:deps]
+                        @@active_gems[gem_name] = description[:version]
+                    end
+                    return versioned_gems.last
                 end
             end
 
             # Resolve all dependencies of a list of name or |name,version| tuples of gems
             # Returns[Hash] with keys as required gems and versioned dependencies
             # as values (a Ruby Set)
-            def self.resolve_all(gems)
+            def self.resolve_all(gems, cache: true)
                 Apaka::Packaging.debug "#{self.class} resolve gem versions for: #{gems.collect {|p| p[0]}.join(' ')}"
 
                 dependencies = Hash.new
@@ -212,35 +322,40 @@ module Apaka
                     remaining_gems = gems
                 end
 
-                Apaka::Packaging.info "Resolving gem dependencies for: #{remaining_gems.collect {|p| p[0]}.join(' ')}\n" \
-                    "This might take some time ..."
-                total_number = remaining_gems.size
+                dependencies = Hash.new
                 while !remaining_gems.empty?
                     remaining = Hash.new
                     remaining_gems.each do |gem_name, gem_versions|
-                        deps = resolve_by_name(gem_name, gem_versions)[:deps]
+                        deps = resolve_by_name(gem_name,
+                                              version: gem_versions,
+                                              )[:deps]
                         handled_gems << gem_name
 
                         dependencies[gem_name] = Hash.new
                         deps.each do |gem_dep_name, gem_dep_version|
+                            version = gem_dep_version.dup
+
+                            if @@active_gems[gem_dep_name]
+                                version = [ @@active_gems[gem_dep_name] ]
+                            end
+
                             dependencies[gem_name][gem_dep_name] ||= Array.new
-                            dependencies[gem_name][gem_dep_name] += gem_dep_version
+                            dependencies[gem_name][gem_dep_name] += version
 
                             if !handled_gems.include?(gem_dep_name)
                                 remaining[gem_dep_name] ||= Array.new
-                                remaining[gem_dep_name] += gem_dep_version
+                                remaining[gem_dep_name] += version
                             end
                         end
                         print "\rProcessed gems: #{handled_gems.size}"
                     end
+
                     remaining_gems.select! { |g| !handled_gems.include?(g) }
                     remaining.each do |name, versions|
                         remaining_gems[name] ||= Array.new
                         remaining_gems[name] = (remaining_gems[name] + versions).uniq
                     end
                 end
-                print "\n"
-                Apaka::Packaging.info "Gem dependencies: #{dependencies.to_a}"
                 dependencies
             end
 
@@ -295,7 +410,7 @@ module Apaka
             def self.gem_exact_versions(gems)
                 gem_exact_version = Hash.new
                 gems.each do |gem_name, version_requirements|
-                    gem_exact_version[gem_name] = resolve_by_name(gem_name, version_requirements)[:version]
+                    gem_exact_version[gem_name] = resolve_by_name(gem_name, version: version_requirements)[:version]
                 end
                 gem_exact_version
             end
