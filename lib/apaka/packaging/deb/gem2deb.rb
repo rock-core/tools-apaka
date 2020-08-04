@@ -183,7 +183,7 @@ module Apaka
                         Packager.info "Debian ruby name: #{debian_ruby_name} -- directory #{Dir.glob("**")}"
                         Packager.info "Debian ruby unversioned name: #{debian_ruby_unversioned_name}"
                         install_dir = rock_install_directory
-                        install_dir += "/#{debian_ruby_unversioned_name}" if not @current_pkg_info
+                        install_dir = File.join(install_dir,debian_ruby_unversioned_name) if not @current_pkg_info
                         debian_install_dir = "debian/#{debian_ruby_unversioned_name}#{install_dir}"
 
                         ############

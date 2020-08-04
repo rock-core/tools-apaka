@@ -186,7 +186,7 @@ module Apaka
                         # to the generated env.sh
                         if line =~ /ENVSH_SOURCE_PATH (.*)/
                             path = $1
-                            File.open("env.sh","a+") do |file|
+                            File.open("env.sh","a") do |file|
                                 file.puts ". #{path}"
                             end
                         end
