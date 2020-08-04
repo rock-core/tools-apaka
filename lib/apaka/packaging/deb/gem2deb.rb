@@ -431,6 +431,7 @@ module Apaka
                                     dpkg_commit_changes("add_#{action}_script", logfile: logfile)
                                 end
 
+                                debian_name = debian_ruby_unversioned_name
                                 path = File.join(TEMPLATES,action)
                                 template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
                                 rendered = template.result(binding)

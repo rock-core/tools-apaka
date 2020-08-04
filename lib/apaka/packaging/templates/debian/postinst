@@ -7,7 +7,7 @@ use File::Find;
 use YAML::XS qw(LoadFile DumpFile);
 
 my $apaka_release_install_dir = "<%= rock_release_install_directory %>";
-my $apaka_pkg_install_dir = "<%= rock_install_directory %>";
+my $apaka_pkg_install_dir = "<%= rock_install_directory(package_name: debian_name) %>";
 my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
 
 # Trim a trim
