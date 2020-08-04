@@ -732,8 +732,8 @@ module Apaka
                 # Generate an environment data structure:
                 # { VAR_NAME => { :type => :add_path, :values => [ ... ] } }
                 # @return env data
-                def generate_env_data(pkg_var, pkg_prefix)
-                    env_data = {}
+                def generate_env_data(pkg_var, pkg_prefix, base_data: {})
+                    env_data = base_data
                     env_data[pkg_var] = { :type => :set,
                                           :values => [ pkg_prefix ],
                                           :priority => 0
@@ -758,6 +758,7 @@ module Apaka
                         end
                     end
 
+                    binding.pry
                     if is_bundle?
                         env_data["ROCK_BUNDLE_PATH"] = {
                             :type => :add_path,
