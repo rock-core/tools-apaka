@@ -589,16 +589,75 @@ module Apaka
                     gem2deb.convert_package(gem_path, pkginfo, options)
                 end
 
+                # Update the debian directory with overlay and env.sh/env.yml
+                # @return [Array] Array with three filenames: [ *.debian.tar.gz, *orig.tar.gz, *.dsc]
+                def update_debian_dir(pkginfo, options)
+                    # Generate the debian directory
+                    generate_debian_dir(pkginfo, pkginfo.srcdir, options)
+
+                    if options[:patch_dir] && File.exist?(options[:patch_dir])
+                        if patch_pkg_dir(pkginfo.name, options[:patch_dir],
+                                whitelist: nil,
+                                pkg_dir: pkginfo.srcdir,
+                                options: patch_options())
+                            Packager.warn "Overlay patch applied to #{pkginfo.name}"
+                        end
+                        Dir.chdir(pkginfo.srcdir) do
+                            process_apaka_control("apaka.control")
+                        end
+                    end
+
+                    dpkg_commit_changes("overlay", pkginfo.srcdir,
+                                        logfile: options[:logfile])
+
+                    envyml = File.join(pkginfo.srcdir, "env.yml")
+                    Packager.warn("Preparing env.yml #{envyml}")
+                    patch_yml = {}
+                    if File.exists?(envyml)
+                        patch_yml = YAML.load_file(envyml)
+                    end
+
+                    env_data = pkginfo.generate_env_data("APAKA__" + Packaging.as_var_name(pkginfo.name), rock_install_directory, base_data: patch_yml)
+                    File.open(envyml, "w") do |file|
+                        file.write(env_data.to_yaml)
+                    end
+                    dpkg_commit_changes("envyml", pkginfo.srcdir,
+                                        logfile: options[:logfile])
+
+
+                    envsh = File.join(pkginfo.srcdir, "env.sh")
+                    Packager.warn("Preparing env.sh #{envsh}")
+                    File.open(envsh, "w") do |file|
+                        env_txt = pkginfo.envsh(env_data)
+                        file.write(env_txt)
+                    end
+                    dpkg_commit_changes("envsh", pkginfo.srcdir,
+                                        logfile: options[:logfile])
+
+
+                    # Run dpkg-source
+                    # Use the new tar ball as source
+                    if !system("dpkg-source", "-I", "-b", pkginfo.srcdir,
+                            [:out, :err] => redirection(options[:logfile],"a"),
+                            :close_others => true)
+                        Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source -- #{Dir.entries(pkginfo.srcdir)}"
+                        raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
+                    end
+                    ["#{versioned_name(pkginfo, options[:distribution])}.debian.tar.gz",
+                     "#{plain_versioned_name(pkginfo)}.orig.tar.gz",
+                     "#{versioned_name(pkginfo, options[:distribution])}.dsc"]
+                end
+
                 def package_default(pkginfo, options)
                     Packager.info "Package Deb: '#{pkginfo.name}' with options: #{options}"
 
                     options, unknown_options = Kernel.filter_options options,
                         :patch_dir => nil,
                         :distribution => nil,
-                        :architecture => nil
+                        :architecture => nil,
+                        :logfile => File.join(self.log_dir, "#{debian_name(pkginfo)}-apaka-package.log")
 
-                    logfile = File.join(self.log_dir, "#{debian_name(pkginfo)}-apaka-package.log")
-                    Autoproj.message "Perform packaging: including patching and running dpkg-source (see #{logfile})", :green
+                    Autoproj.message "Perform packaging: including patching and running dpkg-source (see #{options[:logfile]})", :green
 
                     distribution = options[:distribution]
 
@@ -617,7 +676,7 @@ module Apaka
 
                             if !tar_gzip(File.basename(pkginfo.srcdir), tarball,
                                     pkginfo.latest_commit_time, distribution,
-                                        logfile: logfile)
+                                        logfile: options[:logfile])
                                 raise RuntimeError, "Debian: #{pkginfo.name} failed to create archive"
                             end
                             package_with_update = true
@@ -630,53 +689,7 @@ module Apaka
                                                   "*#{target_platform.distribution_release_name}.dsc")
 
                         if package_with_update || dsc_files.empty?
-                            # Generate the debian directory
-                            generate_debian_dir(pkginfo, pkginfo.srcdir, options)
-
-                            if options[:patch_dir] && File.exist?(options[:patch_dir])
-                                if patch_pkg_dir(pkginfo.name, options[:patch_dir],
-                                        whitelist: nil,
-                                        pkg_dir: pkginfo.srcdir,
-                                        options: patch_options())
-                                    Packager.warn "Overlay patch applied to #{pkginfo.name}"
-                                end
-                                Dir.chdir(pkginfo.srcdir) do
-                                    process_apaka_control("apaka.control")
-                                end
-                            end
-                            dpkg_commit_changes("overlay", pkginfo.srcdir,
-                                                logfile: logfile)
-
-                            env_data = pkginfo.generate_env_data(Packaging.as_var_name(pkginfo.name), rock_install_directory)
-
-                            envsh = File.join(pkginfo.srcdir, "env.sh")
-                            Packager.warn("Preparing env.sh #{envsh}")
-                            File.open(envsh, "a") do |file|
-                                env_txt = pkginfo.envsh(env_data)
-                                file.write(env_txt)
-                            end
-                            dpkg_commit_changes("envsh", pkginfo.srcdir,
-                                                logfile: logfile)
-
-                            envyml = File.join(pkginfo.srcdir, "env.yml")
-                            Packager.warn("Preparing env.yml #{envyml}")
-                            File.open(envyml, "w") do |file|
-                                file.write(env_data.to_yaml)
-                            end
-                            dpkg_commit_changes("envyml", pkginfo.srcdir,
-                                                logfile: logfile)
-
-                            # Run dpkg-source
-                            # Use the new tar ball as source
-                            if !system("dpkg-source", "-I", "-b", pkginfo.srcdir,
-                                    [:out, :err] => redirection(logfile,"a"),
-                                    :close_others => true)
-                                Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source -- #{Dir.entries(pkginfo.srcdir)}"
-                                raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
-                            end
-                            ["#{versioned_name(pkginfo, distribution)}.debian.tar.gz",
-                             "#{plain_versioned_name(pkginfo)}.orig.tar.gz",
-                             "#{versioned_name(pkginfo, distribution)}.dsc"]
+                            update_debian_dir(pkginfo, options)
                         else
                             Packager.info "Package: #{pkginfo.name} is up to date"
                         end

@@ -52,26 +52,11 @@ module Apaka
                                                   "*#{target_platform.distribution_release_name}.dsc")
 
                         if package_with_update || dsc_files.empty?
-                            # Generate the debian directory
-                            generate_debian_dir(pkginfo, pkginfo.srcdir, options)
-
-                            # Commit local changes, e.g. check for
-                            # control/urdfdom as an example
-                            dpkg_commit_changes("local_build_changes", pkginfo.srcdir)
-
-                            # Run dpkg-source
-                            # Use the new tar ball as source
-                            Packager.info `dpkg-source -I -b #{pkginfo.srcdir}`
-                            if !system("dpkg-source", "-I", "-b", pkginfo.srcdir, :close_others => true)
-                                Packager.warn "Package: #{pkginfo.name} failed to perform dpkg-source: entries #{Dir.entries(pkginfo.srcdir)}"
-                                raise RuntimeError, "Debian: #{pkginfo.name} failed to perform dpkg-source in #{pkginfo.srcdir}"
-                            end
-                            ["#{versioned_name(pkginfo, distribution)}.debian.tar.gz",
-                             "#{plain_versioned_name(pkginfo)}.orig.tar.gz",
-                             "#{versioned_name(pkginfo, distribution)}.dsc"]
+                            update_debian_dir(pkginfo, options)
                         else
                             Packager.info "Package: #{pkginfo.name} is up to date"
                         end
+                        FileUtils.rm_rf( File.basename(pkginfo.srcdir) )
                     end
                 end
 
