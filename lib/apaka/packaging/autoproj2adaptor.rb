@@ -758,7 +758,6 @@ module Apaka
                         end
                     end
 
-                    binding.pry
                     if is_bundle?
                         env_data["ROCK_BUNDLE_PATH"] = {
                             :type => :add_path,
