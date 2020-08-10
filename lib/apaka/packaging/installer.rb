@@ -262,7 +262,6 @@ module Apaka
                     #make sure a usable ruby version is installed
                     image_install_pkg(distribution, architecture, "ruby2.0")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
-                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/ruby.divert /usr/bin/ruby")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/gem.divert /usr/bin/gem")
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/ruby2.0 1")
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/ruby ruby /usr/bin/gem2.0 1")
@@ -274,10 +273,19 @@ module Apaka
                     image_install_pkg(distribution, architecture, "python3.6")
                     image_install_pkg(distribution, architecture, "python3-pip")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/python.divert /usr/bin/python")
-                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/python.divert /usr/bin/python")
                     chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/pip.divert /usr/bin/pip")
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/python python /usr/bin/python3 1")
                     chroot_cmd(basepath, "update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1")
+                end
+
+                # Set default gcc/g++ version
+                if ["bionic"].include?(distribution)
+                    #make sure a usable ruby version is installed
+                    image_install_pkg(distribution, architecture, "g++-8")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/g++.divert /usr/bin/g++")
+                    chroot_cmd(basepath, "dpkg-divert --add --rename --divert /usr/bin/gcc.divert /usr/bin/gcc")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-8 1")
+                    chroot_cmd(basepath, "update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 1")
                 end
             end
 
