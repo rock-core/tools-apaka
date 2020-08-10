@@ -245,7 +245,14 @@ module Apaka
                         #
                         Dir.chdir(debian_ruby_name) do
                             package_name = options[:package_name] || gem_base_name
-                            if patch_pkg_dir(package_name, options[:patch_dir], options: { install_dir: install_dir})
+                            if patch_pkg_dir(package_name, options[:patch_dir],
+                                    options: { install_dir: install_dir,
+                                               release_name: rock_release_name,
+                                               release_dir: rock_release_install_directory(),
+                                               package_name: debian_ruby_unversioned_name,
+                                               package_dir: rock_install_directory(package_name: debian_ruby_unversioned_name)
+                                             }
+                                )
                                 dpkg_commit_changes("deb_autopackaging_overlay",
                                                     logfile: logfile)
                                 # the above may fail when we patched debian/control
