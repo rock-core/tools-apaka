@@ -5,7 +5,10 @@ SHELL := /bin/bash
 # BEGIN ENVIRONMENT SETUP
 # https://www.debian.org/doc/debian-policy/ch-source.html
 # nocheck: This tag says to not run any build-time test suite provided by the package.
-export DEB_BUILD_OPTIONS=nocheck
+DEB_BUILD_OPTIONS  = nocheck
+# To disable stripping
+#DEB_BUILD_OPTIONS += nostrip
+export DEB_BUILD_OPTIONS
 
 # Setup of $(arch), $(rockruby_libdir) and $(rockruby_archdir)
 <%= ruby_arch_setup %>
@@ -23,6 +26,7 @@ endif
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
+
 extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
 apaka_libdeps_dirs=`find $(rock_release_install_dir)/* -type d -name lib -exec echo -n ":{}" \;`
 # This argument list is forwarded to dh_shlibdeps which takes the -l option and a colon separated list of libraries
