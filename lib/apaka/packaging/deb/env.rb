@@ -100,6 +100,8 @@ module Apaka
                     # ignore files in build folders of CMake
                     s += "\tfind $(debian_install_prefix) -type f -name '*$2' -exec dirname {} + | grep -v CMakeFiles | uniq | xargs -i printf \"$1={}:\\$${$1}\\nexport $1\\n\" >> $(debian_install_prefix)/env.sh\n"
                     s += "\tsed -i s\#$(debian_install_prefix)\#$(rock_install_dir)\#g $(debian_install_prefix)/env.sh\n"
+                    s += "\tfind $(debian_install_prefix) -type f -name '*$2' -exec dirname {} + | grep -v CMakeFiles | uniq | xargs -i printf \"$1 {}\\n\" >> $(debian_install_prefix)/env.yml.append\n"
+                    s += "\tsed -i s\#$(debian_install_prefix)\#$(rock_install_dir)\#g $(debian_install_prefix)/env.yml.append\n"
                     s += "endef\n"
                     s
                 end
@@ -118,7 +120,7 @@ module Apaka
                         test_path = File.join(install_prefix,"*#{file_suffix}")
                     end
                     s = "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
-                    s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)/#{dirname}\" >> #{install_prefix}/env.yml.append)\n"
+                    s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)/#{dirname}\\n\" >> #{install_prefix}/env.yml.append)\n"
                     return s
                 end
 
