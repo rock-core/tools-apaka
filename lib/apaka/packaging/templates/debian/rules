@@ -165,7 +165,7 @@ common-binary-fixup-arch::
 	echo "Apaka: doing all the custom adaptions, once all patches have been applied"
 	echo "Installing env.yml (and env.yml.append) in $(rock_install_dir)"
 	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml" "$(DEB_DESTDIR)$(rock_install_dir)")
-	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml.append),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
 	echo "Updating env.sh in $(rock_install_dir)"
 	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(debian_install_prefix)")
 <%= env_create_exports() %>
