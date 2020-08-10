@@ -773,13 +773,18 @@ module Apaka
                 # Convert env data to string
                 def envsh(env_data)
                     s = ""
-                    env_data.each do | var_name, spec|
+                    env_data.each do |var_name, spec|
                         var_setup = "#{var_name}="
                         spec[:values].each do |value|
                             var_setup += value + ":" if value
                         end
 
                         case spec[:type]
+                        when :add
+                            if var_setup[-1] != ":"
+                                var_setup += ":"
+                            end
+                            var_setup += "${#{var_name}}\n"
                         when :add_path
                             if var_setup[-1] != ":"
                                 var_setup += ":"
@@ -791,6 +796,8 @@ module Apaka
                             else
                                 var_setup += "\n"
                             end
+                        else
+                            raise ArgumentError, "#{self.class}#{__method__}: unknown env op type: #{spec[:type]}"
                         end
                         var_setup += "export #{var_name}\n"
                         s += var_setup
