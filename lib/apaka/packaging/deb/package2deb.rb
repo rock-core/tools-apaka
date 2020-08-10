@@ -232,7 +232,8 @@ module Apaka
                 # in a given directory (or the current one by default)
                 def dpkg_commit_changes(patch_name, directory = Dir.pwd,
                                         prefix: "apaka-",
-                                        logfile: nil
+                                        logfile: nil,
+                                        include_removal: false
                                        )
                     Dir.chdir(directory) do
                         Packager.debug ("commit changes to debian pkg: #{patch_name}")
@@ -240,9 +241,16 @@ module Apaka
                         # take this approach to make it pass directly in an
                         # automated workflow
                         ENV['EDITOR'] = "/bin/true"
-                        system("dpkg-source", "--commit", ".", prefix + patch_name,
+                        cmd = ["dpkg-source", "--commit"]
+                        cmd << "--include-removal" if include_removal
+                        cmd << "."
+                        cmd << prefix + patch_name
+
+                        if !system(*cmd,
                                [:out, :err] => redirection(logfile,"a"),
                                :close_others => true)
+                            raise RuntimeError, "#{self.class}#{__method__}: failed to commit #{patch_name}"
+                        end
                     end
                 end
 
@@ -608,7 +616,8 @@ module Apaka
                     end
 
                     dpkg_commit_changes("overlay", pkginfo.srcdir,
-                                        logfile: options[:logfile])
+                                        logfile: options[:logfile],
+                                        include_removal: true)
 
                     envyml = File.join(pkginfo.srcdir, "env.yml")
                     Packager.warn("Preparing env.yml #{envyml}")
