@@ -29,6 +29,9 @@ module Apaka
                 DEBHELPER_DEFAULT_COMPAT_LEVEL = 9
                 DEB_ARTIFACTS_SUFFIXES = [".dsc", ".orig.tar.gz", ".debian.tar.gz", ".debian.tar.xz"]
 
+                DEFAULT_BUILD_DEPENDENCIES = []
+                DEFAULT_RUNTIME_DEPENDENCIES = [ "libyaml-libyaml-perl" ]
+
                 attr_reader :existing_debian_directories
 
                 # install directory if not given set to /opt/rock
@@ -291,6 +294,15 @@ module Apaka
                     @rock_autobuild_deps[pkginfo.build_type].each do |pkginfo|
                         name = debian_name(pkginfo)
                         build_dependencies << this_rock_release.packageReleaseName(name)
+                    end
+
+                    # To handle postinstall
+                    DEFAULT_BUILD_DEPENDENCIES.each do |dep|
+                        build_dependencies << dep
+                    end
+
+                    DEFAULT_RUNTIME_DEPENDENCIES.each do |dep|
+                        dependencies << dep
                     end
 
                     if pkginfo.build_type == :cmake

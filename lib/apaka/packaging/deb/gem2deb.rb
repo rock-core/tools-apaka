@@ -3,6 +3,8 @@ module Apaka
         module Deb
             class Gem2Deb < Package2Deb
                 GEM_FETCH_MAX_RETRY = 10
+                DEFAULT_BUILD_DEPENDENCIES = []
+                DEFAULT_RUNTIME_DEPENDENCIES = [ "libyaml-libyaml-perl" ]
 
                 def initialize(options = Hash.new)
                     super(options)
@@ -130,6 +132,29 @@ module Apaka
                             Autoproj.message "gem: #{gem_name} up to date (use --rebuild to enforce repackaging)", :green
                         end
                     end
+                end
+
+
+                def update_deps(dependencies, recursive_deps: nil)
+                    dependencies.each do |bdep|
+                        if bdep =~ /^ruby-(\S+)/
+                            pkg_name = $1
+                            release_name, is_osdep = @dep_manager.native_dependency_name(pkg_name)
+                            Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
+                            bdep.replace(release_name)
+                        end
+                        if !recursive_deps.nil?
+                            bdep =~ /^(\S+)/
+                            t = $1
+                            if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
+                                Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
+                                bdep.clear
+                                ## todo: problem here: bdep (or dep above) does not necessarily reference an actual object, or (as is the case with metaruby=>tools/metaruby) reference a similarly named object.
+                                ## in addition, metaruby is a metapackage, pulling tools/metaruby
+                            end
+                        end
+                    end
+                    dependencies
                 end
 
                 # When providing the path to a gem file converts the gem into
@@ -301,6 +326,11 @@ module Apaka
                                 depname, is_osdep = @dep_manager.native_dependency_name(k)
                                 all_deps << depname
                             end
+
+                            DEFAULT_BUILD_DEPENDENCIES.each do |d|
+                                all_deps << d
+                            end
+
                             deps = all_deps.uniq
 
                             if options.has_key?(:recursive_deps)
@@ -327,11 +357,14 @@ module Apaka
                             debcontrol.source["Vcs-Browser"] = ""
                             debcontrol.source["Vcs-Git"] = ""
                             debcontrol.source["Source"] = debian_ruby_unversioned_name
+
+                            # There should be just one
                             debcontrol.packages.each do |pkg|
                                 pkg["Package"] = debian_ruby_unversioned_name
                             end
 
                             # parse and filter dependencies
+                            pkg_depends = []
                             debcontrol.packages.each do |pkg|
                                 if pkg.has_key?("Depends")
                                     depends = pkg["Depends"].split(/,\s*/).map { |e| e.strip }
@@ -355,6 +388,9 @@ module Apaka
                                     depends = Array.new
                                 end
                                 depends.concat deps
+                                DEFAULT_RUNTIME_DEPENDENCIES.each do |d|
+                                    depends << d
+                                end
                                 depends.delete("")
                                 pkg["Depends"] = depends.uniq.join(", ") unless depends.empty?
                                 Packager.info "Depends: #{debian_ruby_name}: injecting dependencies: '#{pkg["Depends"]}'"
@@ -363,24 +399,7 @@ module Apaka
                             # parse and filter build dependencies
                             if debcontrol.source.has_key?("Build-Depends")
                                 build_depends = debcontrol.source["Build-Depends"].split(/,\s*/).map { |e| e.strip }
-                                build_depends.each do |bdep|
-                                    if bdep =~ /^ruby-(\S+)/
-                                        pkg_name = $1
-                                        release_name, is_osdep = @dep_manager.native_dependency_name(pkg_name)
-                                        Packager.debug "Native dependency of ruby package: '#{pkg_name}' -- #{release_name}, is available as osdep: #{is_osdep}"
-                                        bdep.replace(release_name)
-                                    end
-                                    if !recursive_deps.nil?
-                                        bdep =~ /^(\S+)/
-                                        t = $1
-                                        if !recursive_deps.include?(t) && !DEPWHITELIST.include?(t) && t !~ /^\${/
-                                            Packager.error "Dependency #{t} required by debian/control but not by rock. Check manifest."
-                                            bdep.clear
-                                            ## todo: problem here: bdep (or dep above) does not necessarily reference an actual object, or (as is the case with metaruby=>tools/metaruby) reference a similarly named object.
-                                            ## in addition, metaruby is a metapackage, pulling tools/metaruby
-                                        end
-                                    end
-                                end
+                                build_depends = update_deps(build_depends, recursive_deps: recursive_deps)
                             else
                                 build_depends = Array.new
                             end
