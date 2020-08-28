@@ -146,12 +146,14 @@ module Apaka
                 begin
 
                     image_prepare(distribution, architecture)
-                    image_update(distribution, architecture)
                     image_prepare_hookdir(distribution, architecture, release_prefix)
+                    image_update(distribution, architecture)
 
                     CHROOT_EXTRA_DEBS.each do |extra_pkg|
                         image_install_pkg(distribution, architecture, extra_pkg)
                     end
+                rescue Exception => e
+                    Installer.warn "#{e}"
                 ensure
                     @base_image_lock.unlock
                 end
@@ -328,7 +330,27 @@ module Apaka
                 end
 
                 prepare_deps_hook(hook_dir, distribution, rock_release_platform)
+                ["arm64"].include?(architecture) do
+                    prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
+                end
                 prepare_upgrade_from_backports_hook(hook_dir, distribution)
+            end
+
+            def self.prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
+                filename = "D10-man-db"
+                Dir.chdir(hook_dir) do
+                    File.open(filename, "w") do |f|
+                        f.write("#!/bin/sh\n")
+                        f.write("# Don't rebuild man-db\n")
+                        f.write("set -x\n")
+                        f.write("echo \"I: Preseed man-db/auto-update to false\"\n")
+                        f.write("debconf-set-selections <<EOF\n")
+                        f.write("man-db man-db/auto-update boolean false\n")
+                        f.write("EOF")
+                    end
+                    Packager.info "Disabling rebuilding of man-db: #{filename} in #{Dir.pwd}"
+                    FileUtils.chmod 0755, filename
+                end
             end
 
             def self.prepare_upgrade_from_backports_hook(hook_dir, distribution)
