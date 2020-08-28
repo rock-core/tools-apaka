@@ -15,7 +15,7 @@ Architecture: any
 <% if runtime_dependencies.empty?  %>
 Depends: ${shlibs:Depends}
 <% else %>
-Depends: ${shlibs:Depends}, <%= runtime_dependencies.join(", ") %>
+Depends: ${shlibs:Depends}, <%= runtime_dependencies.uniq.sort.join(", ") %>
 <% end %>
 Description: <%= short_documentation.split("\n").join(" ").strip %>
 % docs = (documentation.empty?)?"No documentation in manifest":
