@@ -731,6 +731,8 @@ module Apaka
                     @required_rock_packages
                 end
 
+                # Get all environment variable settings that
+                # should be applied when using this package
                 def env_ops
                     @pkg.env
                 end
@@ -740,21 +742,11 @@ module Apaka
                 # @return env data
                 def generate_env_data(pkg_var, pkg_prefix, base_data: {})
                     env_data = base_data
-                    env_data[pkg_var] = { :type => :set,
-                                          :values => [ pkg_prefix ],
-                                          :priority => 0
-                                        }
-
                     env_ops.each do |op|
                         var_name = op.name
                         env_data[var_name] ||= { :type => nil,
-                                                :values => [],
-                                                :priority => -1
+                                                :values => []
                                               }
-                        op.values.each do |value|
-                            env_data[var_name][:values] << value.gsub(@pkg.prefix, "${#{pkg_var}}") if value
-                        end
-
                         op_type = env_data[var_name][:type]
                         if not op_type
                             env_data[var_name][:type] = op.type
@@ -762,17 +754,16 @@ module Apaka
                             raise RuntimeError, "Apaka::Packaging::Autoproj2Adaptor.envsh: #{pkg_var} -- setting of env var: #{var_name} failed" \
                                 " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
                         end
+
+                        env_data[var_name][:values] = op.values.map { |v| v.gsub(pkg.prefix, pkg_prefix) }
                     end
 
                     if is_bundle?
                         env_data["ROCK_BUNDLE_PATH"] = {
                             :type => :add_path,
                             :values => [ File.join(pkg_prefix,"share","rock","bundles") ],
-                            :priority => -1
                         }
                     end
-
-                    env_data.sort_by { |k,v| v[:priority] }
                     env_data
                 end
 
