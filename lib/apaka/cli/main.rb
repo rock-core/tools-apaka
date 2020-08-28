@@ -162,6 +162,11 @@ module Apaka
                 run_apaka_cli(:reprepro, "Reprepro", Hash[], *args)
             end
 
+            desc "prepare", "Prepare the installation for a particular release"
+            def prepare(*args)
+                run_apaka_cli(:prepare, "Prepare", Hash[], *args)
+            end
+
             no_commands do
                 def default_report_on_package_failures
                    if (override = Main.default_report_on_package_failures)
