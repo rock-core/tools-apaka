@@ -7,31 +7,33 @@ module Apaka
             @source = Hash.new
             @packages = Array.new
 
+            # https://www.debian.org/doc/debian-policy/ch-controlfields.html
+            #
             # debian/control file reader/writer
             # These files have the following layout:
             #
-            # SourceBlock (having a Source key) 
+            # SourceParagraph (having a Source key)
             # ^\s*$
-            # PackageBlock (having a Pacakge key)
+            # PackageParagraph (having a Package key)
             # ^\s*$
-            # PackageBlock (having a Pacakge key)
+            # PackageParagraph (having a Packge key)
             # ...
-            # 
+            #
             # There may be signatures interspersed, we don't handle them.
             # Files may be compressed, we don't handle that either.
-            # A SourceBlock or PackageBlock is one or more Key/Value pairs as
+            # A SourceParagraph or PackageParagraph is one or more Key/Value pairs as
             # follows:
             #
             # ^<Key>: <Value>
             # ^<Key>: <Value>
             # ^\s<More Value>
             # ...
-            # 
+            #
             # Result is an array of hashes, preserving the order of the
-            # blocks, but not of the key/value pairs.
+            # paragraphs, but not of the key/value pairs.
             #
             def self.load(filename, opts = {})
-                blocks = Array.new
+                paragraphs = Array.new
                 hash = Hash.new
                 key = ""
                 File.open(filename).each_line do |line|
@@ -42,22 +44,22 @@ module Apaka
                     when /^\s(\s*\S.*)$/
                         hash[key] << "\n" + $1
                     when /^\s*$/
-                        blocks.push(hash) unless hash.empty?
+                        paragraphs.push(hash) unless hash.empty?
                         hash = Hash.new
                         key = ""
                     end
                 end
-                blocks.push(hash) unless hash.empty?
-                sourceblock = blocks.shift
-                self.new(sourceblock,blocks)
+                paragraphs.push(hash) unless hash.empty?
+                sourceparagraph = paragraphs.shift
+                self.new(sourceparagraph,paragraphs)
             end #parse
 
             def self.generate(debctl, opts = {})
                 ret = ""
-                first_block = true
-                debctl.blocks.each do |elem|
-                    ret << "\n" if ! first_block
-                    first_block = false
+                first_paragraph = true
+                debctl.paragraphs.each do |elem|
+                    ret << "\n" if ! first_paragraph
+                    first_paragraph = false
                     elem.each do |key,value|
                         ret << key << ":"
                         ret << "\n" if value.empty?
@@ -76,7 +78,7 @@ module Apaka
                 @packages = packages
             end #initialize
 
-            def blocks
+            def paragraphs
                 [ @source ] + @packages
             end
 
