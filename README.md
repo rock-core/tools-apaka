@@ -26,7 +26,7 @@ Start a new shell and source the env.sh.
 
 ## Creating an new Rock release with apaka
 
-The command line tool `deb_local` provides a way to generate Debian packages from autoproj information
+The command line tool `apaka` provides a way to generate Debian packages from autoproj information
 for use with the rock_osdeps package set.
 
 When creating a new release, the reprepro repository and build environment need
@@ -34,21 +34,21 @@ to be prepared first, i.e. required dependencies will be installed, including am
 A new site will be added to your apache2 configuration under /etc/apache/sites-enabled/100_apaka-reprepro.conf
 
 ```
-    deb_local --prepare
+    apaka prepare
 ```
 
 Creating a new Rock release requires some adaption to existing packages, so that an overlay can be applied, here using the
-optional `--patch-dir`. The current recipes for Rock can be found in [deb_patches](https://github.com/2maz/deb_patches).
+optional `--patch-dir`. The current recipes for Rock can be found in [apaka-rock_patches](https://github.com/rock-core/tools-apaka-rock_patches).
 To build all packages that are bootstrapped with a currently active autoproj manifest:
 
 ```
-    deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-18.01
+    apaka build --patch-dir tools/apaka-rock_patches --architecture amd64 --distribution bionic --release-name master-20.06
 ```
 
 To build only a particular package or package_set add it as parameter, e.g., here for base/cmake:
 
 ```
-    deb_local --patch-dir deb_patches --architecture amd64 --distribution xenial --release-name master-18.01 base/cmake
+    apaka build --patch-dir tools/apaka-rock_patches --architecture amd64 --distribution bionic --release-name master-20.06 base/cmake
 ```
 
 The package repository can be browsed under:
@@ -59,47 +59,46 @@ The package repository can be browsed under:
 As a final step, the yaml descriptions known as *.osdeps file can be generated and
 integrated into a packages set such as [rock-osdeps](https://github.com/rock-core/rock-osdeps)
 
-    dep_package --architectures amd64 --distributions xenial --release-name master-18.01 --update-osdeps-lists <rock_osdeps yaml dir>
+    apaka osdeps --release-name master-20.06 <rock_osdeps yaml dir>
 
 
 ### Examples:
 
 1. Deregistration of a package in reprepro
 
-    `deb_local --deregister --distribution xenial --release-name master-18.01 *orocos.rb*`
+    `apaka reprepro --deregister --distribution bionic --release-name master-20.06 *orocos.rb*`
 
 1. Registration of a debian package using the dsc file, which needs to be in the same folder as the deb and orig.tar.gz
 
-    `deb_local --register --distribution xenial --release-name master-18.01 build/rock-packager/rock-master-18.01-ruby-tools-orocos.rb/xenial-amd64/rock-master-18.01-ruby-tools-orocos.rb_0.1.0-1~xenial.dsc`
+    `apaka reprepro --register --distribution bionic --release-name master-20.06 build/rock-packager/rock-master-20.06-ruby-tools-orocos.rb/xenial-amd64/rock-master-20.06-ruby-tools-orocos.rb_0.1.0-1~xenial.dsc`
 
 1. Preparing for building
 
-    `deb_local --architecture amd64 --distribution xenial --release-name master-18.01 --prepare`
+    `apaka prepare --architecture amd64 --distribution bionic --release-name master-20.06`
 
-1. Building a set of packages
+1. Building a package
 
-    `deb_local --architecture amd64 --distribution xenial --release-name master-18.01 control/visp`
+    `apaka build --architecture amd64 --distribution bionic --release-name master-20.06 control/visp`
 
     This includes creating the .dsc file and orig.tar.gz using deb_package,
     building using cowbuilder and registering the package in reprepro.
 
 1. Generating .dsc source package description and orig.tar.gz
 
-    deb_package --architectures amd64 --distributions xenial --release-name master-18.01 --package tools/service_discovery
+    `apaka package --architectures amd64 --distributions bionic --release-name master-20.06 tools/service_discovery`
 
 1. Generate osdeps description file for use in rock_osdeps package set
 
-    deb_package --update-osdeps-lists rock.core --release-name master-18.01
+    `apaka osdeps --release-name master-20.06 --dest-dir /tmp/osdep-files`
 
 ### Meta package support
 
-If autoproj meta packages should be represented as debian meta packages, add
-`--build-meta`. This will only create meta packages of packages it finds on
-the commandline, not any that may be referenced through package sets or
-similar. The resulting packages are automatically added to the local reprepro
-repository.
+If autoproj meta packages should be represented as debian meta packages, you can
+use:
+    `apaka build_meta --release-name master-20.06 --distribution bionic --architecture amd64`
 
-
+This will only create meta packages of packages it finds currently on reprepro
+for the corresponding release, distribution, architecture combination.
 
 
 ## How to use an apaka release in combination with Rock
