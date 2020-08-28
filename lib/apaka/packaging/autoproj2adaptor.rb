@@ -634,6 +634,12 @@ module Apaka
                             pkg.importer.options[:archive_dir] ||= File.basename(pkg.srcdir)
                         end
                         pkg.importer.import(pkg)
+
+                        # Ensure that additional code from overrides.rb
+                        # (by addition a post_import block) applies
+                        Autoproj.each_post_import_block(pkg) do |block|
+                            block.call(pkg)
+                        end
                     rescue Exception => e
                         if not e.message =~ /failed in patch phase/
                             raise
