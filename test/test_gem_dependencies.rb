@@ -20,6 +20,6 @@ class TestGemDependencies < Minitest::Test
 
         desc = Apaka::Packaging::GemDependencies.resolve_by_name("autoproj")
         puts(desc)
-        assert(desc.include?(:deps))
+        assert(desc.has_key?("autobuild"))
     end
 end

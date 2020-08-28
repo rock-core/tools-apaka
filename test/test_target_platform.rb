@@ -14,7 +14,7 @@ class TestTargetPlatform < Minitest::Test
         @rock_platforms = Array.new
         @rock_platforms << Apaka::Packaging::TargetPlatform.new("master","amd64")
         Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka prepare"
             msg, status = Open3.capture2(cmd)
             if !status.success?
                 raise RuntimeError, "Failed to prepare system for apaka -- #{msg}"
@@ -52,7 +52,7 @@ class TestTargetPlatform < Minitest::Test
 
     def test_rock_package_available
         Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --rebuild --release-name master base/cmake"
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka build --rebuild --release-name master base/cmake"
             msg, status = Open3.capture2(cmd)
         end
         ["rock-master-base-cmake"].each do |pkg|
@@ -83,7 +83,7 @@ class TestTargetPlatform < Minitest::Test
 
     def test_rock_parent_contains
         Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --release-name master base/cmake"
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka build --release-name master base/cmake"
             msg, status = Open3.capture2(cmd)
         end
         Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
