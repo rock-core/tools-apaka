@@ -27,7 +27,7 @@ class TestDebian < Minitest::Test
         @gem_packager.build_dir = File.join(Autoproj.root_dir, "build/test-rock-packager")
 
         Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} deb_local --prepare"
+            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka prepare"
             msg, status = Open3.capture2(cmd)
             if !status.success?
                 raise RuntimeError, "Failed to prepare system for apaka -- #{msg}"
@@ -102,7 +102,7 @@ class TestDebian < Minitest::Test
             test_set["utilrb"] = ["bundler", "ruby-facets"]
         end
 
-        test_set["rtt"] = ["build-essential","cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
+        test_set["rtt"] = ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",
                                 "libboost-dev","libboost-graph-dev","libboost-program-options-dev",
                                 "libboost-regex-dev","libboost-thread-dev","libboost-filesystem-dev",
                                 "libboost-iostreams-dev","libboost-system-dev","libxml-xpath-perl"]
@@ -112,6 +112,7 @@ class TestDebian < Minitest::Test
             pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
             deps = packager.dep_manager.recursive_dependencies(pkginfo)
             deps.delete_if { |dep| dep == "ccache" }
+            deps.delete_if { |dep| dep == "build-essential" }
             assert_equal(expected_deps.uniq.sort, deps.uniq.sort, "Recursive dependencies for '#{pkg_name}': " \
                    " #{deps} expected #{expected_deps}")
         end
