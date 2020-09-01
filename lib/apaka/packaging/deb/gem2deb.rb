@@ -4,7 +4,7 @@ module Apaka
             class Gem2Deb < Package2Deb
                 GEM_FETCH_MAX_RETRY = 10
                 DEFAULT_BUILD_DEPENDENCIES = []
-                DEFAULT_RUNTIME_DEPENDENCIES = [ "libyaml-libyaml-perl" ]
+                DEFAULT_RUNTIME_DEPENDENCIES = [ "ruby" ]
 
                 def initialize(options = Hash.new)
                     super(options)

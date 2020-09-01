@@ -30,7 +30,7 @@ module Apaka
                 DEB_ARTIFACTS_SUFFIXES = [".dsc", ".orig.tar.gz", ".debian.tar.gz", ".debian.tar.xz"]
 
                 DEFAULT_BUILD_DEPENDENCIES = []
-                DEFAULT_RUNTIME_DEPENDENCIES = [ "libyaml-libyaml-perl" ]
+                DEFAULT_RUNTIME_DEPENDENCIES = [ "ruby" ]
 
                 attr_reader :existing_debian_directories
 

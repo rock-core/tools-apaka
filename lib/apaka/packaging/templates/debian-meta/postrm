@@ -1,52 +1,41 @@
-#!/usr/bin/perl
+#!/usr/bin/env ruby
 
-# An identical script is used for postinst and postrm
+require 'fileutils'
+require 'yaml'
+require 'find'
 
-use strict;
-use File::Find;
+APAKA_RELEASE_INSTALL_DIR = "<%= rock_release_install_directory %>"
+APAKA_PKG_INSTALL_DIR = "<%= rock_install_directory(package_name: debian_name) %>"
+APAKA_RELEASE_DOC_INSTALL_DIR = "#{APAKA_RELEASE_INSTALL_DIR}/share/doc"
 
-my $apaka_release_install_dir = "<%= rock_release_install_directory %>";
-my $apaka_release_doc_install_dir = "$apaka_release_install_dir/share/doc";
+def update_index_html
+    apaka_doc_dir = Dir.glob(File.join(APAKA_RELEASE_INSTALL_DIR,"*","share","[a-zA-Z]*"))
 
-my @indexfiles = ();
-sub update_index_html() {
-    my $apaka_doc_dirs = "$apaka_release_install_dir/*/share/[a-zA-Z]*";
+    # make sure release doc directory exists
+    FileUtils.mkdir_p APAKA_RELEASE_DOC_INSTALL_DIR unless File.exist?(APAKA_RELEASE_DOC_INSTALL_DIR)
 
-    #make sure $apaka_release_doc_install_dir exists
-    system("mkdir","-p",$apaka_release_doc_install_dir);
-    #collect candidate files
-    my @dirs = glob("$apaka_doc_dirs");
-    my @indexes = map {
-        my $dir = $_;
-        # Identify package by parent folder of
-        # share folder
-        $dir =~ m!/([^\/]+)\/share\/(.+)!;
-        my $pkg = $1;
-        $dir =~ s!/+$!!;
+    packages_indexes = {}
+    # collect candidate files in the directories
+    apaka_doc_dir.each do |doc_dir|
+        pkg_name = $1
+        if doc_dir =~ /\/([^\/]+)\/share/
+            pkg_name = $1
+        else
+            next
+        end
 
-        @indexfiles = ();
-        find(\&wanted, $dir);
-        sub wanted {
-            return if ! -e;
-            if($File::Find::name =~ /\/index.htm/)
-            {
-                push @indexfiles, $File::Find::name;
-            }
-        }
-        my @candidates = sort {
-            length($a) <=> length($b);
-        } @indexfiles;
+        Find.find(doc_dir) do |path|
+            if path =~ /\/index.htm/
+                packages_indexes[pkg_name] ||= []
+                packages_indexes[pkg_name] << path
+            end
+        end
+    end
+    create_index_html(packages_indexes)
+end
 
-        my $idx = substr $candidates[0],length($dir);
-        $idx =~ s!^/+!!;
-
-        $idx ? ({ pkg => $pkg, dir => $dir, index => $idx }) : ();
-    } @dirs;
-
-    #create html on the fly. we can only rely on perl core packages.
-    my $index;
-    open $index,">","$apaka_release_doc_install_dir/index.html" or die "Could not create $apaka_release_doc_install_dir/index.html";
-    print $index <<"[END]";
+def create_index_html(index_list)
+    html = <<-END
 <html>
 <head>
 <title>Rock package documentation index</title>
@@ -54,69 +43,120 @@ sub update_index_html() {
 <body>
 <h1>Rock package documentation index</h1>
 <ul>
-[END]
-    foreach my $idx (@indexes) {
-        my ($pkg,$dir,$file) = ($idx->{pkg},$idx->{dir},$idx->{index});
+END
+    sorted_packages = index_list.keys.sort
+    sorted_packages.each do |pkg|
+        pkg_indexes = index_list[pkg]
+        pkg_indexes.each_with_index do |path, idx|
+            pkg_link_name = pkg
+            if idx > 0
+                pkg_link_name += "_#{idx}"
+            end
 
-        # Link into the main release folder
-        my $doc_pkg_link = "$apaka_release_install_dir/share/doc/$pkg";
-        if(! -e "$doc_pkg_link") {
-            system("cd $apaka_release_doc_install_dir; ln -rs $dir $pkg");
-        } elsif(lstat $doc_pkg_link and not stat $doc_pkg_link) {
-            unlink($doc_pkg_link);
-        }
-
-        print $index <<"[END]";
-<li> <a href="$pkg/$file">$pkg</a>
-[END]
-    }
-    print $index <<"[END]";
+            doc_pkg_link = File.join(APAKA_RELEASE_INSTALL_DIR, "share","doc",pkg_link_name)
+            if !File.exist?(doc_pkg_link)
+                # cleanup required
+                if File.symlink?(doc_pkg_link)
+                    FileUtils.rm doc_pkg_link
+                else
+                    Dir.chdir(APAKA_RELEASE_DOC_INSTALL_DIR) do 
+                        cmd = "ln -rs #{path} #{pkg_link_name}"
+                        if !system(cmd)
+                            puts "Failed to link with: #{cmd}"
+                        end
+                    end
+                end
+            end
+            if path =~ /(share\/.*)/
+                relative_path_pkg_index = $1
+                html_list_item = <<-END
+<li><a href="#{File.join(pkg,relative_path_pkg_index)}">#{pkg_link_name}</a>
+END
+                html += html_list_item
+            end
+        end
+    end
+    html_end = <<-END
 </ul>
 </body>
 </html>
-[END]
-    close $index;
+END
+    html += html_end
+    
+    index_file = File.join(APAKA_RELEASE_DOC_INSTALL_DIR,"index.html")
+    if index_list.empty?
+        FileUtils.rm index_file if File.exist?(index_file)
+    else
+        File.open(index_file,"w") do |file|
+            file.write(html)
+        end
+    end
+end
 
-    # Cleaning up if no packages can be found
-    my $number_of_pkgs = @indexes;
-    if ($number_of_pkgs == 0) {
-        my $index_file = "$apaka_release_doc_install_dir/index.html";
-        if(-e $index_file) {
-            unlink($index_file);
-        }
-    }
-}
+# Update the env.yml file with the information provided in the env.yml
+# file
+def update_env_yml
+    append_file = File.join(APAKA_PKG_INSTALL_DIR, "env.yml.append")
+    return unless File.exist?(append_file)
 
-my $cmd = shift;
+    env_file = File.join(APAKA_PKG_INSTALL_DIR,"env.yml")
+    env_data = YAML.load_file(env_file) || {}
 
-if ($0 =~ /postinst$/) {
-    if ($cmd == "configure") {
-        #called when the package files have been installed during installation
-        #of the package
-        update_index_html();
-    } elsif ($cmd == "abort-upgrade") {
+    File.open(append_file).each_line do |line|
+        variable, value = line.strip.split(" ")
+        if env_data.include?(variable)
+            env_data[variable][:values] << value.strip
+        else
+            env_data[variable] = { 
+                :type => :add,
+                :values => [ value.strip ] 
+            }
+        end
+        env_data[variable].uniq!
+    end
+    File.open(env_file,"w") do |file|
+        file.write(env_data.to_yaml)
+    end
+
+    FileUtils.rm(append_file)
+end
+
+cmd = ARGV.shift
+if $0 =~ /postinst$/ 
+    return unless cmd
+
+    case cmd
+    when "configure"
+	#called when the package files have been installed during installation
+	#of the package
+	update_index_html()
+        update_env_yml()
+    when "abort-upgrade"
         #called during package upgrade/install
-    } elsif ($cmd == "abort-remove") {
+    when "abort-remove"
         #called during package upgrade/install
-    } elsif ($cmd == "abort-deconfigure") {
+    when "abort-deconfigure"
         #called during package upgrade/install
-    }
-} elsif ($0 =~ /postrm$/) {
-    if ($cmd == "remove") {
+    end
+elsif $0 =~ /postrm$/
+    return unless cmd
+
+    case cmd
+    when "remove"
         #called after removal of the packages files during removal of the
         #package
-        update_index_html();
-    } elsif ($cmd == "purge") {
+        update_index_html()
+    when "purge"
         #called after "remove"
-    } elsif ($cmd == "upgrade") {
+    when "upgrade"
         #called during package upgrade/install
-    } elsif ($cmd == "disappear") {
+    when "disappear"
         #called during package upgrade/install
-    } elsif ($cmd == "failed-upgrade") {
+    when "failed-upgrade"
         #called during package upgrade/install
-    } elsif ($cmd == "abort-install") {
+    when "abort-install"
         #called during package upgrade/install
-    } elsif ($cmd == "abort-upgrade") {
+    when "abort-upgrade"
         #called during package upgrade/install
-    }
-}
+    end
+end
