@@ -1,10 +1,11 @@
 require 'open3'
-
-require_relative 'packager'
+require 'utilrb/logger'
 require_relative 'config'
 
 module Apaka
     module Packaging
+        extend Logger::Root("Packaging", Logger::INFO)
+
         class TargetPlatform
             attr_reader :distribution_release_name
             attr_reader :architecture
