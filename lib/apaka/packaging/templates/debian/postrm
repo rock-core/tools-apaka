@@ -112,7 +112,7 @@ def update_env_yml
                 :values => [ value.strip ] 
             }
         end
-        env_data[variable].uniq!
+        env_data[variable][:values].uniq!
     end
     File.open(env_file,"w") do |file|
         file.write(env_data.to_yaml)
