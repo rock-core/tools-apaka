@@ -9,6 +9,6 @@ Source: <%= origin_information.join(" ") %>, see also <%= Apaka::Packaging::Conf
     and license information.
 Files: <%= source_files.join(" ") %> (see <%= debian_name %>.orig.tar.gz)
 Copyright: <%= copyright %>
-Comment: the Debian packaging is licensed under the same terms as the original
+Comment: the Debian package is licensed under the same terms as the original
     package.
 License: <%= license %>
