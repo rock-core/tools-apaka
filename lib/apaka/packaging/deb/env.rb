@@ -116,11 +116,14 @@ module Apaka
                 def create_export(varname, dirname, install_prefix: "$(debian_install_prefix)", file_suffix: nil)
                     if dirname and !dirname.empty?
                         test_path = File.join(install_prefix,dirname,"*#{file_suffix}")
+                        s = "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
+                        s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)/#{dirname}\\n\" >> #{install_prefix}/env.yml.append)\n"
                     else
                         test_path = File.join(install_prefix,"*#{file_suffix}")
+                        # Avoid trailing / in var name for consistency reasons
+                        s = "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir):\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
+                        s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)\\n\" >> #{install_prefix}/env.yml.append)\n"
                     end
-                    s = "\t$(if $(wildcard #{test_path}),-printf \"#{varname}=$(rock_install_dir)/#{dirname}:\\\$${#{varname}}\\nexport #{varname}\\n\" >> #{install_prefix}/env.sh)\n"
-                    s += "\t$(if $(wildcard #{test_path}),-printf \"#{varname} $(rock_install_dir)/#{dirname}\\n\" >> #{install_prefix}/env.yml.append)\n"
                     return s
                 end
 
