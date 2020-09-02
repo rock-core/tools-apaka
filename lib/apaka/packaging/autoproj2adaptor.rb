@@ -408,8 +408,8 @@ module Apaka
                     end
                 end
 
-                extra_gems = Array.new()
-                extra_osdeps = Array.new()
+                extra_gems = Array.new
+                extra_osdeps = Array.new
 
                 # Add the ruby requirements for the current rock selection
                 #todo: this used to work an all_packages without the already installed packages
@@ -423,7 +423,7 @@ module Apaka
                             next
                         end
 
-                        deps = {}
+                        deps = nil
                         begin
                             # Retrieve information about osdeps and non-native
                             # dependencies, since
@@ -435,6 +435,8 @@ module Apaka
                             failed_packages << pkg
                             next
                         end
+
+                        next unless deps
 
                         # Update global list
                         extra_osdeps.concat deps[:osdeps]
@@ -448,7 +450,7 @@ module Apaka
                         end
                     rescue Exception => e
                         Packager.warn "Apaka::Packaging::Autoproj2Adaptor: failed to process package " \
-                            " '#{pkg.name}' -- #{e.message}"
+                            " '#{pkg.name}' -- #{e.message} -- #{e.backtrace}"
                         failed_packages << pkg.name
                     end
                 end
