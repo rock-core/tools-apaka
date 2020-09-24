@@ -35,12 +35,12 @@ module Apaka
                 debian_package_dir = packager.packaging_dir(debian_pkg_name)
 
                 dsc_file = Dir.glob(File.join(debian_package_dir,"*.dsc")).first
-                rebuild_log = File.join(packager.log_dir, "#{debian_pkg_name}-deb_local-rebuild.log")
+                rebuild_log = File.join(packager.log_dir, "#{debian_pkg_name}-apaka-rebuild.log")
                 if !dsc_file
                     raise RuntimeError, "Local rebuild of pkg #{debian_pkg_name} failed -- see #{rebuild_log}"
                 end
 
-                options[:log_file] = File.join(packager.log_dir, "#{debian_pkg_name}-deb_local-build.log")
+                options[:log_file] = File.join(packager.log_dir, "#{debian_pkg_name}-apaka-build.log")
                 options[:dest_dir] ||= debian_package_dir
 
                 if packager.reprepro.has_package?(debian_pkg_name,
@@ -88,7 +88,7 @@ module Apaka
 
                 if packager.target_platform == Apaka::Packaging::TargetPlatform.autodetect_target_platform
                     puts "############### install #{debian_pkg_name} #####################"
-                    install_log = File.join(packager.log_dir,"#{debian_pkg_name}-deb_local-install.log")
+                    install_log = File.join(packager.log_dir,"#{debian_pkg_name}-apaka-install.log")
                     packager.install(debian_pkg_name)
                 #begin
 #                    selected_gems.each do |gem_name, gem_version|
@@ -180,7 +180,7 @@ module Apaka
 
                 #validate sudo credentials while we are still single threaded
                 system("sudo","-v") if !options[:dry_run]
-                log_file = File.join(options[:log_dir],'deb_local-build_results.yml')
+                log_file = File.join(options[:log_dir],'apaka-build_results.yml')
                 while !pending_jobs.empty? || !running_jobs.empty?
                     #first, remove all jobs depending on failed jobs
                     pending_jobs.delete_if do |k,v|
