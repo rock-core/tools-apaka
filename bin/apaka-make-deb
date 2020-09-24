@@ -199,7 +199,7 @@ else
 fi
 
 # clone deb_patches into directory
-if $(git clone https://github.com/2maz/deb_patches.git "$dir/deb_patches" 2> /dev/null); then
+if $(git clone https://github.com/rock-core/tools-apaka-rock_patches.git "$dir/deb_patches" 2> /dev/null); then
   echo "INFO: Cloned deb_patches from git"
 else
   echo "INFO: deb_patches already exists. Skip cloning from git repository."
@@ -214,12 +214,12 @@ fi
 cd $dir
 source env.sh && export BASE_LOG_LEVEL="ERROR" 
 echo "INFO: Prepare for packaging"
-deb_local --release-name $release $architecture $distribution --prepare
+apaka prepare --release-name $release --architecture $architecture --distribution $distribution
 echo "INFO: Perform packaging"
-deb_local --patch-dir deb_patches --release-name $release $architecture $distribution $package
+apaka build --patch-dir deb_patches --release-name $release --architecture $architecture --distribution $distribution $package
 } && {
 if $osdeps ; then
   echo "Generating osdep-list of release $release in $dir/build/apaka-packager"
-  deb_package --release-name $release --update-osdeps-lists $dir
+  apaka osdeps --release-name $release --dest-dir $dir
 fi
 }
