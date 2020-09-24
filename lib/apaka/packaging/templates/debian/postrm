@@ -8,7 +8,7 @@ APAKA_RELEASE_INSTALL_DIR = "<%= rock_release_install_directory %>"
 APAKA_PKG_INSTALL_DIR = "<%= rock_install_directory(package_name: debian_name) %>"
 APAKA_RELEASE_DOC_INSTALL_DIR = "#{APAKA_RELEASE_INSTALL_DIR}/share/doc"
 
-def update_index_html
+def update_index_html(remove: false)
     apaka_doc_dir = Dir.glob(File.join(APAKA_RELEASE_INSTALL_DIR,"*","share","[a-zA-Z]*"))
 
     # make sure release doc directory exists
@@ -31,10 +31,10 @@ def update_index_html
             end
         end
     end
-    create_index_html(packages_indexes)
+    create_index_html(packages_indexes, remove: remove)
 end
 
-def create_index_html(index_list)
+def create_index_html(index_list, remove: false)
     html = <<-END
 <html>
 <head>
@@ -44,36 +44,40 @@ def create_index_html(index_list)
 <h1>Rock package documentation index</h1>
 <ul>
 END
+    added_packages = []
     sorted_packages = index_list.keys.sort
     sorted_packages.each do |pkg|
         pkg_indexes = index_list[pkg]
         pkg_indexes.each_with_index do |path, idx|
             pkg_link_name = pkg
-            if idx > 0
-                pkg_link_name += "_#{idx}"
-            end
 
             doc_pkg_link = File.join(APAKA_RELEASE_INSTALL_DIR, "share","doc",pkg_link_name)
-            if !File.exist?(doc_pkg_link)
-                # cleanup required
-                if File.symlink?(doc_pkg_link)
-                    FileUtils.rm doc_pkg_link
-                else
-                    Dir.chdir(APAKA_RELEASE_DOC_INSTALL_DIR) do 
-                        cmd = "ln -rs #{path} #{pkg_link_name}"
-                        if !system(cmd)
-                            puts "Failed to link with: #{cmd}"
-                        end
-                    end
+            FileUtils.rm doc_pkg_link if File.symlink?(doc_pkg_link)
+
+            if remove && APAKA_PKG_INSTALL_DIR =~ /#{pkg}$/
+                next
+            end
+
+            pkg_dir = File.join(APAKA_RELEASE_INSTALL_DIR, pkg)
+            Dir.chdir(APAKA_RELEASE_DOC_INSTALL_DIR) do 
+                cmd = "ln -rs #{pkg_dir} #{pkg_link_name}"
+                if !system(cmd)
+                    puts "postinst for #{pkg}: Failed to link with: #{cmd}"
                 end
             end
+
             if path =~ /(share\/.*)/
                 relative_path_pkg_index = $1
+                if idx > 0
+                    pkg_link_name += "_#{idx}"
+                end
+
                 html_list_item = <<-END
 <li><a href="#{File.join(pkg,relative_path_pkg_index)}">#{pkg_link_name}</a>
 END
                 html += html_list_item
             end
+            added_packages << pkg
         end
     end
     html_end = <<-END
@@ -84,7 +88,7 @@ END
     html += html_end
     
     index_file = File.join(APAKA_RELEASE_DOC_INSTALL_DIR,"index.html")
-    if index_list.empty?
+    if added_packages.empty?
         FileUtils.rm index_file if File.exist?(index_file)
     else
         File.open(index_file,"w") do |file|
@@ -145,7 +149,7 @@ elsif $0 =~ /postrm$/
     when "remove"
         #called after removal of the packages files during removal of the
         #package
-        update_index_html()
+        update_index_html(remove: true)
     when "purge"
         #called after "remove"
     when "upgrade"
