@@ -333,7 +333,7 @@ module Apaka
                 ["arm64"].include?(architecture) do
                     prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
                 end
-                prepare_upgrade_from_backports_hook(hook_dir, distribution)
+                #prepare_upgrade_from_backports_hook(hook_dir, distribution)
             end
 
             def self.prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
