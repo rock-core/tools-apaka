@@ -114,6 +114,10 @@ module Apaka
                 desc: "Force rebuilding / repackaging"
             option :install, type: :boolean, default: false,
                 desc: "Install the built package on the local platform"
+            option :architecture, type: :string,
+                desc: "Architecture to build for"
+            option :distribution, type: :string,
+                desc: "Distribution to build for"
             def build_meta(*args)
                 run_apaka_cli(:build_meta, "BuildMeta", Hash[], *args)
             end
