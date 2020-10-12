@@ -241,11 +241,13 @@ To run the test suite you can either call
 ```
 or
 ```
+    export BUNDLE_GEMFILE=$PWD/test/workspace
     ruby -Ilib test/test_packaging.rb
 ```
 To run only individual tests, use the -n option, e.g.,
 for the test_canonize
 ```
+    export BUNDLE_GEMFILE=$PWD/test/workspace
     ruby -Ilib test/test_packaging.rb -n test_canonize
 ```
 

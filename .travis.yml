@@ -16,4 +16,4 @@ install:
               --build-arg PKG_PULL_REQUEST="${TRAVIS_PULL_REQUEST}"
               --build-arg PKG_PULL_REQUEST_BRANCH="${TRAVIS_PULL_REQUEST_BRANCH}"
 script:
-    - docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; rake test"
+    - docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"
