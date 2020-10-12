@@ -757,7 +757,7 @@ module Apaka
                                 " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
                         end
 
-                        env_data[var_name][:values] = op.values.map { |v| v.gsub(pkg.prefix, pkg_prefix) }
+                        env_data[var_name][:values] = op.values.map { |v| v.gsub(pkg.prefix, pkg_prefix) if v }
                     end
 
                     if is_bundle?
