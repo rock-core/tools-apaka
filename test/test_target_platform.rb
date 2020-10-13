@@ -51,14 +51,28 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_rock_package_available
-        Dir.chdir(Autoproj.root_dir) do
-            cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka build --rebuild --release-name master base/cmake"
-            msg, status = Open3.capture2(cmd)
-        end
-        ["rock-master-base-cmake"].each do |pkg|
-            @rock_platforms.each do |platform|
-                assert( platform.contains(pkg), "'#{pkg}' is available for #{platform}" )
+        cmd = "sudo mount -t proc /proc/ /mnt"
+        msg, status = Open3.capture2e(cmd)
+        if status.success?
+            cmd = "sudo umount /mnt"
+            msg, status = Open3.capture2e(cmd)
+
+            Dir.chdir(Autoproj.root_dir) do
+                cmd = "RUBYLIB=#{File.join(__dir__,'..','lib')} PATH=#{File.join(__dir__,'..','bin')}:#{ENV['PATH']} apaka build --rebuild --release-name master base/cmake"
+                msg, status = Open3.capture2(cmd)
+                if not status.success?
+                    raise RuntimeError, "Failed to build base/cmake -- #{msg}"
+                end
             end
+            ["rock-master-base-cmake"].each do |pkg|
+                @rock_platforms.each do |platform|
+                    assert( platform.contains(pkg), "'#{pkg}' is available for #{platform}" )
+                end
+            end
+        else
+            puts "Disabling test #test_rock_package_available since current "\
+                "setup does not support mounting of /proc filesystem. " \
+                "If you a running inside a docker use with --priviledge"
         end
     end
     def test_rock_package_unavailable
