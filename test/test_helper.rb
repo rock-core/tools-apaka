@@ -5,6 +5,14 @@ require_relative '../lib/apaka/packaging/autoproj2adaptor'
 require_relative '../lib/apaka/packaging/packageinfoask'
 
 Autoproj.root_dir = File.join(__dir__,"workspace")
+
+# create .autoproj/bin/bundle
+bin_dir = File.join(Autoproj.root_dir, ".autoproj","bin")
+FileUtils.mkdir_p bin_dir unless File.exist?(bin_dir)
+Dir.chdir(bin_dir) do
+    bundle_bin = `which bundle`.strip
+    FileUtils.ln_s bundle_bin, "bundle" if bundle_bin and not File.symlink?("bundle")
+end
 $autoprojadaptor = Apaka::Packaging::PackageInfoAsk.new(:detect, Hash.new())
 
 def autoprojadaptor
