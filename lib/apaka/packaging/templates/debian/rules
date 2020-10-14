@@ -1,9 +1,14 @@
 #!/usr/bin/make -f
 
+SHELL := /bin/bash
+
 # BEGIN ENVIRONMENT SETUP
 # https://www.debian.org/doc/debian-policy/ch-source.html
 # nocheck: This tag says to not run any build-time test suite provided by the package.
-export DEB_BUILD_OPTIONS=nocheck
+DEB_BUILD_OPTIONS  = nocheck
+# To disable stripping
+#DEB_BUILD_OPTIONS += nostrip
+export DEB_BUILD_OPTIONS
 
 # Setup of $(arch), $(rockruby_libdir) and $(rockruby_archdir)
 <%= ruby_arch_setup %>
@@ -21,21 +26,25 @@ endif
 
 DEB_VERBOSE_ALL=1
 include /usr/share/cdbs/1/rules/debhelper.mk
-extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
-# This argument list is forwarded to dh_shlibdeps which takes the -l option and a colon separated list of libraries
-# (not that this is different from the linker arguments)
-DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_library_dirs)
 
-rock_doc_install_dir=$(rock_install_dir)/share/doc/<%= debian_name %>
+extra_lib_dir=$(shell pwd)/debian/<%= debian_name %>$(rock_install_dir)/lib
+apaka_libdeps_dirs=`find $(rock_release_install_dir)/* -type d -name lib -exec echo -n ":{}" \;`
+# This argument list is forwarded to dh_shlibdeps which takes the -l option and a colon separated list of libraries
+# (note that this is different from the linker arguments)
+DEB_DH_SHLIBDEPS_ARGS_ALL=-l$(extra_lib_dir):$(extra_lib_dir)/$(arch):$(rock_library_dirs):${apaka_libdeps_dirs}
+
+debian_install_prefix=$(DEB_DESTDIR)$(rock_install_dir)
+rock_doc_install_dir=$(rock_install_dir)/share
+SOURCE_ENVSH=for file in `find $(rock_release_install_dir)/*/env.sh ! -empty -type f -name env.sh`; do source "$$file"; done;
 
 pre-build::
-	echo "Detected:"
+	echo "Running pre-build"
+	echo "Ruby stats"
 	echo "   ruby version: $(ruby_ver)"
 	echo "   ruby libdir: $(rockruby_libdir)"
 	echo "   ruby archdir: $(rockruby_archdir)"
-
-	#echo "Current directory:"
-	#find .
+	# Source the available packages
+	echo "Sourcing release packages' env.sh"
 
 # END ENVIRONMENT SETUP
 ######################################
@@ -44,7 +53,7 @@ pre-build::
 <% if package_info.build_type == :orogen %>
 	# Making sure orogen is executed before cmake is called
 	echo "pre-build: calling orogen in order to generate CMake layout"
-	$(env_setup) <%= orogen_command %>
+	$(SOURCE_ENVSH) $(env_setup) <%= orogen_command %>
 	#echo "Current directory including oroGen generated files"
 	#find . 
 <% end %>
@@ -58,7 +67,7 @@ pre-build::
 # PKG_CONFIG_PATH Resolve Rock package via pkg-config
 # Rock_DIR Set to make sure find_package(Rock) does work
 # ROCK_CMAKE_MACROS Used in some patches to set the CMAKE_MODULE_PATH, allowing to find Rock.cmake
-CMAKE = $(env_setup) cmake
+CMAKE = $(SOURCE_ENVSH) $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 
 # Debian packaging discourages the use of rpath, but
@@ -96,7 +105,7 @@ include /usr/share/cdbs/1/rules/autoreconf.mk
 # BEGIN IMPORTER
 #
 <% elsif package_info.importer_type == :archive_importer || package_info.build_type == :importer_package || package_info.name =~ /bundles/ %>
-CMAKE = $(env_setup) cmake
+CMAKE = $(SOURCE_ENVSH) $(env_setup) cmake
 DEB_CMAKE_INSTALL_PREFIX = $(rock_install_dir)
 DEB_CMAKE_EXTRA_FLAGS = -DCMAKE_SKIP_RPATH=OFF
 DEB_CMAKE_EXTRA_FLAGS += -DGEM_OS_PKG=TRUE
@@ -109,16 +118,6 @@ include /usr/share/cdbs/1/class/cmake.mk
 <% else 
 raise "debian/rules: cannot handle package type #{package_info.build_type} for #{package_info.name}"
 end %>
-
-# http://cdbs-doc.duckcorp.org/en/cdbs-doc.xhtml see post-configure actions
-# replace all entries of -I with -I and -isystem in order to 
-#   (a) guarantee that pkgconfig can still knowns the include directory (-I)
-#   (b) the include directory is actually accounted for as system include directory (-isystem)
-# Account for the fact, that configure is called multiple times e.g. revert changes first, then reapply
-configure/<%= debian_name %>::
-	echo "Adapt -I to -isystem in pkgconfig files:"
-	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Adapting {}; sed -i 's#\(\"\?\)-isystem[^ ]\+\1##g; s#\(\"\?\)-I\([^ ]\+\)\1#\1-I\2\1 \1-isystem\2\1#g; s#[ ]\+# #g' {}; cat {};" \;
-	find . -name '[a-zA-Z]*.pc' -exec sh -c "echo Cleanup {}; sed -i 's#-isystem/usr/include # #g' {}; sed -i 's#-I/usr/include # #g' {}; cat {}" \;
 
 ###########################################
 # DOCS
@@ -154,8 +153,23 @@ endif
 clean::
 	rm -f debian/stamp-rock-doc
 	rm -rf $(DEB_SRCDIR)/doc/html
-
 <% end %>
 
 # END DOCS
 ###########################################
+
+<%= env.gen_export_variable %>
+
+#install/<%= debian_name %>::
+#	echo "Running post-install for package <%= debian_name %>"
+
+# see https://github.com/Debian/cdbs/blob/master/1/rules/debhelper.mk.in for
+# target
+common-binary-fixup-arch::
+	echo "Apaka: doing all the custom adaptions, once all patches have been applied"
+	echo "Installing env.yml (and env.yml.append) in $(rock_install_dir)"
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml),-cp "$(DEB_SRCDIR)/env.yml" "$(DEB_DESTDIR)$(rock_install_dir)")
+	$(if $(wildcard $(DEB_SRCDIR)/env.yml.append),-cp "$(DEB_SRCDIR)/env.yml.append" "$(DEB_DESTDIR)$(rock_install_dir)")
+	echo "Updating env.sh in $(rock_install_dir)"
+	$(if $(wildcard $(DEB_SRCDIR)/env.sh),-cp "$(DEB_SRCDIR)/env.sh" "$(debian_install_prefix)")
+<%= env_create_exports() %>

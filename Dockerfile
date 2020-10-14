@@ -30,7 +30,7 @@ WORKDIR /home/docker
 ENV LANG de_DE.UTF-8
 ENV LANG de_DE:de
 ENV LC_ALL de_DE.UTF-8
-ENV GEM_HOME=/home/docker/.gems/ruby/2.3.0
+ENV GEM_HOME=/home/docker/.gems/ruby/2.5.0
 ENV PATH=$GEM_HOME/bin:$PATH
 
 RUN git clone https://github.com/rock-core/tools-apaka /home/docker/apaka
@@ -43,3 +43,5 @@ RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
 RUN gem install autoproj
 RUN gem install yard
+RUN gem install minitest
+RUN gem install flexmock

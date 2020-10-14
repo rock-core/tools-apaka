@@ -43,7 +43,7 @@ module Apaka
                 Autoproj::workspace.config.save
                 Autoproj::workspace.setup_all_package_directories
                 Autoproj::workspace.finalize_package_setup
-                
+
                 @cli = Autoproj::CLI::Base.new(Autoproj::workspace)
             end
 
@@ -252,11 +252,16 @@ module Apaka
                 end
                 @pkg_manifest_cache[package_name]
             end
-            
+
             public
 
             def package_by_name(package_name)
                 pkgmanifest_by_name(package_name).package
+            end
+
+            def pkginfo_by_name(package_name)
+                pkg = package_by_name(package_name)
+                pkginfo_from_pkg(pkg)
             end
 
             private
@@ -334,7 +339,7 @@ module Apaka
                     end
                 end
 
-                all_required_packages = Array.new
+                all_required_packages = Set.new
                 resolve_packages = []
                 while true
                     if resolve_packages.empty?
@@ -347,7 +352,7 @@ module Apaka
                     end
 
                     # Contains the name of all handled packages
-                    handled_packages = Array.new
+                    handled_packages = Set.new
                     resolve_packages.each do |pkg_name|
                         name, dependencies = reverse_dependencies.find { |p| p.first == pkg_name }
                         if dependencies.empty?
@@ -403,8 +408,8 @@ module Apaka
                     end
                 end
 
-                extra_gems = Array.new()
-                extra_osdeps = Array.new()
+                extra_gems = Array.new
+                extra_osdeps = Array.new
 
                 # Add the ruby requirements for the current rock selection
                 #todo: this used to work an all_packages without the already installed packages
@@ -418,7 +423,7 @@ module Apaka
                             next
                         end
 
-                        deps = {}
+                        deps = nil
                         begin
                             # Retrieve information about osdeps and non-native
                             # dependencies, since
@@ -431,6 +436,8 @@ module Apaka
                             next
                         end
 
+                        next unless deps
+
                         # Update global list
                         extra_osdeps.concat deps[:osdeps]
                         extra_gems.concat deps[:extra_gems]
@@ -440,17 +447,16 @@ module Apaka
                             if version
                                 gem_versions[dep] << version
                             end
-                            all_pkginfos << pkginfo_from_pkg(pkg)
                         end
                     rescue Exception => e
                         Packager.warn "Apaka::Packaging::Autoproj2Adaptor: failed to process package " \
-                            " '#{pkg.name}' -- #{e.message}"
+                            " '#{pkg.name}' -- #{e.message} -- #{e.backtrace}"
                         failed_packages << pkg.name
                     end
                 end
 
                 required_gems = all_required_gems(gem_versions, no_deps: no_deps )
-                
+
                 {:pkginfos => all_pkginfos, :extra_osdeps => extra_osdeps, :extra_gems => extra_gems, :failed => failed_packages, :excluded => excluded_packages }.merge required_gems
             end
 
@@ -478,7 +484,7 @@ module Apaka
 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end
-            
+
             private
 
             def resolve_optional_dependencies(pkg)
@@ -494,7 +500,7 @@ module Apaka
                     end
                 end
             end
-            
+
             # Compute dependencies of this package
             # Returns [:rock_pkginfo => rock_pkginfos, :osdeps => osdeps_packages, :nonnative => nonnative_packages ]
             def dependencies(pkg, with_rock_release_prefix = true)
@@ -520,7 +526,6 @@ module Apaka
                 _, native_pkg_list = pkg_osdeps.find { |manager, _| manager == native_package_manager }
 
                 deps_osdeps_packages += native_pkg_list if native_pkg_list
-                Packaging.info "'#{pkg.name}' with osdeps dependencies: '#{deps_osdeps_packages}'"
 
                 non_native_handlers = pkg_osdeps.collect do |handler, pkg_list|
                     if handler != native_package_manager
@@ -546,7 +551,10 @@ module Apaka
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
                     end
                 end
-                Packaging.info "#{pkg.name}' with non native dependencies: #{non_native_dependencies.to_a}"
+                Packaging.info "'#{pkg.name}'\n" \
+                    "\tpackage deps: '#{deps_rock_pkginfo.collect {|p| p.name}}'\n" \
+                    "\tos deps: '#{deps_osdeps_packages.join(' ')}'\n" \
+                    "\tnon-native deps: #{non_native_dependencies.to_a.join(' ')}"
 
                 # Return rock packages, osdeps and non native deps (here gems)
                 { :rock_pkginfo => deps_rock_pkginfo, :osdeps => deps_osdeps_packages, :nonnative => non_native_dependencies.to_a, :extra_gems => extra_gems.to_a }
@@ -604,8 +612,11 @@ module Apaka
                 priority_lists.flatten
             end
 
-            # Import a package for packaging
+            # Import a package for packaging into the specified target dir
+            # @param pkg_target_importdir [String] Path to where the package
+            #     shall be imported
             def import_package(pkg, pkg_target_importdir)
+                orig_srcdir = pkg.srcdir
                 # Some packages, e.g. mars use a single git repository a split it artificially
                 # if this is the case, try to copy the content instead of doing a proper checkout
                 if pkg.srcdir != pkg.importdir
@@ -625,6 +636,12 @@ module Apaka
                             pkg.importer.options[:archive_dir] ||= File.basename(pkg.srcdir)
                         end
                         pkg.importer.import(pkg)
+
+                        # Ensure that additional code from overrides.rb
+                        # (by addition a post_import block) applies
+                        Autoproj.each_post_import_block(pkg) do |block|
+                            block.call(pkg)
+                        end
                     rescue Exception => e
                         if not e.message =~ /failed in patch phase/
                             raise
@@ -637,12 +654,12 @@ module Apaka
                         FileUtils.rm_f file
                     end
                 end
+                pkg.srcdir = orig_srcdir
             end
 
             class Autoproj2PackageInfo < PackageInfo
                 def initialize(pkg,pkginfoask)
-                    super()
-                    @pkg = pkg
+                    super(pkg: pkg)
                     @pkginfoask = pkginfoask
                 end
 
@@ -675,7 +692,7 @@ module Apaka
                         xml_file  = File.join(@pkg.srcdir, file)
                         if File.exists?(xml_file)
                             data = File.read(xml_file)
-                            # check over multilines, then filter out newlines to 
+                            # check over multilines, then filter out newlines to
                             # get a consistent/unformatted text block
                             if data =~ /<license>(.*)<\/license>/m
                                 @licenses += $1.split("\n").map { |x| x.strip }.reject {|x| x.empty? }.join(", ")
@@ -716,6 +733,81 @@ module Apaka
                     @required_rock_packages
                 end
 
+                # Get all environment variable settings that
+                # should be applied when using this package
+                def env_ops
+                    @pkg.env
+                end
+
+                # Generate an environment data structure:
+                # { VAR_NAME => { :type => :add_path, :values => [ ... ] } }
+                # @return env data
+                def generate_env_data(pkg_var, pkg_prefix, base_data: {})
+                    env_data = base_data
+                    env_ops.each do |op|
+                        var_name = op.name
+                        env_data[var_name] ||= { :type => nil,
+                                                :values => []
+                                              }
+                        op_type = env_data[var_name][:type]
+                        if not op_type
+                            env_data[var_name][:type] = op.type
+                        elsif op_type != op.type
+                            raise RuntimeError, "Apaka::Packaging::Autoproj2Adaptor.envsh: #{pkg_var} -- setting of env var: #{var_name} failed" \
+                                " incompatible mix of #{op_type} and #{op.type} -- cannot proceed"
+                        end
+
+                        env_data[var_name][:values] = op.values.map { |v| v.gsub(pkg.prefix, pkg_prefix) if v }
+                    end
+
+                    if is_bundle?
+                        env_data["ROCK_BUNDLE_PATH"] = {
+                            :type => :add_path,
+                            :values => [ File.join(pkg_prefix,"share","rock","bundles") ],
+                        }
+                    end
+                    env_data
+                end
+
+                # Convert env data to string
+                def envsh(env_data)
+                    s = ""
+                    env_data.each do |var_name, spec|
+                        var_setup = "#{var_name}="
+                        spec[:values].each do |value|
+                            var_setup += value + ":" if value
+                        end
+
+                        case spec[:type]
+                        when :add
+                            if var_setup[-1] != ":"
+                                var_setup += ":"
+                            end
+                            var_setup += "${#{var_name}}\n"
+                        when :add_path
+                            if var_setup[-1] != ":"
+                                var_setup += ":"
+                            end
+                            var_setup += "${#{var_name}}\n"
+                        when :add_prefix
+                            Packager.warn ":add_prefix encountered in envsh " \
+                                "generation, but it is ignored for now" \
+                                " -- varname #{var_name} -- spec #{spec}"
+                        when :set
+                            if var_setup[-1] == ":"
+                                var_setup[-1] = "\n"
+                            else
+                                var_setup += "\n"
+                            end
+                        else
+                            raise ArgumentError, "#{self.class}#{__method__}: unknown env op type: #{spec[:type]}"
+                        end
+                        var_setup += "export #{var_name}\n"
+                        s += var_setup
+                    end
+                    return s
+                end
+
                 def env
                     if !@env
                         @pkg.update_environment
@@ -728,6 +820,12 @@ module Apaka
                     @env
                 end
 
+                def is_bundle?
+                    raise RuntimeError, "#{self.class}#{__method__}: pkginfo is not properly initialized" if not name or not srcdir
+                    return false if build_type != :ruby
+
+                    name =~ /bundles/ || File.exist?(File.join(srcdir,"config","init.rb"))
+                end
             end #class Autoproj2PackageInfo
 
         end #class Autoproj2Adaptor

@@ -3,6 +3,7 @@ module Apaka
         class DebianChangelog
             attr_accessor :name
             attr_accessor :version
+            attr_accessor :version_distribution
             attr_accessor :distribution
             attr_accessor :urgency
 
@@ -25,17 +26,24 @@ module Apaka
                 end
             end
 
+            # Process a debian/changelog
+            #     package (version) distribution(s); urgency=urgency
+            #
+            # where version can be (1.0.1-1~bionic), which is split into
+            # version "1.0.1-1" and version_distribution "bionic"
+            #
             def initialize(filename)
                 @body = Array.new
                 if not File.exist?(filename)
                     raise RuntimeError, "Apaka::Packaging::DebianChangelog: #{filename} does not exist"
                 end
                 File.open(filename,"r").each_line do |line|
-                    if line =~ /(.*) \((.*)\) (.*); urgency=(.*)/
+                    if line =~ /(.*) \(([^~]+)(~(.*))*\) (.*); urgency=(.*)/
                        @name = $1
                        @version = $2
-                       @distribution = $3
-                       @urgency = $4
+                       @version_distribution = $4
+                       @distribution = $5
+                       @urgency = $6
                     elsif line =~ / -- (.*) <(.*)>  (.*)/
                         @maintainer_name = $1
                         @maintainer_email = $2

@@ -33,6 +33,9 @@ distributions:
     bionic:
         type: ubuntu,debian
         labels: 18.04,bionic,beaver,default
+    focal:
+        type: ubuntu,debian
+        labels: 20.04,focal,fossa,default
     squeeze:
         type: debian
         labels: 6.0,squeeze,default
@@ -49,11 +52,11 @@ distributions:
         ruby_version: ruby23
     buster:
         type: debian
-        labels: 10.3,buster,default
+        labels: 10.4,buster,default
         ruby_version: ruby25
     sid:
         type: debian
-        labels: 10.0,sid,default
+        labels: 11.0,sid,default
 # what distribution should be build with which architecture
 architectures:
     amd64: trusty,xenial,jessie,stretch,buster,bionic
@@ -63,7 +66,8 @@ architectures:
     arm64: xenial,bionic
 packages:
     optional: llvm,clang
-    enforce_build: rgl,ruby-backports,yard
+    excluded: libqwt5-qt4-dev
+    enforce_build: rgl,ruby-backports,yard,thin
 rock_releases:
     master:
         url: http://localhost/apaka-releases/master/
@@ -73,3 +77,8 @@ rock_releases:
 maintainer_name: Rock Packaging Daemon (based on apaka)
 maintainer_email: rock-dev@dfki.de
 homepage: http://www.rock-robotics.org
+#sign_with: YOUR_KEY
+description: Rock Debian Package Release
+
+#base_install_prefix: /opt/rock
+#base_package_prefix: rock

@@ -6,12 +6,19 @@ module Apaka
 
             class << self
                 alias :class_new :new
+                attr_reader :instances
 
                 def new(which, options)
+                    @instances ||= Hash.new
+
                     if which == :detect
                         subclasses.each do |subclass|
+                            return @instances[subclass.class] if @instances[subclass.class]
+
                             if subclass.probe
-                                return subclass.new(options)
+                                instance = subclass.new(options)
+                                @instances[subclass.class] = instance
+                                return instance
                             end
                         end
                         raise RuntimeError, "#{self}: Cannot find a suitable packageinfo provider"

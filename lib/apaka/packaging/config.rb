@@ -56,6 +56,7 @@ module Apaka
         #    #armhf: jessie
         #packages:
         #    optional: llvm,clang
+        #    excluded: libqwt5-qt4-dev
         #    enforce_build: rgl
         #rock_releases:
         #    master:
@@ -66,6 +67,7 @@ module Apaka
         #maintainer_name: Rock Packaging Daemon
         #maintainer_email: rock-dev@dfki.de
         #homepage: http://www.rock-robotics.org
+        #sign_with: AAF12SADASD
         #
         # The configuration can be extended/overridden via the environmental variable
         # ROCK_DEB_RELEASE_HIERARCHY using the pattern <release-name-0>:<url-0>;<release-name-1>:<url-1>;
@@ -74,6 +76,7 @@ module Apaka
         class Config
             include Singleton
 
+            attr_accessor :configuration
             attr_accessor :config_file
             attr_accessor :current_release_name
 
@@ -89,10 +92,19 @@ module Apaka
             attr_reader :maintainer_name
             attr_reader :maintainer_email
             attr_reader :homepage
+            attr_reader :sign_with
+            attr_reader :description
+
+            # The base installation directory for all releases
+            # default is: /opt/rock
+            attr_reader :base_install_prefix
+            # The prefix for all packages
+            # default is: rock
+            attr_reader :base_package_prefix
 
             attr_reader :packages_optional
             attr_accessor :packages_enforce_build
-
+            attr_accessor :packages_excluded
 
             def reload_config(file, current_release_name = nil)
                 if !file
@@ -100,7 +112,7 @@ module Apaka
                 elsif !File.exist?(file)
                     raise ArgumentError, "Apaka::Packaging::Config.reload_config: #{file} does not exist"
                 end
-                configuration = YAML.load_file(file)
+                @configuration = YAML.load_file(file)
                 @config_file = File.absolute_path(file)
                 @current_release_name = current_release_name
 
@@ -138,11 +150,15 @@ module Apaka
                 end
                 @packages_optional = configuration["packages"]["optional"] || ""
                 if @packages_optional
-                    @packages_optional = @packages_optional.split(",")
+                    @packages_optional = @packages_optional.split(",").map(&:strip)
                 end
                 @packages_enforce_build = configuration["packages"]["enforce_build"] || ""
                 if @packages_enforce_build
-                    @packages_enforce_build = @packages_enforce_build.split(",")
+                    @packages_enforce_build = @packages_enforce_build.split(",").map(&:strip)
+                end
+                @packages_excluded = configuration["packages"]["excluded"] || ""
+                if @packages_excluded
+                    @packages_excluded = @packages_excluded.split(",").map(&:strip)
                 end
 
 
@@ -157,13 +173,28 @@ module Apaka
                     @rock_releases[key] = options
                 end
 
-                @maintainer_name = configuration["maintainer_name"].strip || "Packaged using 'apaka'"
-                @maintainer_email = configuration["maintainer_email"].strip || ""
-                @homepage = configuration["homepage"].strip || ""
+                @maintainer_name = get("maintainer_name", default: "Packaged using 'apaka'")
+                @maintainer_email = get("maintainer_email")
+                @homepage = get("homepage")
+                @description = get("description")
+                @sign_with = get("sign_with")
+                @base_install_prefix = get("base_install_prefix", default: "/opt/rock")
+                @base_package_prefix = get("base_package_prefix", default: "rock")
 
                 update_hierarchy_from_env
 
                 self
+            end
+
+            def get(key, default: nil)
+                if configuration.has_key?(key)
+                    value = configuration[key]
+                    if value.kind_of?(String)
+                        value.strip!
+                    end
+                    return value
+                end
+                default
             end
 
             def maintainer
@@ -210,44 +241,8 @@ module Apaka
                 end
             end
 
-            def self.config_file
-                instance.config_file
-            end
-
             def self.reload_config(file, current_release_name = nil)
                 instance.reload_config(file, current_release_name)
-            end
-
-            def self.linux_distribution_releases
-                instance.linux_distribution_releases
-            end
-
-            def self.preferred_ruby_version
-                instance.preferred_ruby_version
-            end
-
-            def self.ubuntu_releases
-                instance.ubuntu_releases
-            end
-
-            def self.debian_releases
-                instance.debian_releases
-            end
-
-            def self.architectures
-                instance.architectures
-            end
-
-            def self.packages_optional
-                instance.packages_optional
-            end
-
-            def self.packages_enforce_build
-                instance.packages_enforce_build
-            end
-
-            def self.packages_enforce_build=(value)
-                instance.packages_enforce_build=value
             end
 
             def self.active_distributions
@@ -282,30 +277,18 @@ module Apaka
                 return false
             end
 
-            def self.rock_releases
-                instance.rock_releases
-            end
-
             def self.release_url(release_name)
                 if instance.rock_releases.has_key?(release_name)
                     instance.rock_releases[release_name][:url]
                 end
             end
 
-            def self.maintainer
-                instance.maintainer
-            end
-
-            def self.maintainer_name
-                instance.maintainer_name
-            end
-
-            def self.maintainer_email
-                instance.maintainer_email
-            end
-
-            def self.homepage
-                instance.homepage
+            def self.method_missing(m, *args, &block)
+                if instance.respond_to?(m)
+                    instance.send(m, *args, &block)
+                else
+                    super
+                end
             end
 
             def self.to_s
@@ -326,6 +309,10 @@ module Apaka
                 packages_optional.each do |pkg_name|
                     s += "        #{pkg_name}\n"
                 end
+                s += "    excluded packages:\n"
+                packages_excluded.each do |pkg_name|
+                    s += "        #{pkg_name}\n"
+                end
                 s += "    enforce build packages:\n"
                 packages_enforce_build.each do |pkg_name|
                     s += "        #{pkg_name}\n"
@@ -340,6 +327,11 @@ module Apaka
                     end
                 end
                 s
+            end
+
+            def self.is_active?(distribution, architecture)
+                return Apaka::Packaging::Config.architectures.include?(architecture) &&
+                    Apaka::Packaging::Config.architectures[architecture].include?(distribution)
             end
         end # end Config
     end # Packaging

@@ -22,6 +22,9 @@
   <depend package="qemu" />
   <depend package="gem2deb" />
   <depend package="curl" />
+  <depend package="thor" />
+  <test_depend package="flexmock" />
+  <test_depend package="minitest" />
   <stage>1</stage>
   <activity>active</activity>
   <keywords>
