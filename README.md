@@ -95,7 +95,10 @@ integrated into a packages set such as [rock-osdeps](https://github.com/rock-cor
 
 If autoproj meta packages should be represented as debian meta packages, you can
 use:
-    `apaka build_meta --release-name master-20.06 --distribution bionic --architecture amd64`
+
+```
+    apaka build_meta --release-name master-20.06 --distribution bionic --architecture amd64
+```
 
 This will only create meta packages of packages it finds currently on reprepro
 for the corresponding release, distribution, architecture combination.
