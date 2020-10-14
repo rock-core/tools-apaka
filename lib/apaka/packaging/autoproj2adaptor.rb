@@ -789,6 +789,10 @@ module Apaka
                                 var_setup += ":"
                             end
                             var_setup += "${#{var_name}}\n"
+                        when :add_prefix
+                            Packager.warn ":add_prefix encountered in envsh " \
+                                "generation, but it is ignored for now" \
+                                " -- varname #{var_name} -- spec #{spec}"
                         when :set
                             if var_setup[-1] == ":"
                                 var_setup[-1] = "\n"
