@@ -289,8 +289,17 @@ Get the public key file Release_pub and make it known to apt and update.
 ```
     sudo apt-key add Release_pub && apt-get update
 ```
-Open /etc/apt/sources.list (sudo required) and add deb URL dsitribution.
-E.g. _deb http://rock.hb.dfki.de/rock-releases/mantis-19.05/ bionic main_
+Create an apt entry for your-release.
+Open /etc/apt/sources.list.d/your-release.list (sudo required) and add deb
+URL distribution:
+
+```
+    deb http://<package-server>/apaka-releases/your-release bionic main
+```
+
+To see how to create an advanced setup particularly with autoproj (here for the
+Rock framework), have a look at the
+[rock-osdeps-package_set](https://github.com/rock-core/rock-osdeps-package_set).
 
 
 ## Script interface description
@@ -378,4 +387,4 @@ This software is distributed under the [New/3-clause BSD license](https://openso
 
 ## Copyright
 
-Copyright (c) 2014-2018, DFKI GmbH Robotics Innovation Center
+Copyright (c) 2014-2020, DFKI GmbH Robotics Innovation Center
