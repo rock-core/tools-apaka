@@ -648,7 +648,7 @@ module Apaka
 
                     envsh = File.join(pkginfo.srcdir, "env.sh")
                     Packager.warn("Preparing env.sh #{envsh}")
-                    File.open(envsh, "w") do |file|
+                    File.open(envsh, "a") do |file|
                         env_txt = pkginfo.envsh(env_data)
                         file.write(env_txt)
                     end
