@@ -33,7 +33,8 @@ module Apaka
                     selected_packages.each do |pkg_name_expression|
                         packager.reprepro.register_debian_package(pkg_name_expression,
                                                            options[:release_name],
-                                                           options[:distribution])
+                                                           options[:distribution],
+                                                           architecture: options[:architecture])
                     end
                 end
 
@@ -41,7 +42,8 @@ module Apaka
                     selected_packages.each do |pkg_name_expression|
                         packager.reprepro.deregister_debian_package(pkg_name_expression,
                                                            options[:release_name],
-                                                           options[:distribution])
+                                                           options[:distribution],
+                                                           architecture: options[:architecture])
                     end
                 end
 
@@ -53,7 +55,9 @@ module Apaka
                     selected_packages.each do |pkg_name_expression|
                         packager.reprepro.deregister_debian_package(pkg_name_expression,
                                                            options[:release_name],
-                                                           options[:distribution])
+                                                           options[:distribution],
+                                                           architecture: options[:architecture])
+
                     end
                 end
             end

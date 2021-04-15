@@ -126,7 +126,9 @@ module Apaka
                 # Register the debian package for the given package and codename (= distribution)
                 # (=distribution)
                 # using reprepro
-                def register_debian_package(debian_pkg_file, release_name, codename, force = false)
+                def register_debian_package(debian_pkg_file, release_name, codename,
+                                            architecture: nil,
+                                            force: false)
                     begin
                         reprepro_dir = File.join(@base_dir, release_name)
 
@@ -136,7 +138,9 @@ module Apaka
                         logfile = File.join(log_dir,"#{debian_pkg_name}-reprepro.log")
 
                         if force
-                            deregister_debian_package(debian_pkg_name, release_name, codename, true)
+                            deregister_debian_package(debian_pkg_name, release_name, codename,
+                                                      architecture: architecture,
+                                                      exactmatch: true)
                         end
                         @reprepro_lock.lock
                         Dir.chdir(debian_package_dir) do
@@ -170,7 +174,9 @@ module Apaka
                 end
 
                 # Register a debian package
-                def deregister_debian_package(pkg_name_expression, release_name, codename, exactmatch = false)
+                def deregister_debian_package(pkg_name_expression, release_name, codename,
+                                              architecture: nil,
+                                              exactmatch: false)
                     @reprepro_lock.lock
 
                     begin
@@ -179,6 +185,7 @@ module Apaka
 
                         cmd = [reprepro_bin]
                         cmd << "-V" << "-b" << reprepro_dir
+                        cmd << "-A" << architecture if architecture
 
                         if exactmatch
                             cmd << "remove" << codename << pkg_name_expression

@@ -78,7 +78,9 @@ module Apaka
                 packager.reprepro.register_debian_package(deb_file,
                                                 options[:release_name],
                                                 options[:distribution],
-                                                options[:rebuild])
+                                                architecture: options[:architecture],
+                                                force: options[:rebuild]
+                                            )
             end
 
             def install(packager, debian_pkg_name, options)
