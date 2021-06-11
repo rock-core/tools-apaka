@@ -282,6 +282,7 @@ module Apaka
                     license = pkginfo.licenses
 
                     deps = @dep_manager.filtered_dependencies(pkginfo)
+
                     #debian names of rock packages
                     deps_rock_packages = deps[:rock]
                     deps_osdeps_packages = deps[:osdeps]
@@ -368,7 +369,8 @@ module Apaka
                     ########################
                     # debian/compat
                     ########################
-                    set_compat_level(DEBHELPER_DEFAULT_COMPAT_LEVEL, File.join(dir,"compat"))
+                    compatfile = File.join(dir,"compat")
+                    set_compat_level(DEBHELPER_DEFAULT_COMPAT_LEVEL, compatfile)
                 end
 
                 # Generate the debian_dir for a meta package
@@ -967,11 +969,11 @@ module Apaka
 
                 # Define the default compat level
                 def set_compat_level(compatlevel = DEBHELPER_DEFAULT_COMPAT_LEVEL, compatfile = "debian/compat")
-                    if !File.exist?(compatfile)
-                        raise ArgumentError, "Apaka::Packaging::Debian::set_compat_level: could not find file '#{compatfile}', working directory is: '#{Dir.pwd}'"
+                    if File.exist?(compatfile)
+                        existing_compatlevel = `cat #{compatfile}`.strip
+                        Packager.warn "Apaka::Packaging::Debian::set_compat_level: existing '#{compatfile}' with compatlevel #{existing_compatlevel}"
                     end
-                    existing_compatlevel = `cat #{compatfile}`.strip
-                    Packager.info "Setting debian compat level to: #{compatlevel} (previous setting was #{existing_compatlevel})"
+                    Packager.info "Setting debian compat level to: #{compatlevel}"
                     `echo #{compatlevel} > #{compatfile}`
                 end
 
