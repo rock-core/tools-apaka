@@ -571,6 +571,12 @@ END
                             # Add DEB_BUILD_OPTIONS=nocheck
                             # https://www.debian.org/doc/debian-policy/ch-source.html
                             system("sed", "-i", "1 a export DEB_BUILD_OPTIONS=nocheck", "debian/rules", :close_others => true)
+
+                            # Disable options generated from gem2deb
+                            system("sed", "-i", "/export GEM2DEB_TEST_RUNNER/d", "debian/rules", :close_others => true)
+                            # DH_RUBY = --gem-install break the current # extension building, e.g., for rice
+                            system("sed", "-i", "/export DH_RUBY/d", "debian/rules", :close_others => true)
+
                             dpkg_commit_changes("disable_tests",
                                                logfile: logfile)
                             build_usr_dir = "debian/#{debian_ruby_unversioned_name}/usr"
