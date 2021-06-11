@@ -94,7 +94,7 @@ module Apaka
                 found_gem = false
                 current_version = nil
                 versioned_gems = Array.new
-                gem_dependency.split("\n").each do |line|
+                gem_dependency.each_line do |line|
                     if match = /Gem #{gem_name}-([0-9].*)/.match(line)
                         # add after completion of the parsing
                         if current_version
@@ -106,9 +106,7 @@ module Apaka
                         current_version = match[1].strip
                         next
                     elsif match = /Gem/.match(line) # other package names
-                        # We assume here that the first GEM entry found is related to the
-                        # one we want, discarding the others
-                        break
+                        next
                     elsif !current_version
                         # wait till will find the entry line 'Gem mygem-0.1' to continue processing
                         next
@@ -136,32 +134,71 @@ module Apaka
 
                 return versioned_gems
             end
+
+            def self.gem_dependencies_from_gemspec(gem_name, gem_path, runtime_deps_only: false)
+              versioned_gems = []
+              specfile = File.join(gem_path, "#{gem_name}.gemspec")
+              raise "Failed to locate specfile #{specfile}" unless File.exist?(specfile)
+
+              spec = ::Gem::Specification.load(specfile)
+              dependencies = spec.runtime_dependencies
+              dependency += spec.development_dependencies unless runtime_deps_only
+
+              versioned_gems << { :version => spec.version.version, :deps => dependencies}
+
+              return versioned_gems
+            end
+
+
+
             # Get the installation status
             #
             def self.installation_status(gem_name, version_requirements = nil, runtime_deps_only: true)
+              found, deps = installation_status_rubygems(gem_name, version_requirements)
+              if !found
+                  found, deps = installation_status_bundler(gem_name, version_requirements)
+              end
+              return found, deps
+            end
+
+            def self.installation_status_rubygems(gem_name, version_requirements = nil, runtime_deps_only: true)
                 gem_dependency_cmd = "gem dependency #{gem_name}"
                 if version_requirements && !version_requirements.empty?
                     gem_dependency_cmd += " -v\"#{version_requirements.join(',')}\""
                 end
                 stdcout, stdcerr, status = Open3.capture3(gem_dependency_cmd)
-                if !status.success?
-                    gem_dependency = nil
-                    return false, nil
-                else
+                if status.success?
                     gem_dependency = stdcout
                     # do a quick check to verify we actually found our gem
                     found = false
-                    gem_dependency.split("\n").each do |line|
+                    gem_dependency.each_line do |line|
                         if match = /Gem #{gem_name}-([0-9].*)/.match(line)
                             found = true
-                            break;
+                            break
                         end
                     end
-                    if !found
-                        gem_dependency = nil
-                    end
+                    return found, parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only: runtime_deps_only) if found
                 end
-                return true, parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only: runtime_deps_only)
+                return false, []
+            end
+
+            def self.installation_status_bundler(gem_name, version_requirements, runtime_deps_only: true)
+                bundle_info_cmd = "bundle info #{gem_name}"
+                stdcout, stdcerr, status = Open3.capture3(bundle_info_cmd)
+                gem_path = ""
+                if status.success?
+                    bundle_info = stdcout
+                    found = false
+                    bundle_info.each_line do |line|
+                        if match = /Path: (.*)/.match(line)
+                            gem_path = $1
+                            found = true
+                            break
+                        end
+                    end
+                    return found, gem_dependencies_from_gemspec(gem_name, gem_path, runtime_deps_only: runtime_deps_only) if found
+                end
+                return false, []
             end
 
             def self.install(gem_name, version_requirements)
@@ -176,13 +213,17 @@ module Apaka
             end
 
             def self.install_autoproj2(gem_name, version_requirements)
+
                 bundler_manager = ::Autoproj::PackageManagers::BundlerManager.new(::Autoproj::workspace)
                 if version_requirements.empty?
+                    Packager.info("Trying to install #{gem_name} no requirement applies")
                     bundler_manager.install([gem_name])
                 else
+                    version_requirements.uniq!
                     if version_requirements.size != 1
-                        raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
+                        raise ArgumentError, "#{self} -- cannot handle more than one version constraint for gem '#{gem_name}', #{version_requirements}"
                     end
+                    Packager.info("Trying to install #{gem_name} #{version_requirements} (first requirement applies")
                     bundler_manager.install([gem_name+version_requirements.first])
                 end
             end
@@ -192,6 +233,7 @@ module Apaka
                 if version_requirements.empty?
                     gem_manager.install([[gem_name]])
                 else
+                    version_requirements.uniq!
                     if version_requirements.size != 1
                         raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
                     end
