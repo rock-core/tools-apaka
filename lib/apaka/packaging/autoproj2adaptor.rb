@@ -281,10 +281,10 @@ module Apaka
                     all_packages_refresh = all_packages.dup
                     all_packages.each do |pkg_name|
                         pkg = package_by_name(pkg_name)
-                        resolve_optional_dependencies(pkg)
-                        reverse_dependencies[pkg.name] = pkg.dependencies.dup
-                        Packaging.debug "deps: #{pkg.name} --> #{pkg.dependencies}"
-                        all_packages_refresh.merge(pkg.dependencies)
+                        pkg_dependencies = dependencies(pkg)[:rock_pkginfo].collect {|p| p.name}
+                        reverse_dependencies[pkg.name] = pkg_dependencies.dup
+                        Packaging.debug "deps: #{pkg.name} --> #{pkg_dependencies}"
+                        all_packages_refresh.merge(pkg_dependencies)
                     end
 
                     if all_packages.size == all_packages_refresh.size
@@ -508,7 +508,13 @@ module Apaka
 
                 resolve_optional_dependencies(pkg)
 
-                deps_rock_pkginfo = pkg.dependencies.map do |dep_name|
+                # Ignore dependencies as rock package, when they resolved to an
+                # osdeps package
+                pkg_dependencies = pkg.dependencies.select do |dep_name|
+                    !Autoproj.osdeps.has?(dep_name)
+                end
+
+                deps_rock_pkginfo = pkg_dependencies.map do |dep_name|
                     pkginfo_from_pkg(package_by_name(dep_name))
                 end
 

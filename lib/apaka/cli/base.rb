@@ -114,9 +114,9 @@ module Apaka
 
                 selected_gems = []
                 selected_packages = selection.select do |name|
-                    if pkg = package_info_ask.package(name)
-                        Apaka::Packaging.debug "Package: #{name} is a known rock package"
-                        true
+                    if Autoproj.osdeps.has?(name)
+                        Apaka::Packaging.debug "Package: #{name} is an osdeps / is an alias for os dependencies"
+                        false
                     elsif package_info_ask.is_metapackage?(name)
                         Apaka::Packaging.debug "Package: #{name} is a known rock meta package"
                         #we want the dependencies(which it will resolve to)
@@ -125,6 +125,9 @@ module Apaka
                         Apaka::Packaging.debug "Package: #{name} is a gem"
                         selected_gems << [name, nil]
                         false
+                    elsif pkg = package_info_ask.package(name)
+                        Apaka::Packaging.debug "Package: #{name} is a known rock package"
+                        true
                     else
                         true
                     end

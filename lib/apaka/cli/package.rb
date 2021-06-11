@@ -45,6 +45,8 @@ module Apaka
                 options[:architecture] = validate_architecture(options)
                 options[:distribution] = validate_distribution(options)
 
+                activate_distribution(options[:distribution])
+
                 selected_packages = args
                 if selected_packages.size > 1 && options[:version]
                     raise InvalidArguments, "Cannot use version option with multiple packages as argument"
