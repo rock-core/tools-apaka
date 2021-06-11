@@ -11,7 +11,7 @@ module Apaka
 
             BUILDER_DEBS=["dh-autoreconf","cdbs","cmake","apt","apt-utils","cowbuilder","cowdancer","debian-archive-keyring","pbuilder","qemubuilder","qemu-user-static","gem2deb","curl"]
             WEBSERVER_DEBS=["apache2"]
-            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper','gem2deb','git']
+            CHROOT_EXTRA_DEBS=['cdbs','lintian','fakeroot','doxygen','graphviz','debhelper','gem2deb','git','pkg-config','apt-utils']
             PBUILDER_CACHE_DIR="/var/cache/pbuilder"
             IMAGE_EXTRA_DEB_DIR="/tmp/extradebs"
 
@@ -334,23 +334,50 @@ module Apaka
                     prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
                 end
                 #prepare_upgrade_from_backports_hook(hook_dir, distribution)
+                prepare_os_repositories(hook_dir)
             end
 
-            def self.prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
-                filename = "D10-man-db"
+            def self.prepare_os_repositories(hook_dir)
+                return if Autoproj.workspace.os_repository_resolver.resolved_entries.empty?
+
+                filename = "D11-os-repository"
                 Dir.chdir(hook_dir) do
                     File.open(filename, "w") do |f|
                         f.write("#!/bin/sh\n")
-                        f.write("# Don't rebuild man-db\n")
-                        f.write("set -x\n")
-                        f.write("echo \"I: Preseed man-db/auto-update to false\"\n")
-                        f.write("debconf-set-selections <<EOF\n")
-                        f.write("man-db man-db/auto-update boolean false\n")
-                        f.write("EOF")
+                        f.write("# Activate PPAs if needed\n")
+                        f.write("set -ex\n")
+                        Autoproj.workspace.os_repository_resolver.resolved_entries.each do |entry|
+                            if entry["type"] == "repo"
+                                f.write("echo '#{entry["repo"]}' > /etc/apt/sources.list.d/apaka-extra-ppa.list\n")
+                            end
+                            if entry["type"] == "key"
+                                keyserver = entry["keyserver"]
+                                id = entry["id"]
+                                f.write("apt-key adv --keyserver #{keyserver} --recv-keys #{id}\n")
+                                f.write("apt update\n")
+                            end
+                        end
                     end
-                    Packager.info "Disabling rebuilding of man-db: #{filename} in #{Dir.pwd}"
+                    Packager.info "Activation of PPA: #{filename} in #{Dir.pwd}"
                     FileUtils.chmod 0755, filename
                 end
+            end
+
+            def self.prepare_disable_mandb_rebuild_hook(hook_dir, distribution)
+              filename = "D10-man-db"
+              Dir.chdir(hook_dir) do
+                  File.open(filename, "w") do |f|
+                      f.write("#!/bin/sh\n")
+                      f.write("# Don't rebuild man-db\n")
+                      f.write("set -x\n")
+                      f.write("echo \"I: Preseed man-db/auto-update to false\"\n")
+                      f.write("debconf-set-selections <<EOF\n")
+                      f.write("man-db man-db/auto-update boolean false\n")
+                      f.write("EOF")
+                  end
+                  Packager.info "Disabling rebuilding of man-db: #{filename} in #{Dir.pwd}"
+                  FileUtils.chmod 0755, filename
+              end
             end
 
             def self.prepare_upgrade_from_backports_hook(hook_dir, distribution)
