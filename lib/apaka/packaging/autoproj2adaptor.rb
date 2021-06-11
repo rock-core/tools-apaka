@@ -55,8 +55,10 @@ module Apaka
             # system in the config file or if there is one given on the
             # commandline
             def osdeps_operating_system= (os)
-                Autoproj::workspace.os_package_resolver.operating_system = os
-                Autoproj::workspace.os_package_resolver.invalidate_resolve_package_cache
+                Autoproj.workspace.os_package_resolver.operating_system = os
+                Autoproj.workspace.os_package_resolver.invalidate_resolve_package_cache
+
+                Autoproj.workspace.os_repository_resolver.operating_system = os
             end
 
             def root_dir
