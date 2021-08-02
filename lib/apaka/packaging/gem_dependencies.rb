@@ -72,7 +72,7 @@ module Apaka
                 gems = {}
                 msg, status = Open3.capture2e("bundler list")
                 if not status.success?
-                    raise RuntimeError, "#{self.class}.#{__method__}: failed to run"
+                    raise RuntimeError, "#{self.class}.#{__method__}: failed to run" \
                         "bundler list -- #{msg}"
                 end
 
@@ -141,8 +141,18 @@ module Apaka
               raise "Failed to locate specfile #{specfile}" unless File.exist?(specfile)
 
               spec = ::Gem::Specification.load(specfile)
-              dependencies = spec.runtime_dependencies
-              dependency += spec.development_dependencies unless runtime_deps_only
+
+              dependencies = {}
+              spec.runtime_dependencies.each do |dep|
+                  dependencies[dep.name] ||= Array.new
+                  dependencies[dep.name] += dep.requirements_list
+              end
+              if not runtime_deps_only
+                  spec.development_dependencies.each do |dep|
+                      dependencies[dep.name] ||= Array.new
+                      dependencies[dep.name] += dep.requirements_list
+                  end
+              end
 
               versioned_gems << { :version => spec.version.version, :deps => dependencies}
 
@@ -179,7 +189,7 @@ module Apaka
                     end
                     return found, parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only: runtime_deps_only) if found
                 end
-                return false, []
+                return false, {}
             end
 
             def self.installation_status_bundler(gem_name, version_requirements, runtime_deps_only: true)
@@ -198,7 +208,7 @@ module Apaka
                     end
                     return found, gem_dependencies_from_gemspec(gem_name, gem_path, runtime_deps_only: runtime_deps_only) if found
                 end
-                return false, []
+                return false, {}
             end
 
             def self.install(gem_name, version_requirements)

@@ -1,7 +1,7 @@
 #! /usr/bin/env ruby
 require 'apaka'
 
-if ARGV.size < 1
+if ARGV.size < 1 || ARGV[0] == "-h" || ARGV[0] == "--help"
     puts "usage: gem_dependencies <gem_name> [<version-string>]"
     puts "    Lists all dependencies of the gem"
     exit 0
@@ -12,5 +12,5 @@ if ARGV.size == 2
     version = ARGV[1]
 end
 
-resolved = Apaka::Packaging::GemDependencies::resolve_by_name(ARGV[0],version)
+resolved = Apaka::Packaging::GemDependencies::resolve_by_name(ARGV[0], version: version) 
 puts resolved

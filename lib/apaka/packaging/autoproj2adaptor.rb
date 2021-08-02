@@ -445,9 +445,13 @@ module Apaka
                         extra_gems.concat deps[:extra_gems]
 
                         deps[:nonnative].each do |dep, version|
-                            gem_versions[dep] ||= Array.new
+                            if dep =~ /([^<=>]*)([<=>]?.*)/
+                                name = $1
+                                gem_versions[name] ||= Array.new
+                                version = $2 unless $2.empty?
+                            end
                             if version
-                                gem_versions[dep] << version
+                                gem_versions[name] << version
                             end
                         end
                     rescue Exception => e
