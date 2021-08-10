@@ -471,22 +471,20 @@ module Apaka
             # returns { :gems => [gem names sorted so least dependend is first],
             #           :gem_versions => { gem => version } }
             def all_required_gems(gem_versions, no_deps: false)
-                gem_version_requirements = gem_versions.dup
-                if !no_deps
-                    gem_dependencies = GemDependencies.resolve_all(gem_versions)
-                    gem_dependencies.each do |name, deps|
-                        if deps
-                            deps.each do |dep_name, dep_versions|
-                                gem_version_requirements[dep_name] ||= Array.new
-                                gem_version_requirements[dep_name] = (gem_version_requirements[dep_name] + dep_versions).uniq
-                            end
-                        end
-                    end
-                    sorted_gem_list = GemDependencies.sort_by_dependency(gem_dependencies).uniq
+                gemfile = File.join(root_dir,"install","gems","Gemfile")
+                unless File.exist?(gemfile)
+                    raise "Apaka::Packaging::Autoproj2Adapter.all_required_gems failed to find Gemfile"
                 end
 
-                exact_version_list = GemDependencies.gem_exact_versions(gem_version_requirements)
-                sorted_gem_list ||= exact_version_list.keys
+                gems_definitions = Bundler::Definition.build(gemfile, nil,nil)
+                gem_specs = gems_definitions.resolve_remotely!
+
+                sorted_gem_list = []
+                exact_version_list = {}
+                gem_specs.each do |spec|
+                    sorted_gem_list << spec.name
+                    exact_version_list[spec.name] = spec.version.to_s
+                end
 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
             end

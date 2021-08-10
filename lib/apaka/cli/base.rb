@@ -162,7 +162,7 @@ module Apaka
                 end
 
                 gems = {}
-                all_packages[:gems].each_with_index do |val, index|
+                all_packages[:gems].each do |val|
                     gems[val] = all_packages[:gem_versions][val]
                     selected_names << val
                 end
