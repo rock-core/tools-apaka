@@ -1,493 +1,137 @@
-require 'rubygems/requirement'
-require 'set'
-require 'open3'
-require 'json'
-require 'date'
 require 'autoproj'
+require 'bundler'
+require 'digest/md5'
+require 'json'
+require 'open3'
 require 'apaka/packaging/packager'
 
 module Apaka
     module Packaging
         class GemDependencies
-            # Active gem list mapped to detected versions
-            @@active_gems = {}
-            # Hash with gem name as key, and dependencies as Hash<String,Array> name->[version]
-            @@gems = {}
+            @@known_gems = {}
+            @@gemfile_to_specs = {}
+            @@gemfile_md5 = {}
 
-            def self.prepare_cache
-                if @@active_gems.empty?
-                    @@active_gems = bundler_status
 
-                    @@gems = gems_dependency_tree
-                end
+            # Path to autoproj default gemfile
+            #
+            def self.gemfile
+                File.join(Autoproj.root_dir,"install","gems","Gemfile")
             end
 
-            def self.gems_dependency_tree
-                dependencies = Hash.new
-                handled_gems = Set.new
-
-
-                remaining_gems = @@active_gems.dup
-                Apaka::Packaging.info "Resolving gem dependencies for: #{remaining_gems.collect {|p| p[0]}.join(' ')}\n" \
-                    "This might take some time ..."
-                total_number = remaining_gems.size
-                while !remaining_gems.empty?
-                    remaining = Hash.new
-                    remaining_gems.each do |gem_name, gem_versions|
-                        deps = resolve_by_name(gem_name,
-                                              version: gem_versions,
-                                              use_cache: false)[:deps]
-                        handled_gems << gem_name
-
-                        dependencies[gem_name] = Hash.new
-                        deps.each do |gem_dep_name, gem_dep_version|
-
-                            version = gem_dep_version.dup
-                            if @@active_gems[gem_dep_name]
-                                version = [ @@active_gems[gem_dep_name] ]
-                            end
-
-                            dependencies[gem_name][gem_dep_name] ||= Array.new
-                            dependencies[gem_name][gem_dep_name] += version
-
-                            if !handled_gems.include?(gem_dep_name)
-                                remaining[gem_dep_name] ||= Array.new
-                                remaining[gem_dep_name] += version
-                            end
-                        end
-                        print "\rProcessed gems: #{handled_gems.size}"
-                    end
-                    remaining_gems.select! { |g| !handled_gems.include?(g) }
-                    remaining.each do |name, versions|
-                        remaining_gems[name] ||= Array.new
-                        remaining_gems[name] = (remaining_gems[name] + versions).uniq
-                    end
+            # Collect all gem specification that are defined through a given
+            # Gemfile
+            # @param gemfile [String] Path to autoproj default gemfile
+            def self.all_gem_specs(gemfile = GemDependencies.gemfile)
+                unless File.exist?(gemfile)
+                    raise "Apaka::Packaging::Autoproj2Adapter.all_required_gems " \
+                        "Gemfile #{gemfile} does not exist"
                 end
-                print "\n"
-                Apaka::Packaging.info "Gem dependencies: #{dependencies.to_a}"
-                dependencies
+                GemDependencies.get_gem_specs(gemfile)
             end
 
-            def self.bundler_status
+            def self.get_md5(file)
+                Digest::MD5.digest(File.read(file))
+            end
+
+            # Retrieve the gem specs via bundler for a given Gemfile
+            # @param gemfile [String] Path to the Bundler Gemfile to resolve
+            def self.get_gem_specs(gemfile)
+                if @@gemfile_md5.has_key?(gemfile)
+                    md5 = @@gemfile_md5[gemfile]
+                    if md5 == GemDependencies.get_md5(gemfile)
+                        return @@gemfile_to_specs[gemfile]
+                    end
+                end
+
+                gems_definitions = Bundler::Definition.build(gemfile, nil,nil)
+                gem_specs = gems_definitions.resolve_remotely!
+
                 gems = {}
-                msg, status = Open3.capture2e("bundler list")
-                if not status.success?
-                    raise RuntimeError, "#{self.class}.#{__method__}: failed to run" \
-                        "bundler list -- #{msg}"
+                gem_specs.each do |spec|
+                    gems[spec.name] = spec
                 end
 
-                msg.each_line do |line|
-                    if line =~ / \* (.*) \(([0-9\.]*).*\)/
-                        gem_name = $1
-                        version = $2
+                @@gemfile_to_specs[gemfile] = gems
+                @@gemfile_md5[gemfile] = GemDependencies.get_md5(gemfile)
 
-                        gems[gem_name] = version unless gem_name =~ /gem_build_flags/
-                    end
-                end
                 gems
             end
 
-            # Parse gem dependencies and return the dependencies
-            def self.parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only = true)
-                dependencies = Hash.new
-                regexp = /(.*)\s\((.*)\)/
-                found_gem = false
-                current_version = nil
-                versioned_gems = Array.new
-                gem_dependency.each_line do |line|
-                    if match = /Gem #{gem_name}-([0-9].*)/.match(line)
-                        # add after completion of the parsing
-                        if current_version
-                            versioned_gems << {:version => current_version, :deps => dependencies}
-                            # Reset dependencies
-                            dependencies = Hash.new
-                            current_version = nil
-                        end
-                        current_version = match[1].strip
-                        next
-                    elsif match = /Gem/.match(line) # other package names
-                        next
-                    elsif !current_version
-                        # wait till will find the entry line 'Gem mygem-0.1' to continue processing
-                        next
-                    end
-
-                    mg = regexp.match(line)
-                    if mg
-                        dep_gem_name = mg[1].strip
-                        dep_gem_version = mg[2].strip
-                        # Separate runtime dependencies from development dependencies
-                        # Typically we are interested only in the runtime dependencies
-                        # for the use case here (that why runtime_deps_only is true as default)
-                        if runtime_deps_only && /development/.match(dep_gem_version)
-                            next
-                        end
-                        # There can be multiple version requirement for a dependency,
-                        # so we store them as an array
-                        dependencies[dep_gem_name] = dep_gem_version.gsub(' ','').split(',')
-                    end
-                end
-                # Finalize by adding the last one found (if there has been one)
-                if current_version
-                    versioned_gems << { :version => current_version, :deps => dependencies }
-                end
-
-                return versioned_gems
+            def self.prepare_gemfile(gemfile= "/tmp/apaka/Gemfile")
+                tmp_dir = File.dirname(gemfile)
+                FileUtils.mkdir_p tmp_dir unless File.directory?(tmp_dir)
+                FileUtils.cp GemDependencies.gemfile, gemfile
             end
 
-            def self.gem_dependencies_from_gemspec(gem_name, gem_path, runtime_deps_only: false)
-              versioned_gems = []
-              specfile = File.join(gem_path, "#{gem_name}.gemspec")
-              raise "Failed to locate specfile #{specfile}" unless File.exist?(specfile)
-
-              spec = ::Gem::Specification.load(specfile)
-
-              dependencies = {}
-              spec.runtime_dependencies.each do |dep|
-                  dependencies[dep.name] ||= Array.new
-                  dependencies[dep.name] += dep.requirements_list
-              end
-              if not runtime_deps_only
-                  spec.development_dependencies.each do |dep|
-                      dependencies[dep.name] ||= Array.new
-                      dependencies[dep.name] += dep.requirements_list
-                  end
-              end
-
-              versioned_gems << { :version => spec.version.version, :deps => dependencies}
-
-              return versioned_gems
-            end
-
-
-
-            # Get the installation status
-            #
-            def self.installation_status(gem_name, version_requirements = nil, runtime_deps_only: true)
-              found, deps = installation_status_rubygems(gem_name, version_requirements)
-              if !found
-                  found, deps = installation_status_bundler(gem_name, version_requirements)
-              end
-              return found, deps
-            end
-
-            def self.installation_status_rubygems(gem_name, version_requirements = nil, runtime_deps_only: true)
-                gem_dependency_cmd = "gem dependency #{gem_name}"
-                if version_requirements && !version_requirements.empty?
-                    gem_dependency_cmd += " -v\"#{version_requirements.join(',')}\""
+            def self.prepare_new_gemfile(gemfile= "/tmp/apaka/Gemfile")
+                tmp_dir = File.dirname(gemfile)
+                FileUtils.mkdir_p tmp_dir unless File.directory?(tmp_dir)
+                File.open(gemfile,"w") do |file|
+                    file.puts "source 'https://rubygems.org'"
                 end
-                stdcout, stdcerr, status = Open3.capture3(gem_dependency_cmd)
-                if status.success?
-                    gem_dependency = stdcout
-                    # do a quick check to verify we actually found our gem
-                    found = false
-                    gem_dependency.each_line do |line|
-                        if match = /Gem #{gem_name}-([0-9].*)/.match(line)
-                            found = true
-                            break
-                        end
-                    end
-                    return found, parse_gem_dependencies(gem_name, gem_dependency, runtime_deps_only: runtime_deps_only) if found
-                end
-                return false, {}
-            end
-
-            def self.installation_status_bundler(gem_name, version_requirements, runtime_deps_only: true)
-                bundle_info_cmd = "bundle info #{gem_name}"
-                stdcout, stdcerr, status = Open3.capture3(bundle_info_cmd)
-                gem_path = ""
-                if status.success?
-                    bundle_info = stdcout
-                    found = false
-                    bundle_info.each_line do |line|
-                        if match = /Path: (.*)/.match(line)
-                            gem_path = $1
-                            found = true
-                            break
-                        end
-                    end
-                    return found, gem_dependencies_from_gemspec(gem_name, gem_path, runtime_deps_only: runtime_deps_only) if found
-                end
-                return false, {}
-            end
-
-            def self.install(gem_name, version_requirements)
-                if defined?(::Autoproj::PackageManagers::BundlerManager)
-                    install_autoproj2(gem_name, version_requirements)
-                elsif defined?(::Autoproj::PackageManager::GemManager)
-                    install_autoproj1(gem_name, version_requirements)
-                else
-                    raise RuntimeError("GemDependencies::install: could not identify proper" \
-                                       " installation mechanism for gems in autoproj")
-                end
-            end
-
-            def self.install_autoproj2(gem_name, version_requirements)
-
-                bundler_manager = ::Autoproj::PackageManagers::BundlerManager.new(::Autoproj::workspace)
-                if version_requirements.empty?
-                    Packager.info("Trying to install #{gem_name} no requirement applies")
-                    bundler_manager.install([gem_name])
-                else
-                    version_requirements.uniq!
-                    if version_requirements.size != 1
-                        raise ArgumentError, "#{self} -- cannot handle more than one version constraint for gem '#{gem_name}', #{version_requirements}"
-                    end
-                    Packager.info("Trying to install #{gem_name} #{version_requirements} (first requirement applies")
-                    bundler_manager.install([gem_name+version_requirements.first])
-                end
-            end
-
-            def self.install_autoproj1(gem_name, version_requirements)
-                gem_manager = ::Autoproj::PackageManagers::GemManager.new(Autoproj.workspace)
-                if version_requirements.empty?
-                    gem_manager.install([[gem_name]])
-                else
-                    version_requirements.uniq!
-                    if version_requirements.size != 1
-                        raise ArgumentError, "#{self} -- cannot handle more than one version constraints for gem '#{gem_name}'"
-                    end
-                    gem_manager.install([[gem_name, version_requirements.first]])
-                end
-            end
-
-            def self.gem_dependencies(gem_name)
-                gem_dependency_cmd = "gem dependency #{gem_name}"
-                gem_dependency, stdcerr, status = Open3.capture3(gem_dependency_cmd)
-                if !status.success?
-                    raise RuntimeError, "GemDependencies::resolve_by_name could not find '#{gem_name}', even though we tried to install it"
-                end
-                return gem_dependency
-            end
-
-            # Resolve the dependency of a gem using `gem dependency <gem_name>`
-            # This will only work if the local installation is update to date
-            # regarding the gems
-            # return [:deps => , :version =>  ]
-            def self.resolve_by_name(gem_name,
-                                     version: nil,
-                                     runtime_deps_only: true,
-                                     use_cache: true)
-
-                GemDependencies.prepare_cache if use_cache
-
-                if not gem_name.kind_of?(String)
-                    raise ArgumentError, "GemDependencies::resolve_by_name expects string, but got #{gem_name.class} '#{gem_name}'"
-                end
-
-                version_requirements = Array.new
-                if version
-                    if version.kind_of?(Set)
-                        version_requirements = version.to_a.compact
-                    elsif version.kind_of?(String)
-                        version_requirements = version.gsub(' ','').split(',')
-                    else
-                        version_requirements = version
-                    end
-                end
-
-                requirements = Array.new
-                version_requirements.each do |requirement|
-                    requirements << ::Gem::Version::Requirement.new(requirement)
-                end
-
-                if use_cache && @@gems.has_key?(gem_name)
-                    cached_result = @@gems[gem_name]
-                    # if cached result is available and version is not relevant
-                    # do return
-                    return cached_result if not version
-
-                    cached_version = ::Gem::Version.new(cached_result[:version])
-                    use_cached_result = false
-                    requirements.each do |required_version|
-                        if !required_version.satisfied_by?(cached_version)
-                            use_cached_result = false
-                            break
-                        end
-                    end
-                    # if cached result is available and version is relevant and
-                    # matches the one in the cache do return
-                    return cached_result if use_cached_result
-                end
-
-                installed, gem_dependency = installation_status(gem_name, version_requirements, runtime_deps_only: runtime_deps_only)
-                if !installed
-                    Apaka::Packaging.warn "Failed to resolve #{gem_name} via 'gem dependency' -- autoinstalling"
-                    install(gem_name, version_requirements)
-                    installed, gem_dependency = installation_status(gem_name, version_requirements)
-                    if !installed
-                        raise RuntimeError, "GemDependencies.resolve_by_name: failed to autoinstall gem '#{gem_name}'"
-                    end
-                end
-
-                versioned_gems = gem_dependency
-                versioned_gems = versioned_gems.select do |description|
-                    do_select = true
-                    requirements.each do |required_version|
-                        available_version = ::Gem::Version.new(description[:version])
-                        if !required_version.satisfied_by?(available_version)
-                            do_select = false
-                        end
-                    end
-                    do_select
-                end
-                if versioned_gems.empty?
-                    raise RuntimeError, "GemDependencies::resolve_by_name failed to find a (locally installed) gem '#{gem_name}' that satisfies the version requirements: #{version_requirements}"
-                else
-                    if use_cache
-                        description = versioned_gems.last
-                        @@gems[gem_name] = description[:deps]
-                        @@active_gems[gem_name] = description[:version]
-                    end
-                    return versioned_gems.last
-                end
+                gemfile
             end
 
             # Resolve all dependencies of a list of name or |name,version| tuples of gems
             # Returns[Hash] with keys as required gems and versioned dependencies
             # as values (a Ruby Set)
-            def self.resolve_all(gems, cache: true)
-                Apaka::Packaging.debug "#{self.class} resolve gem versions for: #{gems.collect {|p| p[0]}.join(' ')}"
-
-                dependencies = Hash.new
-                handled_gems = Set.new
-
-                if gems.kind_of?(String)
-                    gems = [gems]
-                end
-
-                remaining_gems = Hash.new
-                if gems.kind_of?(Array)
-                    gems.collect do |value|
-                        # only the gem name is given
-                        if value.kind_of?(String)
-                            name = value
-                            version = nil
-                        else
-                            name, version = value
-                        end
-
-                        remaining_gems[name] ||= Array.new
-                        remaining_gems[name] << version if version
+            def self.resolve_all(gems, gemfile: "/tmp/apaka/Gemfile.all")
+                GemDependencies.prepare_gemfile(gemfile)
+                File.open(gemfile,"a") do |f|
+                    f.puts "group :extra do"
+                    gems.each do |gem|
+                        f.puts "    gem \"#{gem}\", \">= 0\""
                     end
-                elsif gems.kind_of?(Hash)
-                    remaining_gems = gems
+                    f.puts "end"
                 end
-
-                dependencies = Hash.new
-                while !remaining_gems.empty?
-                    remaining = Hash.new
-                    remaining_gems.each do |gem_name, gem_versions|
-                        deps = resolve_by_name(gem_name,
-                                              version: gem_versions,
-                                              )[:deps]
-                        handled_gems << gem_name
-
-                        dependencies[gem_name] = Hash.new
-                        deps.each do |gem_dep_name, gem_dep_version|
-                            version = gem_dep_version.dup
-
-                            if @@active_gems[gem_dep_name]
-                                version = [ @@active_gems[gem_dep_name] ]
-                            end
-
-                            dependencies[gem_name][gem_dep_name] ||= Array.new
-                            dependencies[gem_name][gem_dep_name] += version
-
-                            if !handled_gems.include?(gem_dep_name)
-                                remaining[gem_dep_name] ||= Array.new
-                                remaining[gem_dep_name] += version
-                            end
-                        end
-                        print "\rProcessed gems: #{handled_gems.size}"
-                    end
-
-                    remaining_gems.select! { |g| !handled_gems.include?(g) }
-                    remaining.each do |name, versions|
-                        remaining_gems[name] ||= Array.new
-                        remaining_gems[name] = (remaining_gems[name] + versions).uniq
-                    end
-                end
-                dependencies
+                GemDependencies.get_gem_specs(gemfile).keys
             end
 
-            # Sort gems based on their interdependencies
-            # Dependencies is a hash where the key is the gem and
-            # the value is the set of versioned dependencies
-            def self.sort_by_dependency(dependencies = Hash.new)
-                ordered_gem_list = Array.new
-                while true
-                    if dependencies.empty?
-                        break
+            # Resolve the dependency of a gem using `gem dependency <gem_name>`
+            # This will only work if the local installation is update to date
+            # regarding the gems
+            # return {:deps => , :version =>  }
+            def self.resolve_by_name(gem_name, version: nil, gemfile: "/tmp/apaka/Gemfile.#{gem_name}")
+                unless version
+                    GemDependencies.prepare_gemfile(gemfile)
+                else
+                    GemDependencies.prepare_new_gemfile(gemfile)
+                end
+                File.open(gemfile,"a") do |f|
+                    f.puts "group :extra do"
+                    if version 
+                        f.puts "    gem \"#{gem_name}\", \"= #{version}\""
+                    else
+                        f.puts "    gem \"#{gem_name}\", \">= 0\""
                     end
-
-                    handled_packages = Array.new
-
-                    # Take all gems which are either standalone, or
-                    # whose dependencies have already been processed
-                    dependencies.each do |gem_name, gem_dependencies|
-                        if gem_dependencies.empty?
-                            handled_packages << gem_name
-                            ordered_gem_list << gem_name
-                        end
-                    end
-
-                    # Remove handled packages from the list of dependencies
-                    handled_packages.each do |gem_name|
-                        dependencies.delete(gem_name)
-                    end
-
-                    # Remove the handled packages from the dependency lists
-                    # of all other packages
-                    dependencies_refreshed = Hash.new
-                    dependencies.each do |gem_name, gem_dependencies|
-                        gem_dependencies.reject! { |x, version| handled_packages.include? x }
-                        dependencies_refreshed[gem_name] = gem_dependencies
-                    end
-                    dependencies = dependencies_refreshed
-
-                    if handled_packages.empty? && !dependencies.empty?
-                        raise ArgumentError, "Unhandled dependencies of gem: #{dependencies}"
+                    f.puts "end"
+                end
+                specs = GemDependencies.get_gem_specs(gemfile)
+                deps = []
+                specs[gem_name].dependencies.each do |d|
+                    if d.type == "runtime"
+                        deps << d.name
                     end
                 end
-                ordered_gem_list
+                {:deps => deps, :version => specs[gem_name].version.to_s}
             end
 
-            # Sorted list of dependencies
-            def self.sorted_gem_list(gems)
-                dependencies = resolve_all(gems)
-                sort_by_dependency(dependencies)
-            end
-
-            def self.gem_exact_versions(gems)
-                gem_exact_version = Hash.new
-                gems.each do |gem_name, version_requirements|
-                    gem_exact_version[gem_name] = resolve_by_name(gem_name, version: version_requirements)[:version]
-                end
-                gem_exact_version
-            end
-
-            # Check is the given name refers to an existing gem
-            # uses 'gem fetch' for testing
             def self.is_gem?(gem_name)
-                if gem_name =~ /\//
-                    Apaka::Packaging.info "GemDependencies: invalid name -- cannot be a gem"
-                    return false
+                return @@known_gems[gem_name] if @@known_gems.has_key?(gem_name)
+
+                gemfile = GemDependencies.prepare_new_gemfile("/tmp/apaka/Gemfile.is_gem.#{gem_name}")
+                File.open(gemfile, "a") do |file|
+                    file.puts "gem '#{gem_name}', \" >= 0 \""
                 end
-                # Check if this is a gem or not
-                Dir.chdir("/tmp") do
-                    outfile = "/tmp/gem-fetch-#{gem_name}"
-                    if not File.exist?(outfile)
-                        if !system("gem", "fetch", gem_name, [ :out, :err] => outfile)
-                            return false
-                        end
-                    end
-                    if !system("grep", "-i", "ERROR", :in => outfile, [:out, :err] => "/dev/null")
-                        Apaka::Packaging.info "GemDependencies: #{gem_name} is a ruby gem"
-                        return true
-                    end
+
+                begin
+                    GemDependencies.resolve_by_name(gem_name, gemfile: gemfile)
+                rescue Bundler::GemNotFound => e
+                    result = false
                 end
-                return false
+                result = true
+                @@known_gems[gem_name] = result
             end
 
             # Get the release date for a particular gem

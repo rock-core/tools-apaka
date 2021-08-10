@@ -322,7 +322,7 @@ module Apaka
                             # if that is the case use that one -- if not, then use the ruby name
                             # since then is it is either part of the flow job
                             # or an os dependency
-                            gem_deps = gem_deps.keys.each do |k|
+                            gem_deps = gem_deps.each do |k|
                                 depname, is_osdep = @dep_manager.native_dependency_name(k)
                                 all_deps << depname
                             end

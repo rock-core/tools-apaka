@@ -471,19 +471,13 @@ module Apaka
             # returns { :gems => [gem names sorted so least dependend is first],
             #           :gem_versions => { gem => version } }
             def all_required_gems(gem_versions, no_deps: false)
-                gemfile = File.join(root_dir,"install","gems","Gemfile")
-                unless File.exist?(gemfile)
-                    raise "Apaka::Packaging::Autoproj2Adapter.all_required_gems failed to find Gemfile"
-                end
-
-                gems_definitions = Bundler::Definition.build(gemfile, nil,nil)
-                gem_specs = gems_definitions.resolve_remotely!
+                specs = GemDependencies.all_gem_specs
 
                 sorted_gem_list = []
                 exact_version_list = {}
-                gem_specs.each do |spec|
-                    sorted_gem_list << spec.name
-                    exact_version_list[spec.name] = spec.version.to_s
+                specs.each do |name, spec|
+                    sorted_gem_list << name
+                    exact_version_list[name] = spec.version.to_s
                 end
 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
