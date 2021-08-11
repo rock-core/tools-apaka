@@ -34,6 +34,7 @@ module Apaka
                         convert_gems([ [pkg_name, version] ], {:force_update => force_update,
                                                                :patch_dir => patch_dir,
                                                                :log_file => logfile })
+
                         packages[pkg_name] = { :debian_name => debian_ruby_name(pkg_name),
                                                :build_deps => build_dependencies(pkg_name, version),
                                                :type => :gem
@@ -993,8 +994,8 @@ END
                 end
 
                 def build_dependencies(gem_name, version = nil)
-                    deps = package_info_ask.all_required_gems({gem_name => [version]})
-                    deps = deps[:gem_versions].to_a.select do |gem,versions|
+                    deps = GemDependencies.resolve_by_name(gem_name, version: version)[:deps]
+                    deps.each do |gem|
                         pkg_ruby_name = debian_ruby_name(gem, false)
                         pkg_prefixed_name = debian_ruby_name(gem, true)
 
