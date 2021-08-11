@@ -544,10 +544,12 @@ module Apaka
                     if pkg_handler == "gem"
                         pkg_list.each do |name|
                             version = nil
-                            if name =~ /([<>]=?.*)$/
+                            if name =~ /([<>=]=?.*)$/
                                 version = $1
                             end
-                            name = name.gsub(/[<>]=?.*$/,"")
+
+                            name = name.gsub(/[<>=]=?.*$/,"")
+
                             extra_gems << [name, version]
                             non_native_dependencies << [name, version]
                         end
