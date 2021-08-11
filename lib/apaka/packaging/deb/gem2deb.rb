@@ -908,6 +908,8 @@ END
                                 end
                             end
 
+                            Gem2Deb.cleanup_multiple_gemspec(gem_base_name, gem_versioned_name)
+
                             # Repackage
                             source_dir = gem_versioned_name
                             if !tar_gzip(source_dir, "#{gem_versioned_name}.tar.gz", tgz_date)
@@ -968,6 +970,25 @@ END
                         raise RuntimeError, "Apaka::Packaging::Debian::convert_gems: found "\
                             "multiple orig.tar.gz file, cannot uniquely identify version: "\
                             "#{registered_orig_tar_gz}"
+                    end
+                end
+
+                def self.cleanup_multiple_gemspec(gem_name, directory = Dir.pwd)
+                    gemspec = "#{gem_name}.gemspec"
+                    Dir.chdir(directory) do
+                        gemspec_files = Dir.glob("*.gemspec")
+                        if gemspec_files.size > 1
+                            unless gemspec_files.include?(gemspec)
+                                raise "Apaka::Packaging::Gem::Package2Gem.cleanup_multiple_gemspec " \
+                                    " Failed to locate gemspec #{gemspec} - available are #{gemspec_files}"
+                            end
+
+                            gemspec_files.each do |file|
+                                if gemspec != file
+                                    FileUtils.rm file
+                                end
+                            end
+                        end
                     end
                 end
 
