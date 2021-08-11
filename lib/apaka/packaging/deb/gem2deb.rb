@@ -353,7 +353,11 @@ module Apaka
                             debcontrol.source["Priority"] = "optional"
                             debcontrol.source["Maintainer"] = Apaka::Packaging::Config.maintainer
                             debcontrol.source["Uploaders"] = Apaka::Packaging::Config.maintainer
-                            debcontrol.source["Homepage"] = spec.homepage || Apaka::Packaging::Config.homepage
+                            if spec and spec.homepage
+                                debcontrol.source["Homepage"] = spec.homepage
+                            else
+                                debcontrol.source["Homepage"] = Apaka::Packaging::Config.homepage
+                            end
                             debcontrol.source["Vcs-Browser"] = ""
                             debcontrol.source["Vcs-Git"] = ""
                             debcontrol.source["Source"] = debian_ruby_unversioned_name
