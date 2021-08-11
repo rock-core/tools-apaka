@@ -47,6 +47,8 @@ module Apaka
                     Dir.chdir(pkginfo.srcdir) do
                         begin
                             logname = "package-ruby-#{pkginfo.name.sub("/","-")}" + "-" + Time.now.strftime("%Y%m%d-%H%M%S").to_s + ".log"
+                            logfile = File.join(log_dir, logname)
+
                             gem = FileList["pkg/*.gem"].first
                             if not gem
                                 Packager.info "#{self.class}: preparing gem generation in #{Dir.pwd}"
@@ -54,8 +56,10 @@ module Apaka
                                 # Rake targets that should be tried for cleaning
                                 gem_clean_success = false
                                 Gem.clean_alternatives.each do |target|
-                                    if !system(pkginfo.env, "rake", target, [ :out, :err ] => File.join(log_dir, logname), :close_others => true)
-                                        Packager.info "#{self.class}: failed to clean package '#{pkginfo.name}' using target '#{target}'"
+                                    msg, status = Open3.capture2e(pkginfo.env, "bundle exec rake #{target}")
+                                    if !status.success?
+                                        Packager.info "#{self.class}: failed to clean package '#{pkginfo.name}' using target '#{target}' #{msg} (see #{logfile})"
+                                        File.open(logfile,"a+") {|f| f.puts msg }
                                     else
                                         Packager.info "#{self.class}: succeeded to clean package '#{pkginfo.name}' using target '#{target}'"
                                         gem_clean_success = true
@@ -90,8 +94,13 @@ module Apaka
                                     Packager.info "#{self.class}: commit failed: #{msg}"
                                 end
                                 Gem.creation_alternatives.each do |target|
-                                    if !system(pkginfo.env, "rake", target, [ :out, :err ] => [ File.join(log_dir, logname), "a"], :close_others => true)
-                                        Packager.info "#{self.class}: failed to create gem using target '#{target}' -- #{pkginfo.env}"
+                                    msg, status = Open3.capture2e(pkginfo.env, "bundle exec rake #{target}")
+                                    if !status.success?
+                                        Packager.info "#{self.class}: failed to create gem using target '#{target}' (see #{logfile})"
+                                        File.open(logfile,"a+") do |f|
+                                            f.puts msg
+                                            f.puts pkginfo.env
+                                        end
                                     else
                                         Packager.info "#{self.class}: succeeded to create gem using target '#{target}'"
                                         gem_creation_success = true
@@ -131,7 +140,7 @@ module Apaka
                             return gem_final_path
 
                         rescue Exception => e
-                            raise RuntimeError, "#{self.class}: failed to create gem from RubyPackage #{pkginfo.name} -- #{e.message}\n#{e.backtrace.join("\n")}"
+                            raise RuntimeError, "#{self.class}: failed to create gem from RubyPackage #{pkginfo.name} -- #{e.message}\n#{e.backtrace.drop(1).map{|s| "\t#{s}"}}"
                         end
                     end
                 end
