@@ -312,10 +312,10 @@ module Apaka
                             gem_deps = Hash.new
                             nonnative_packages = options[:deps][:nonnative]
                             if !nonnative_packages.empty?
-                                gem_deps = GemDependencies::resolve_all(nonnative_packages)
+                                gem_deps = GemDependencies.resolve_all(nonnative_packages)
                             elsif !options[:local_pkg]
                                 gem_deps =
-                                    GemDependencies::resolve_by_name(gem_base_name, version: gem_version)[:deps]
+                                  GemDependencies.resolve_by_name(gem_base_name, version: gem_version)[:deps]
                             end
 
                             # Check if the plain package name exists in the given distribution

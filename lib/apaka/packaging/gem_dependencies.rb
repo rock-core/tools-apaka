@@ -74,18 +74,43 @@ module Apaka
             end
 
             # Resolve all dependencies of a list of name or |name,version| tuples of gems
-            # Returns[Hash] with keys as required gems and versioned dependencies
-            # as values (a Ruby Set)
-            def self.resolve_all(gems, gemfile: "/tmp/apaka/Gemfile.all")
+            # @returns List of dependency names
+            def self.resolve_all(gems = [], gemfile: "/tmp/apaka/Gemfile.all")
                 GemDependencies.prepare_gemfile(gemfile)
                 File.open(gemfile,"a") do |f|
                     f.puts "group :extra do"
                     gems.each do |gem|
-                        f.puts "    gem \"#{gem}\", \">= 0\""
+                        if gem.kind_of?(Array)
+                            name,version = gem
+                        else
+                            name = gem
+                        end
+
+                        if version
+                            if version =~ /^[0-9].*/
+                                f.puts "    gem \"#{name}\", \"== #{version}\""
+                            else
+                                f.puts "    gem \"#{name}\", \"#{version}\""
+                            end
+                        else
+                            f.puts "    gem \"#{name}\", \">= 0\""
+                        end
                     end
                     f.puts "end"
                 end
-                GemDependencies.get_gem_specs(gemfile).keys
+
+                specs = GemDependencies.get_gem_specs(gemfile)
+                return specs.keys if gems.empty?
+
+                deps = Set.new
+                gems.each do |gem_name, gem_version|
+                    specs[gem_name].dependencies.each do |d|
+                        if d.type == :runtime
+                            deps << d.name
+                        end
+                    end
+                end
+                deps.to_a
             end
 
             # Resolve the dependency of a gem using `gem dependency <gem_name>`
@@ -93,6 +118,11 @@ module Apaka
             # regarding the gems
             # return {:deps => , :version =>  }
             def self.resolve_by_name(gem_name, version: nil, gemfile: "/tmp/apaka/Gemfile.#{gem_name}")
+                unless gem_name.kind_of?(String)
+                    raise "Apaka::Packaging::GemDependencies.resolve_by_name " \
+                        "takes only gem name as argument, but got #{gem_name}"
+                end
+
                 unless version
                     GemDependencies.prepare_gemfile(gemfile)
                 else
@@ -109,12 +139,14 @@ module Apaka
                 end
                 specs = GemDependencies.get_gem_specs(gemfile)
                 deps = []
+                versions = []
                 specs[gem_name].dependencies.each do |d|
-                    if d.type == "runtime"
+                    if d.type == :runtime
                         deps << d.name
+                        versions << d.requirement.to_s
                     end
                 end
-                {:deps => deps, :version => specs[gem_name].version.to_s}
+                {:deps => deps, :version => versions }
             end
 
             def self.is_gem?(gem_name)
