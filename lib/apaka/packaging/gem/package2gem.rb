@@ -42,7 +42,7 @@ module Apaka
                                    )
                     Packager.info "Package Ruby: '#{pkginfo.name}' with gem_name: '#{gem_name}'"
 
-                    # update dependencies in any case, i.e. independant if package exists or not
+                    # update dependencies in any case, i.e. independent if package exists or not
                     deps = pkginfo.dependencies
                     Dir.chdir(pkginfo.srcdir) do
                         begin
