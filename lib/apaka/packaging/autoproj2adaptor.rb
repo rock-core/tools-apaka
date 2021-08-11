@@ -476,8 +476,10 @@ module Apaka
                 sorted_gem_list = []
                 exact_version_list = {}
                 specs.each do |name, spec|
-                    sorted_gem_list << name
-                    exact_version_list[name] = spec.version.to_s
+                    if gem_versions.has_key?(name)
+                        sorted_gem_list << name
+                        exact_version_list[name] = spec.version.to_s
+                    end
                 end
 
                 {:gems => sorted_gem_list, :gem_versions => exact_version_list}
