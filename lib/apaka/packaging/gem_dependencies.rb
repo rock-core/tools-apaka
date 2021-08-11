@@ -76,7 +76,11 @@ module Apaka
             # Resolve all dependencies of a list of name or |name,version| tuples of gems
             # @returns List of dependency names
             def self.resolve_all(gems = [], gemfile: "/tmp/apaka/Gemfile.all")
+                return [] if gems.empty?
+
+                available_specs = GemDependencies.all_gem_specs
                 GemDependencies.prepare_gemfile(gemfile)
+
                 File.open(gemfile,"a") do |f|
                     f.puts "group :extra do"
                     gems.each do |gem|
@@ -84,6 +88,11 @@ module Apaka
                             name,version = gem
                         else
                             name = gem
+                        end
+
+                        if available_specs.has_key?(name)
+                            # skip already available definition
+                            next
                         end
 
                         if version
@@ -128,16 +137,21 @@ module Apaka
                 else
                     GemDependencies.prepare_new_gemfile(gemfile)
                 end
-                File.open(gemfile,"a") do |f|
-                    f.puts "group :extra do"
-                    if version 
-                        f.puts "    gem \"#{gem_name}\", \"= #{version}\""
-                    else
-                        f.puts "    gem \"#{gem_name}\", \">= 0\""
+
+                specs = GemDependencies.all_gem_specs
+                if not specs.has_key?(gem_name)
+                    File.open(gemfile,"a") do |f|
+                        f.puts "group :extra do"
+                        if version
+                            f.puts "    gem \"#{gem_name}\", \"= #{version}\""
+                        else
+                            f.puts "    gem \"#{gem_name}\", \">= 0\""
+                        end
+                        f.puts "end"
                     end
-                    f.puts "end"
+                    specs = GemDependencies.get_gem_specs(gemfile)
                 end
-                specs = GemDependencies.get_gem_specs(gemfile)
+
                 deps = []
                 versions = []
                 specs[gem_name].dependencies.each do |d|
@@ -152,7 +166,11 @@ module Apaka
             def self.is_gem?(gem_name)
                 return @@known_gems[gem_name] if @@known_gems.has_key?(gem_name)
 
-                gemfile = GemDependencies.prepare_new_gemfile("/tmp/apaka/Gemfile.is_gem.#{gem_name}")
+                # Avoid double definition
+                s = GemDependencies.all_gem_specs
+                return true if s.has_key?(gem_name)
+
+                gemfile = GemDependencies.prepare_new_gemfile("/tmp/apaka/Gemfile.is_gem.#{gem_name.gsub("/","-")}")
                 File.open(gemfile, "a") do |file|
                     file.puts "gem '#{gem_name}', \" >= 0 \""
                 end
