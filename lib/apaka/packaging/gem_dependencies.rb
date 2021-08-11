@@ -159,10 +159,10 @@ module Apaka
 
                 begin
                     GemDependencies.resolve_by_name(gem_name, gemfile: gemfile)
+                    result = true
                 rescue Bundler::GemNotFound => e
                     result = false
                 end
-                result = true
                 @@known_gems[gem_name] = result
             end
 
