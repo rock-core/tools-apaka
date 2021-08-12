@@ -26,6 +26,13 @@ module Apaka
 
                 def package_gems(selected_gems, force_update: nil, patch_dir: nil)
                     packages = {}
+
+                    GemDependencies.resolve_all(selected_gems).each do |name,version|
+                        next if selected_gems.include?(name)
+
+                        selected_gems[name] = version
+                    end
+
                     selected_gems.each do |pkg_name, version|
                         logfile = File.join(self.log_dir, "#{debian_ruby_name(pkg_name)}-apaka-package.log")
                         Autoproj.message "Converting ruby gem: '#{pkg_name}' (see #{logfile})", :green
