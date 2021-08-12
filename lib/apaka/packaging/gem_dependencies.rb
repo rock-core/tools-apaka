@@ -74,9 +74,9 @@ module Apaka
             end
 
             # Resolve all dependencies of a list of name or |name,version| tuples of gems
-            # @returns List of dependency names
+            # @returns { :name_of_gem => version }
             def self.resolve_all(gems = [], gemfile: "/tmp/apaka/Gemfile.all")
-                return [] if gems.empty?
+                return {} if gems.empty?
 
                 available_specs = GemDependencies.all_gem_specs
                 GemDependencies.prepare_gemfile(gemfile)
@@ -109,23 +109,21 @@ module Apaka
                 end
 
                 specs = GemDependencies.get_gem_specs(gemfile)
-                return specs.keys if gems.empty?
-
-                deps = Set.new
+                deps = {}
                 gems.each do |gem_name, gem_version|
                     specs[gem_name].dependencies.each do |d|
                         if d.type == :runtime
-                            deps << d.name
+                            deps[d.name] = d.requirement.to_s
                         end
                     end
                 end
-                deps.to_a
+                deps
             end
 
             # Resolve the dependency of a gem using `gem dependency <gem_name>`
             # This will only work if the local installation is update to date
             # regarding the gems
-            # return {:deps => , :version =>  }
+            # return {:gem_name => version }
             def self.resolve_by_name(gem_name, version: nil, gemfile: "/tmp/apaka/Gemfile.#{gem_name}")
                 unless gem_name.kind_of?(String)
                     raise "Apaka::Packaging::GemDependencies.resolve_by_name " \
@@ -152,15 +150,13 @@ module Apaka
                     specs = GemDependencies.get_gem_specs(gemfile)
                 end
 
-                deps = []
-                versions = []
+                deps = {}
                 specs[gem_name].dependencies.each do |d|
                     if d.type == :runtime
-                        deps << d.name
-                        versions << d.requirement.to_s
+                        deps[d.name] = d.requirement.to_s
                     end
                 end
-                {:deps => deps, :version => versions }
+                deps
             end
 
             def self.is_gem?(gem_name)

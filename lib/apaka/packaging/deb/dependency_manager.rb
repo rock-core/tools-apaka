@@ -50,7 +50,7 @@ module Apaka
                     all_recursive_deps.each_value { |a| a.uniq! }
 
                     if !all_recursive_deps[:nonnative].empty?
-                        all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative])
+                        all_recursive_deps[:nonnative] = GemDependencies::resolve_all(all_recursive_deps[:nonnative]).keys
                     end
                     recursive_deps = all_recursive_deps.values.flatten.uniq
                 end

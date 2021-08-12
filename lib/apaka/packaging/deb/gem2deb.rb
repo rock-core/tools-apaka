@@ -315,15 +315,14 @@ module Apaka
                             if !nonnative_packages.empty?
                                 gem_deps = GemDependencies.resolve_all(nonnative_packages)
                             elsif !options[:local_pkg]
-                                gem_deps =
-                                  GemDependencies.resolve_by_name(gem_base_name, version: gem_version)[:deps]
+                                gem_deps = GemDependencies.resolve_by_name(gem_base_name, version: gem_version)
                             end
 
                             # Check if the plain package name exists in the given distribution
                             # if that is the case use that one -- if not, then use the ruby name
                             # since then is it is either part of the flow job
                             # or an os dependency
-                            gem_deps = gem_deps.each do |k|
+                            gem_deps = gem_deps.each do |k,v|
                                 depname, is_osdep = @dep_manager.native_dependency_name(k)
                                 all_deps << depname
                             end
@@ -994,8 +993,8 @@ END
                 end
 
                 def build_dependencies(gem_name, version = nil)
-                    deps = GemDependencies.resolve_by_name(gem_name, version: version)[:deps]
-                    deps.each do |gem|
+                    deps = GemDependencies.resolve_by_name(gem_name, version: version)
+                    deps.each do |gem, version|
                         pkg_ruby_name = debian_ruby_name(gem, false)
                         pkg_prefixed_name = debian_ruby_name(gem, true)
 
