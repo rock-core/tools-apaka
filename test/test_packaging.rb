@@ -96,10 +96,19 @@ class TestDebian < Minitest::Test
 
     def test_recursive_dependencies
         test_set = {}
+        target_platform = TargetPlatform.autodetect_target_platform
+
         if Apaka::Packaging::Config.packages_enforce_build.include?('gems')
             test_set["utilrb"] = ["rock-master-ruby-bundler", "rock-master-ruby-facets"]
         else
-            test_set["utilrb"] = ["bundler", "ruby-facets"]
+            test_set["utilrb"] = []
+            ["bundler", "facets"].each do |name|
+                if target_platform.contains?(name)
+                    test_set["utilrb"] << name
+                else
+                    test_set["utilrb"] << "rock-master-ruby-#{name}"
+                end
+            end
         end
 
         test_set["rtt"] = ["cmake","omniidl","libomniorb4-dev","omniorb-nameserver",

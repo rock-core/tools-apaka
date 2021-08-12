@@ -223,12 +223,16 @@ module Apaka
                 return "universe/ruby" == aptShow(package, "Section")
             end
 
+            def contains(package, cache_results = true)
+                contains?(package, cache_results)
+            end
+
             # Check if the given release contains
             # a package of the given name
             #
             # This method relies on the launchpad website for Ubuntu packages
             # and the packages.debian.org/source website for Debian packages
-            def contains(package, cache_results = true)
+            def contains?(package, cache_results = true)
                 # packages with "/" in their name are not valid for debian
                 if package =~ /\//
                     return false
