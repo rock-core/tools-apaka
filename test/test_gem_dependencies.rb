@@ -13,13 +13,8 @@ class TestGemDependencies < Minitest::Test
         assert(timestamp = "20190515")
     end
 
-    def test_installation_status
-        installed, dependencies = Apaka::Packaging::GemDependencies.installation_status("autoproj")
-        assert(installed)
-        puts(dependencies)
-
-        desc = Apaka::Packaging::GemDependencies.resolve_by_name("autoproj")
-        puts(desc)
-        assert(desc.has_key?("autobuild"))
+    def test_is_gem
+        assert(Apaka::Packaging::GemDependencies.is_gem?("facets"))
+        assert(!Apaka::Packaging::GemDependencies.is_gem?("base/cmake"))
     end
 end
