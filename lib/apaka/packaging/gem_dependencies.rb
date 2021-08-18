@@ -111,11 +111,7 @@ module Apaka
                 specs = GemDependencies.get_gem_specs(gemfile)
                 deps = {}
                 gems.each do |gem_name, gem_version|
-                    specs[gem_name].dependencies.each do |d|
-                        if d.type == :runtime
-                            deps[d.name] = specs[d.name].version
-                        end
-                    end
+                    deps = deps.merge(collect_dependencies(gem_name, specs, types = [:runtime]))
                 end
                 deps
             end
