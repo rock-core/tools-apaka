@@ -17,4 +17,17 @@ class TestGemDependencies < Minitest::Test
         assert(Apaka::Packaging::GemDependencies.is_gem?("facets"))
         assert(!Apaka::Packaging::GemDependencies.is_gem?("base/cmake"))
     end
+
+    def test_resolve_all
+        deps = Apaka::Packaging::GemDependencies.resolve_all(["rgl"])
+        ["stream","generator","lazy_priority_queue"].each do |dep|
+            assert(deps.has_key?(dep))
+        end
+    end
+    def test_resolve_by_name
+        deps = Apaka::Packaging::GemDependencies.resolve_by_name("rgl")
+        ["stream","generator","lazy_priority_queue"].each do |dep|
+            assert(deps.has_key?(dep))
+        end
+    end
 end
