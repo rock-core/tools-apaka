@@ -113,7 +113,7 @@ module Apaka
                 gems.each do |gem_name, gem_version|
                     specs[gem_name].dependencies.each do |d|
                         if d.type == :runtime
-                            deps[d.name] = d.requirement.to_s
+                            deps[d.name] = specs[d.name].version
                         end
                     end
                 end
@@ -150,10 +150,21 @@ module Apaka
                     specs = GemDependencies.get_gem_specs(gemfile)
                 end
 
+                deps = collect_dependencies(gem_name, specs, types = [:runtime])
+            end
+
+            def self.collect_dependencies(name, specs, types = [:runtime])
+              raise "Apaka::Packaging::GemDependencies.collect_dependencies: " \
+                  "No spec for #{name} available" unless specs.has_key?(name)
+
                 deps = {}
-                specs[gem_name].dependencies.each do |d|
-                    if d.type == :runtime
-                        deps[d.name] = d.requirement.to_s
+                specs[name].dependencies.each do |d|
+                    if types.include?(d.type)
+                        deps[d.name] = specs[d.name].version.to_s
+
+                        collect_dependencies(d.name, specs).each do |dep,version|
+                            deps[dep] = version unless deps.has_key?(dep)
+                        end
                     end
                 end
                 deps
