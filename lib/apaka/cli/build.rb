@@ -250,7 +250,7 @@ module Apaka
                     if running_jobs.empty? && !pending_jobs.empty?
                         Apaka::Packaging.error "Remaining (pending) packages which unsatisfied dependencies:"
                         pending_jobs.each do |pkg,job|
-                            Apaka::Packaging.error "#{pkg}: #{job[:dependencies].keys}"
+                            Apaka::Packaging.error "#{pkg}: #{job[:dependencies]}"
                         end
                         exit 1
                     end
