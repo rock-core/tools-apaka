@@ -73,9 +73,23 @@ module Apaka
                 gemfile
             end
 
-            # Resolve all dependencies of a list of name or |name,version| tuples of gems
+            # Resolve all gems given as list of name or |name,version| tuples of gems
+            # and return their version and their dependencies
             # @returns { :name_of_gem => version }
             def self.resolve_all(gems = [], gemfile: "/tmp/apaka/Gemfile.all")
+                return {} if gems.empty?
+
+                deps = resolve_all_deps(gems, gemfile: gemfile)
+                specs = GemDependencies.get_gem_specs(gemfile)
+                gems.each do |gem_name, gem_version|
+                    deps[gem_name] = specs[gem_name].version.to_s
+                end
+                deps
+            end
+
+            # Resolve all dependencies of a list of name or |name,version| tuples of gems
+            # @returns { :name_of_gem => version }
+            def self.resolve_all_deps(gems = [], gemfile: "/tmp/apaka/Gemfile.all")
                 return {} if gems.empty?
 
                 available_specs = GemDependencies.all_gem_specs
@@ -161,6 +175,8 @@ module Apaka
                 deps = {}
                 specs[name].dependencies.each do |d|
                     if types.include?(d.type)
+                        raise "Apaka::Packaging::GemDependencies missing spec of #{d.name}" unless specs.include?(d.name)
+
                         deps[d.name] = specs[d.name].version.to_s
 
                         collect_dependencies(d.name, specs).each do |dep,version|
