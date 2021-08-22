@@ -136,10 +136,15 @@ module Apaka
                 if not specs.has_key?(gem_name)
                     File.open(gemfile,"a") do |f|
                         f.puts "group :extra do"
-                        if version
-                            f.puts "    gem \"#{gem_name}\", \"= #{version}\""
-                        else
+                        if !version
                             f.puts "    gem \"#{gem_name}\", \">= 0\""
+                        elsif version = /^[0-9]/
+                            f.puts "    gem \"#{gem_name}\", \"= #{version}\""
+                        elsif version = /^[=<>]/
+                            f.puts "    gem \"#{gem_name}\", \"#{version}\""
+                        else
+                            raise "Apaka::Packaging::GemDependencies.resolve_by_name " \
+                                    " version in unknown format #{version}"
                         end
                         f.puts "end"
                     end
