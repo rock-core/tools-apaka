@@ -1,5 +1,5 @@
 # apaka: Automated PAcKaging for Autoproj
-[![Build Status](https://travis-ci.org/rock-core/tools-apaka.svg?branch=master)](https:///travis-ci.org/rock-core/tools-apaka)
+[![Build Status](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml/badge.svg?branch=testing)](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml)
 
 
 * https://github.com/rock-core/tools-apaka
@@ -387,4 +387,4 @@ This software is distributed under the [New/3-clause BSD license](https://openso
 
 ## Copyright
 
-Copyright (c) 2014-2020, DFKI GmbH Robotics Innovation Center
+Copyright (c) 2014-2021, DFKI GmbH Robotics Innovation Center
