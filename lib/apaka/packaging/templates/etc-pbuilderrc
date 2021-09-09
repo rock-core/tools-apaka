@@ -46,7 +46,7 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
         # The default mirror site only provides i386 and
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
-    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=$DIST-updates,main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
 elif [ "$DIST_TYPE" == "debian" ]; then
@@ -71,7 +71,7 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     done
 
     COMPONENTS="main contrib non-free"
-    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,contrib,nonfree)
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=$DIST-updates,main,contrib,nonfree)
 fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
