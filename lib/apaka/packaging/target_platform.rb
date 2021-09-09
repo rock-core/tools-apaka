@@ -174,7 +174,7 @@ module Apaka
                 if ["armhf"].include?(architecture)
                     raise RuntimeError, "TargetPlatfrom::debianContains: dcontrol does not support architecture: #{architecture}"
                 end
-                if !system("which" "dcontrol", [ :out, :err]  => "/dev/null", :close_others => true)
+                if !system("which dcontrol", [ :out, :err]  => "/dev/null", :close_others => true)
                     raise RuntimeError, "TargetPlatform::debianContains: requires 'devscripts' to be installed for dcontrol"
                 end
 
