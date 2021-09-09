@@ -152,9 +152,9 @@ module Apaka
                         f.puts "group :extra do"
                         if !version
                             f.puts "    gem \"#{gem_name}\", \">= 0\""
-                        elsif version = /^[0-9]/
+                        elsif version == /^[0-9]/
                             f.puts "    gem \"#{gem_name}\", \"= #{version}\""
-                        elsif version = /^[=<>]/
+                        elsif version == /^[=<>]/
                             f.puts "    gem \"#{gem_name}\", \"#{version}\""
                         else
                             raise "Apaka::Packaging::GemDependencies.resolve_by_name " \
