@@ -70,7 +70,7 @@ module Apaka
                             cmake.puts "install(DIRECTORY #{folder}/#{file} DESTINATION share/rock/#{destination}/#{folder} FILES_MATCHING PATTERN .* EXCLUDE)"
                             add_folder_to_cmake base_dir, cmake, destination, "#{folder}/#{file}"
                         else
-                            cmake.puts "install(FILES #{folder}/#{file} DESTINATION share/rock/#{destination}/#{folder})"
+                            cmake.puts "install(FILES \"#{folder}/#{file}\" DESTINATION share/rock/#{destination}/#{folder})"
                         end
                     end
                 end
