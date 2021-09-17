@@ -42,11 +42,12 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
 
     COMPONENTS="main restricted universe multiverse"
     MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
     if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
         # The default mirror site only provides i386 and
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
-    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=$DIST-updates,main,restricted,universe,multiverse)
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
 elif [ "$DIST_TYPE" == "debian" ]; then
@@ -59,6 +60,7 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     fi
 
     MIRRORSITE=http://ftp.no.debian.org/debian/
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
     if [ "$DIST" != "sid" ]; then
         # as long as sid is testing
         OTHERMIRROR="$OTHERMIRROR | deb $MIRRORSITE $DIST-backports $COMPONENTS"
@@ -71,7 +73,7 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     done
 
     COMPONENTS="main contrib non-free"
-    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=$DIST-updates,main,contrib,nonfree)
+    DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,contrib,nonfree)
 fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
