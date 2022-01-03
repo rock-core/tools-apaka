@@ -99,10 +99,10 @@ class TestDebian < Minitest::Test
         target_platform = TargetPlatform.autodetect_target_platform
 
         if Apaka::Packaging::Config.packages_enforce_build.include?('gems')
-            test_set["utilrb"] = ["rock-master-ruby-bundler", "rock-master-ruby-facets"]
+            test_set["utilrb"] = ["rock-master-ruby-bundler", "rock-master-ruby-facets", "rock-master-ruby-backports"]
         else
             test_set["utilrb"] = []
-            ["bundler", "facets"].each do |name|
+            ["bundler", "facets", "backports"].each do |name|
                 if target_platform.contains?(name)
                     test_set["utilrb"] << name
                 elsif target_platform.contains?("ruby-#{name}")
