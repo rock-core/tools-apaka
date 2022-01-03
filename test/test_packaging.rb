@@ -102,7 +102,7 @@ class TestDebian < Minitest::Test
             test_set["utilrb"] = ["rock-master-ruby-bundler", "rock-master-ruby-facets", "rock-master-ruby-backports"]
         else
             test_set["utilrb"] = []
-            ["bundler", "facets", "ruby-backports"].each do |name|
+            ["bundler", "facets", "backports"].each do |name|
                 if target_platform.contains?(name)
                     test_set["utilrb"] << name
                 elsif target_platform.contains?("ruby-#{name}")
