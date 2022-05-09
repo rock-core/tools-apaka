@@ -78,7 +78,11 @@ fi
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
-EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb"
+
+# perl-openssl-defaults is needed due to the bug in the debootstrap: https://bugs.launchpad.net/ubuntu/+source/debootstrap/+bug/86536?comments=all
+# the issue arrised by building qtbindings
+
+EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 echo "DIST_TYPE: ${DIST_TYPE}"
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
