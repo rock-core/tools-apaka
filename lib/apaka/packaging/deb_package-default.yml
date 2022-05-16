@@ -59,8 +59,8 @@ distributions:
         labels: 11,sid,default
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial,jessie,stretch,buster,bionic, focal
-    i386:  trusty,xenial,jessie,stretch,buster,bionic, focal
+    amd64: trusty,xenial,jessie,stretch,buster,bionic,focal
+    i386:  trusty,xenial,jessie,stretch,buster,bionic,focal
     armel: jessie,stretch,buster
     armhf: jessie,stretch,buster
     arm64: xenial,bionic
