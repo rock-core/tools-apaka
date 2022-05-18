@@ -545,15 +545,22 @@ module Apaka
                     # Convert native ruby gems package names to rock-xxx
                     if pkg_handler == "gem"
                         pkg_list.each do |name|
-                            version = nil
-                            if name =~ /([<>=]=?.*)$/
-                                version = $1
+                            if name.class == Hash
+                                git = name['git']
+                                name = name['name']
+                                version = nil
+                            else
+                                git = nil
+                                version = nil
+                                if name =~ /([<>=]=?.*)$/
+                                    version = $1
+                                end
+
+                                name = name.gsub(/[<>=]=?.*$/,"")
                             end
 
-                            name = name.gsub(/[<>=]=?.*$/,"")
-
-                            extra_gems << [name, version]
-                            non_native_dependencies << [name, version]
+                            extra_gems << [name, version, git]
+                            non_native_dependencies << [name, version, git]
                         end
                     else
                         raise ArgumentError, "cannot package #{pkg.name} as it has non-native dependencies (#{pkg_list}) -- #{pkg_handler.class} #{pkg_handler}"
