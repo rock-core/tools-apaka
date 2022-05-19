@@ -379,6 +379,14 @@ module Apaka
                             debcontrol.packages.each do |pkg|
                                 if pkg.has_key?("Depends")
                                     depends = pkg["Depends"].split(/,\s*/).map { |e| e.strip }
+                                    # delete ${ruby:Depends} var
+                                    # so debmake does not parse ruby dependencies
+                                    # especially if those ruby dependencies already represented as 
+                                    # rock debian ruby package
+                                    ind = depends.index("${ruby:Depends}")
+                                    if !ind.nil?
+                                        depends.delete_at(ind) 
+                                    end
                                     depends.each do |dep|
                                         if dep =~ /^ruby-(\S+)/
                                             pkg_name = $1
