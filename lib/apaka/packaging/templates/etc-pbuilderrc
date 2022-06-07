@@ -2,9 +2,6 @@
 set -e
 
 echo "Reading pbuilder /etc/pbuilderrc"
-echo "DIST: ${DIST}"
-echo "ARCH: ${ARCH}"
-echo "COMPONENTS: ${COMPONENTS}"
 
 UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
 DEBIAN_DISTS="sid wheezy jessie stretch buster"
@@ -43,6 +40,7 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
     COMPONENTS="main restricted universe multiverse"
     MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
     OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
+
     if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
         # The default mirror site only provides i386 and
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
@@ -84,9 +82,14 @@ fi
 
 EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
+
+echo "DIST: ${DIST}"
+echo "ARCH: ${ARCH}"
+echo "COMPONENTS: ${COMPONENTS}"
 echo "DIST_TYPE: ${DIST_TYPE}"
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
-echo "COMPONENTS: $COMPONENTS"
+echo "MIRRORSITE: ${MIRRORSITE}"
+echo "OTHERMIRROR: ${OTHERMIRROR}"
 
 # Enable network in pbuilder, otherwise embedded bootstrap scripts will fail
 USENETWORK=yes
