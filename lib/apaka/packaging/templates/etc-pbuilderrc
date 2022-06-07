@@ -16,7 +16,7 @@ if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
 elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
-else
+elif [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
     DIST=bionic
     echo "warning: no distribution set -- using default: ${DIST}"
 fi
