@@ -54,16 +54,17 @@ distributions:
         type: debian
         labels: 10,buster,default
         ruby_version: ruby25
-    sid:
+    bullseye:
         type: debian
-        labels: 11,sid,default
+        labels: 11,bullseye,default
+        uby_version: ruby27
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial,jessie,stretch,buster,bionic,focal
-    i386:  trusty,xenial,jessie,stretch,buster,bionic,focal
+    amd64: trusty,xenial,jessie,stretch,buster,bionic,focal,bullseye
+    i386:  trusty,xenial,jessie,stretch,buster,bionic,focal,bullseye
     armel: jessie,stretch,buster
     armhf: jessie,stretch,buster
-    arm64: xenial,bionic
+    arm64: xenial,bionic,focal
 packages:
     optional: llvm,clang
     excluded: libqwt5-qt4-dev
