@@ -38,13 +38,15 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
     echo "Identified Ubuntu Distribution"
 
     COMPONENTS="main restricted universe multiverse"
+    # The default mirror site only provides i386 and amd64
     MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
-    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
 
     if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
-        # The default mirror site only provides i386 and
+        # The port mirror site provides arm64, armel, armhf
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
+    
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"    
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
@@ -94,7 +96,6 @@ echo "OTHERMIRROR: ${OTHERMIRROR}"
 # Enable network in pbuilder, otherwise embedded bootstrap scripts will fail
 USENETWORK=yes
 
-
 ###   ORIGINAL VERSION   #####
 
 # this is your configuration file for pbuilder.
@@ -104,4 +105,3 @@ USENETWORK=yes
 #
 # read pbuilderrc.5 document for notes on specific options.
 #MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
-
