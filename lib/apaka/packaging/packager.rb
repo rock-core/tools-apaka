@@ -15,7 +15,16 @@ module Apaka
         EXCLUDED_DIRS_PREFIX = ["**/.travis","build","tmp","debian","**/.autobuild","**/.orogen","**/build"]
         EXCLUDED_FILES_PREFIX = ["**/.git","**/.travis","**/.orogen","**/.autobuild"]
 
-        extend Logger::Root("Packaging", Logger::INFO)
+        # Changing the logging level of the Packaging model
+        # the environment variable is set in /lib/apaka/cli/base.rb
+        case ENV['APAKALOGLEVEL']
+        when 'info'
+          extend Logger::Root("Packaging", Logger::INFO)
+        when 'debug'
+          extend Logger::Root("Packaging", Logger::DEBUG)
+        else
+          extend Logger::Root("Packaging", Logger::WARN)
+        end
 
         def self.root_dir= (dir)
             @root_dir = dir
@@ -51,7 +60,15 @@ module Apaka
 
 
         class Packager
-            extend Logger::Root("Packager", Logger::INFO)
+            # Changing the logging level of the Packager model
+            case ENV['APAKALOGLEVEL']
+            when 'info'
+              extend Logger::Root("Packager", Logger::INFO)
+            when 'debug'
+              extend Logger::Root("Packager", Logger::DEBUG)
+            else
+              extend Logger::Root("Packager", Logger::WARN)
+            end
 
             # tests need to write this
             attr_accessor :build_dir

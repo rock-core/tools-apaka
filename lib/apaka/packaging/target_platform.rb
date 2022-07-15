@@ -4,6 +4,17 @@ require_relative 'config'
 
 module Apaka
     module Packaging
+
+        # Changing the logging level of the Packaging model
+        # the environment variable is set in /lib/apaka/cli/base.rb
+        case ENV['APAKALOGLEVEL']
+        when 'info'
+          extend Logger::Root("Packaging", Logger::INFO)
+        when 'debug'
+          extend Logger::Root("Packaging", Logger::DEBUG)
+        else
+          extend Logger::Root("Packaging", Logger::WARN)
+        end
         extend Logger::Root("Packaging", Logger::INFO)
 
         class TargetPlatform
