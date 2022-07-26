@@ -56,8 +56,14 @@ elif [ "$DIST_TYPE" == "debian" ]; then
 
     if [ "$DIST" != "wheezy" ]; then
 	# Not available on wheezy
-    	EXTRA_PACKAGES="ruby-all-dev,"
+    	EXTRA_PACKAGES+="ruby-all-dev,"
     fi
+
+    if [ "$DIST" == "bullseye" ]; then
+    # gem2deb requires debhelper-compat
+    # that comes with debhelper package
+    	EXTRA_PACKAGES+="debhelper,"
+    fi    
 
     MIRRORSITE=http://ftp.no.debian.org/debian/
     OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
