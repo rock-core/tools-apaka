@@ -4,7 +4,7 @@ set -e
 echo "Reading pbuilder /etc/pbuilderrc"
 
 UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
-DEBIAN_DISTS="sid wheezy jessie stretch buster"
+DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye"
 
 
 if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
