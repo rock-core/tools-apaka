@@ -43,5 +43,5 @@ RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
 RUN gem install autoproj
 RUN gem install yard
-RUN gem install minitest
+RUN gem install minitest -v 5.15.0
 RUN gem install flexmock
