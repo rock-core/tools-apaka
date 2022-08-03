@@ -17,7 +17,7 @@ module Apaka
 
         # Changing the logging level of the Packaging model
         # the environment variable is set in /lib/apaka/cli/base.rb
-        case ENV['APAKALOGLEVEL']
+        case ENV['APAKA_LOG_LEVEL']
         when 'info'
           extend Logger::Root("Packaging", Logger::INFO)
         when 'debug'
@@ -61,7 +61,7 @@ module Apaka
 
         class Packager
             # Changing the logging level of the Packager model
-            case ENV['APAKALOGLEVEL']
+            case ENV['APAKA_LOG_LEVEL']
             when 'info'
               extend Logger::Root("Packager", Logger::INFO)
             when 'debug'
