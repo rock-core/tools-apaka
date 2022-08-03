@@ -184,13 +184,16 @@ module Apaka
                 Autobuild.color = options[:color]
                 Autobuild.progress_display_enabled = options[:progress]
 
+                ENV['APAKA_LOG_LEVEL'] = 'warn'
                 if options[:verbose]
+                    ENV['APAKA_LOG_LEVEL'] = 'info'
                     Autoproj.verbose  = true
                     Autobuild.verbose = true
                     Autobuild.debug = false
                 end
 
                 if options[:debug]
+                    ENV['APAKA_LOG_LEVEL'] = 'debug'
                     Autoproj.verbose  = true
                     Autobuild.verbose = true
                     Autobuild.debug = true
