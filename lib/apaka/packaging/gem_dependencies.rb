@@ -45,7 +45,11 @@ module Apaka
                 end
 
                 gems_definitions = Bundler::Definition.build(gemfile, nil,nil)
+                # in bundler 2.3.22 resolve_remotely will resolve all gems except bundler
+                # last working version was in bundler 2.3.18
+                # https://github.com/rubygems/rubygems/issues/5945
                 gem_specs = gems_definitions.resolve_remotely!
+                gem_specs = gems_definitions.specs
 
                 gems = {}
                 gem_specs.each do |spec|
