@@ -1,5 +1,5 @@
 # apaka: Automated PAcKaging for Autoproj
-[![ubuntu-18.04](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml/badge.svg?branch=testing)](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml)
+[![ubuntu-18.04](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml/badge.svg)](https://github.com/rock-core/tools-apaka/actions/workflows/test.yml)
 [![ubuntu-20.04](https://github.com/rock-core/tools-apaka/actions/workflows/test_ubuntu-20.04.yml/badge.svg)](https://github.com/rock-core/tools-apaka/actions/workflows/test_ubuntu-20.04.yml)
 
 * https://github.com/rock-core/tools-apaka
