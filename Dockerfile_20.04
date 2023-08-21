@@ -16,7 +16,7 @@ ENV PKG_PULL_REQUEST_BRANCH=${PKG_PULL_REQUEST_BRANCH}
 RUN apt update
 RUN apt upgrade -y
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt install -y ruby ruby-dev git locales tzdata vim wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer curl
+RUN apt install -y ruby2.7 ruby2.7-dev git locales tzdata vim wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer curl
 RUN apt-file update
 RUN service apache2 start
 RUN echo "Europe/Berlin" > /etc/timezone; dpkg-reconfigure -f noninteractive tzdata
