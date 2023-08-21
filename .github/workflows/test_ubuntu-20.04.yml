@@ -9,7 +9,7 @@ jobs:
 
       - name: Branch name
         shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        run: echo "##[name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
         id: current_branch
 
       - name: Build 20.04
