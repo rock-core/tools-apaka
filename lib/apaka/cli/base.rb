@@ -85,7 +85,7 @@ module Apaka
             # Activate the configuration if a configuration file is provided
             def self.activate_configuration(options)
                 if config = options[:config_file]
-                    if File.exists?(config)
+                    if File.exist?(config)
                         Apaka::Packaging::Config.reload_config(config, options[:release_name])
                     end
                 end

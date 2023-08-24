@@ -1,11 +1,13 @@
 #!/bin/sh
-set -e
+set -ex
 
 echo "Reading pbuilder /etc/pbuilderrc"
 
-UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
-DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye"
+UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal jammy naughty"
+DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye bookworm"
 
+# debhelper-compat required with Starting with bulleye and focal
+DIST_REQUIRES_NO_DEBHELPER="trusty vivid wily xenial yakkety zesty artful bionic wheezy jessie stretch buster"
 
 if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
     echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
@@ -14,23 +16,23 @@ elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
 elif [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
-    DIST=bionic
+    DIST=$(lsb_release -sc)
     echo "warning: no distribution set -- using default: ${DIST}"
 fi
 
 for NAME in $UBUNTU_DISTS; do
-    if [ "$DIST" == "$NAME" ]; then
+    if [[ "$DIST" == "$NAME" ]]; then
         DIST_TYPE=ubuntu
     fi
 done
 
 for NAME in $DEBIAN_DISTS; do
-    if [ "$DIST" == "$NAME" ]; then
+    if [[ "$DIST" == "$NAME" ]]; then
         DIST_TYPE=debian
     fi
 done
 
-if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
+if [[ "$ARCH" == "armel" ]] || [[ "$ARCH" == "armhf" ]] || [[ "$ARCH" == "arm64" ]]; then
     DEBOOTSTRAP="qemu-debootstrap"
 fi
 
@@ -55,15 +57,9 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     echo " -- you have to make sure that 'debian-archive-keyring' is installed"
 
     if [ "$DIST" != "wheezy" ]; then
-	# Not available on wheezy
+	    # Not available on wheezy
     	EXTRA_PACKAGES+="ruby-all-dev,"
     fi
-
-    if [ "$DIST" == "bullseye" ]; then
-    # gem2deb requires debhelper-compat
-    # that comes with debhelper package
-    	EXTRA_PACKAGES+="debhelper,"
-    fi    
 
     MIRRORSITE=http://ftp.no.debian.org/debian/
     OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
@@ -81,6 +77,13 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     COMPONENTS="main contrib non-free"
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,contrib,nonfree)
 fi
+
+if [[ !$(echo $DIST_REQUIRES_NO_DEBHELPER | grep -w -q $DIST) ]]; then
+    # gem2deb requires debhelper-compat
+    # that comes with debhelper package
+    EXTRA_PACKAGES+="debhelper,"
+fi
+
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks

@@ -36,6 +36,12 @@ distributions:
     focal:
         type: ubuntu,debian
         labels: 20.04,focal,fossa,default
+    jammy:
+        type: ubuntu,debian
+        labels: 22.04,jammy,jellyfish,default
+    naughty:
+        type: ubuntu,debian
+        labels: 24.04,naughty,nightinggale,default
     squeeze:
         type: debian
         labels: 6,squeeze,default
@@ -57,11 +63,15 @@ distributions:
     bullseye:
         type: debian
         labels: 11,bullseye,default
+        ruby_version: ruby27
+    bookworm:
+        type: debian
+        labels: 12,bookworm,default
         uby_version: ruby27
 # what distribution should be build with which architecture
 architectures:
-    amd64: trusty,xenial,jessie,stretch,buster,bionic,focal,bullseye
-    i386:  trusty,xenial,jessie,stretch,buster,bionic,focal,bullseye
+    amd64: trusty,xenial,jessie,stretch,buster,bionic,focal,jammy,bullseye,bookworm
+    i386:  trusty,xenial,jessie,stretch,buster,bionic,focal,jammy,bullseye,bookworm
     armel: jessie,stretch,buster
     armhf: jessie,stretch,buster
     arm64: xenial,bionic,focal

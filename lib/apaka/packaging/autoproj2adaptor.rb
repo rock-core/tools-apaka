@@ -698,7 +698,7 @@ module Apaka
                     @copyright = ""
                     ['manifest.xml','package.xml'].each do |file|
                         xml_file  = File.join(@pkg.srcdir, file)
-                        if File.exists?(xml_file)
+                        if File.exist?(xml_file)
                             data = File.read(xml_file)
                             # check over multilines, then filter out newlines to
                             # get a consistent/unformatted text block

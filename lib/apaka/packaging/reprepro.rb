@@ -144,7 +144,7 @@ module Apaka
                         end
                         @reprepro_lock.lock
                         Dir.chdir(debian_package_dir) do
-                            if !File.exists?(debfile)
+                            if !File.exist?(debfile)
                                 raise ArgumentError, "Apaka::Packaging::register_debian_package: could not find '#{debfile}' in directory: '#{debian_package_dir}'"
                             end
 

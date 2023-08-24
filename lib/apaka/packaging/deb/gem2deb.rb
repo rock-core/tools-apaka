@@ -478,7 +478,7 @@ module Apaka
 
                                 debian_name = debian_ruby_unversioned_name
                                 path = File.join(TEMPLATES,action)
-                                template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                                template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                                 rendered = template.result(binding)
                                 File.open("debian/#{action}", "w") do |io|
                                     io.write(rendered)
@@ -500,7 +500,7 @@ module Apaka
                             # We cannot assume that an existing debian/copyright
                             # file is correct, since gem2deb autogenerates one
                             path = File.join(TEMPLATES,"copyright")
-                            template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                            template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                             rendered = template.result(binding)
                             File.open("debian/copyright", "w") do |io|
                                 io.write(rendered)
