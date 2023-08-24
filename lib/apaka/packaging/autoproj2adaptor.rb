@@ -44,6 +44,11 @@ module Apaka
                 Autoproj::workspace.setup_all_package_directories
                 Autoproj::workspace.finalize_package_setup
 
+                # Assume that ruby is already installed and avoid dependance on
+                # updating autoproj just for ignoring ruby
+                ruby_version = "ruby#{RbConfig::CONFIG['MAJOR']}#{RbConfig::CONFIG['MINOR']}"
+                Autoproj.osdeps.add_entries({ruby_version => [[{'default' => 'ignore'}]]})
+
                 @cli = Autoproj::CLI::Base.new(Autoproj::workspace)
             end
 
@@ -258,7 +263,11 @@ module Apaka
             public
 
             def package_by_name(package_name)
-                pkgmanifest_by_name(package_name).package
+                 manifest = pkgmanifest_by_name(package_name)
+                 if not manifest
+                     raise RuntimeError, "No manifest found for #{package_name}"
+                 end
+                 manifest.package
             end
 
             def pkginfo_by_name(package_name)

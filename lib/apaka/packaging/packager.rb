@@ -107,6 +107,9 @@ module Apaka
 
                 @reprepro = Reprepro::BaseRepo.new(DEB_REPOSITORY, @log_dir)
 
+                # Prevent: dch warning: neither DEBEMAIL nor EMAIL environment variable is set
+                ENV["DEBMAIL"] = options[:maintainer_email]
+
                 prepare
             end
 

@@ -46,7 +46,7 @@ module Apaka
                 [ distribution_release_name, architecture ].hash
             end
 
-	    def to_s(separator = "/")
+            def to_s(separator = "/")
                 "#{distribution_release_name}#{separator}#{architecture}"
             end
 
@@ -305,6 +305,7 @@ module Apaka
                         end
                     end
 
+                    outfile_content = File.read(outfile)
                     if TargetPlatform::isUbuntu(release_name)
                         # -A1 -> 1 line after the match
                         # -m1 -> first match: we assume that the first date refers to the latest entry
@@ -321,9 +322,16 @@ module Apaka
                     elsif TargetPlatform::isDebian(release_name)
                         # If file contains a response, then check for
                         # 'No such package'
-                        if !system("grep", "-i", "No such package", :in => outfile, [:out, :err] => "/dev/null", :close_others => true) && system("grep", "-i", "[a-zA-z]", :in => outfile, [:out, :err] => "/dev/null", :close_others => true)
+                        no_such_package = outfile_content.include?("No such package")
+                        error_package = outfile_content.include?("Error")
+                        found_package = outfile_content.include?("Download Page for")
+
+                        if found_package
                             result = true
+                        elsif error_package && !no_such_package
+                            raise RuntimeError, "Web search for #{release_name} seems to be unsupported: check https://packages.debian.org/index"
                         end
+
                         if Packaging::Config.packages_enforce_build.include?('gems')
                             if TargetPlatform::isRuby(package)
                                 Apaka::Packaging.info "TargetPlatform::contains returns false -- since configuration is set to forced manual build for all ruby packages: #{package}"
@@ -331,7 +339,7 @@ module Apaka
                             end
                         end
                     elsif TargetPlatform::isRock(release_name)
-                        if !system("grep", "-i", " 404", :in => errorfile, [:out, :err] => "/dev/null", :close_others => true)
+                        if outfile_content.include?("404")
                             result = true
                         end
                     end
@@ -367,4 +375,3 @@ module Apaka
         end # TargetPlatform
     end # Packaging
 end # Apaka
-

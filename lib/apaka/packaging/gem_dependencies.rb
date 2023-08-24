@@ -11,12 +11,16 @@ module Apaka
             @@known_gems = {}
             @@gemfile_to_specs = {}
             @@gemfile_md5 = {}
-
+            @@gemfile = nil
 
             # Path to autoproj default gemfile
-            #
             def self.gemfile
-                File.join(Autoproj.root_dir,"install","gems","Gemfile")
+                return @@gemfile || File.join(Autoproj.root_dir,"install","gems","Gemfile")
+            end
+
+            # Allow to set the gemfile used as base for the resolution
+            def self.gemfile=(gemfile)
+                @@gemfile = gemfile
             end
 
             # Collect all gem specification that are defined through a given
@@ -110,16 +114,17 @@ module Apaka
 
                         name = name.strip
                         if available_specs.has_key?(name)
-                            # skip already available definition
-                            next
+                            if version
+                               # skip already available definition for specific version)
+                               next if available_specs[name].version == ::Gem::Version.new(version)
+                            else
+                               # skip already available definition (arbitrary version)
+                               next
+                            end
                         end
 
                         if version
-                            if version =~ /^[0-9].*/
-                                f.puts "    gem \"#{name}\", \"== #{version}\""
-                            else
-                                f.puts "    gem \"#{name}\", \"#{version}\""
-                            end
+                            f.puts "    gem \"#{name}\", \"#{version}\""
                         else
                             f.puts "    gem \"#{name}\", \">= 0\""
                         end

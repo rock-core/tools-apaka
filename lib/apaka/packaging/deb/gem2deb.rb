@@ -8,6 +8,12 @@ module Apaka
 
                 def initialize(options = Hash.new)
                     super(options)
+
+                    if not ENV.include?('DEBMAIL')
+                        email = Apaka::Packaging::Config.maintainer_email
+                        Packager.warn "DEBMAIL is not set, using placeholder #{email}"
+                        ENV['DEBEMAIL'] = email
+                   end
                 end
 
                 # Convert with package info
