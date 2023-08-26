@@ -1,4 +1,4 @@
-FROM ubuntu:18.04
+FROM ubuntu:22.04
 
 MAINTAINER 2maz "https://github.com/2maz"
 
@@ -27,21 +27,32 @@ RUN echo "docker ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
 USER docker
 WORKDIR /home/docker
+COPY --chown=docker . apaka
 ENV LANG de_DE.UTF-8
 ENV LANG de_DE:de
 ENV LC_ALL de_DE.UTF-8
-ENV GEM_HOME=/home/docker/.gems/ruby/2.5.0
+
+ENV GEM_HOME=/home/docker/.gems/ruby/3.0.0
 ENV PATH=$GEM_HOME/bin:$PATH
 
-RUN git clone https://github.com/rock-core/tools-apaka /home/docker/apaka
-COPY --chown=docker .ci/prepare-package.sh prepare-package.sh
-RUN /bin/bash prepare-package.sh /home/docker/apaka
-
+#RUN git clone https://github.com/rock-core/tools-apaka /home/docker/apaka
+#COPY --chown=docker .ci/prepare-package.sh prepare-package.sh
+#RUN /bin/bash prepare-package.sh /home/docker/apaka
 RUN sed -i 's#gems_install_path.*#gems_install_path: /home/docker/.gems#' /home/docker/apaka/test/workspace/.autoproj/config.yml
+
 RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
-RUN gem install bundler
+
+#RUN git clone https://github.com/rock-core/autobuild
+#RUN git clone https://github.com/rock-core/autoproj
+
+#RUN cd /home/docker/autobuild; gem build autobuild.gemspec
+#RUN cd /home/docker/autoproj; gem build autoproj.gemspec
+
+RUN gem install backports
 RUN gem install autoproj
+RUN gem install bundler:2.4.19
 RUN gem install yard
-RUN gem install minitest -v 5.15.0
+RUN gem install minitest:5.15.0
 RUN gem install flexmock
+RUN gem install pry-byebug
