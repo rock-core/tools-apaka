@@ -91,7 +91,7 @@ fi
 # perl-openssl-defaults is needed due to the bug in the debootstrap: https://bugs.launchpad.net/ubuntu/+source/debootstrap/+bug/86536?comments=all
 # the issue arrised by building qtbindings
 
-EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
+EXTRA_PACKAGES+="apt,apt-utils,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 
 echo "DIST: ${DIST}"
