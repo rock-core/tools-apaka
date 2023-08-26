@@ -6,16 +6,19 @@ echo "Reading pbuilder /etc/pbuilderrc"
 UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
 DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye"
 
-
 if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
     echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
     DIST=$DISTRIBUTION
 elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
-elif [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
-    DIST=bionic
-    echo "warning: no distribution set -- using default: ${DIST}"
+elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
+    echo "warning: DIST (${DIST}) and DISTRIBUTION (${DISTRIBUTION}) are both set. The value of DIST will be used."
+    DISTRIBUTION=$DIST
+else
+    # no default distribution, let it fail
+    echo "ERROR: no DISTRIBUTION or DIST set"
+    exit 1
 fi
 
 for NAME in $UBUNTU_DISTS; do
@@ -45,8 +48,8 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
         # The port mirror site provides arm64, armel, armhf
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
-    
-    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"    
+
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
@@ -63,7 +66,7 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     # gem2deb requires debhelper-compat
     # that comes with debhelper package
     	EXTRA_PACKAGES+="debhelper,"
-    fi    
+    fi
 
     MIRRORSITE=http://ftp.no.debian.org/debian/
     OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
@@ -91,7 +94,7 @@ fi
 EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 
-echo "DIST: ${DIST}"
+echo "DISTRIBUTION: ${DISTRIBUTION} (DIST: ${DIST})"
 echo "ARCH: ${ARCH}"
 echo "COMPONENTS: ${COMPONENTS}"
 echo "DIST_TYPE: ${DIST_TYPE}"
