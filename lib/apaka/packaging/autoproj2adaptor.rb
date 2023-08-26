@@ -561,7 +561,7 @@ module Apaka
                                 version = $1
                             end
 
-                            name = name.gsub(/[<>=]=?.*$/,"")
+                            name = name.gsub(/[ <>=]=?.*$/,"")
 
                             extra_gems << [name, version]
                             non_native_dependencies << [name, version]

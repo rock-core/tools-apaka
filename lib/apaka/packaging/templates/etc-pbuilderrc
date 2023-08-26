@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ex
+set -e
 
 echo "Reading pbuilder /etc/pbuilderrc"
 
@@ -9,13 +9,17 @@ DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye bookworm"
 # debhelper-compat required with Starting with bulleye and focal
 DIST_REQUIRES_NO_DEBHELPER="trusty vivid wily xenial yakkety zesty artful bionic wheezy jessie stretch buster"
 
-if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
+if [ -z ${DIST} ] && [ -n ${DISTRIBUTION} ]; then
     echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
     DIST=$DISTRIBUTION
-elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
+elif [ -n ${DIST} ] && [ -n ${DISTRIBUTION} ]; then
+    echo "warning: DIST (${DIST}) and DISTRIBUTION (${DISTRIBUTION}) are both set. The value of DIST will be used."
+    DISTRIBUTION=$DIST
+elif [ -n ${DIST} ] && [ -z ${DISTRIBUTION} ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
-elif [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
+else
+    # no default distribution, let it fail
     DIST=$(lsb_release -sc)
     echo "warning: no distribution set -- using default: ${DIST}"
 fi
@@ -47,8 +51,8 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
         # The port mirror site provides arm64, armel, armhf
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
-    
-    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"    
+
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
@@ -94,7 +98,7 @@ fi
 EXTRA_PACKAGES+="apt,apt-utils,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
 
-echo "DIST: ${DIST}"
+echo "DISTRIBUTION: ${DISTRIBUTION} (DIST: ${DIST})"
 echo "ARCH: ${ARCH}"
 echo "COMPONENTS: ${COMPONENTS}"
 echo "DIST_TYPE: ${DIST_TYPE}"
