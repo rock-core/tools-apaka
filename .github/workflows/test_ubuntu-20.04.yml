@@ -1,19 +1,19 @@
-name: ubuntu-18.04
+name: ubuntu-20.04
 on: [push]
 jobs:
   unittests:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Branch name
         shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
         id: current_branch
 
-      - name: Build 18.04
-        run: docker build -t 2maz/apaka -f Dockerfile . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
+      - name: Build 20.04
+        run: docker build -t 2maz/apaka -f Dockerfile_20.04 . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
 
-      - name: Test-on-ubuntu:18.04
+      - name: Test-on-ubuntu:20.04
         run: docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"
