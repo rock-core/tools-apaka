@@ -243,7 +243,9 @@ module Apaka
                             Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: package '#{package_name}' is not present in workspace -- trying to load package"
                             ps = Autoproj::PackageSelection.new
                             ps.select(ps, package_name)
-                            Autoproj.workspace.load_packages(ps)
+
+                            ops = Autoproj::Ops::Import.new(Autoproj.workspace)
+                            ops.import_packages(ps)
                         end
                     rescue Exception => e
                         Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: failed to load package '#{package_name}' -- #{e}"
