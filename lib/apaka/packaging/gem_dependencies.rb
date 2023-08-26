@@ -108,7 +108,6 @@ module Apaka
                             name = gem
                         end
 
-                        name = name.strip
                         if available_specs.has_key?(name)
                             # skip already available definition
                             next
