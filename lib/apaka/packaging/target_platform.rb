@@ -267,7 +267,15 @@ module Apaka
                         urls << File.join(debian,release_name,architecture,package,"download")
                     end
                 elsif TargetPlatform::isRock(release_name)
-                    urls << File.join(Packaging::Config.rock_releases[release_name][:url],"pool","main","r",package)
+                    # Assuming that the (apache) webservice is hosting the /var/www/apaka-releases folder, so that
+                    # it also becomes accessible locally
+                    url = File.join(Packaging::Config.rock_releases[release_name][:url],"pool","main","r",package)
+                    if ! url =~ /^http/
+                        # ensure that the deb package for the particular architecture is available
+                        raise ArgumentError, "Release #{release_name} requires a proper url - current is invalid: #{url}"
+                    end
+                    url = "--level 1 --recursive --no-directories --accept \"#{package}*_#{architecture}.deb\" #{url}"
+                    urls << url
                 else
                     raise ArgumentError, "Unknown distribution #{release_name}"
                 end
@@ -339,7 +347,7 @@ module Apaka
                             end
                         end
                     elsif TargetPlatform::isRock(release_name)
-                        if outfile_content.include?("404")
+                        if !outfile_content.include?("404")
                             result = true
                         end
                     end
@@ -347,7 +355,6 @@ module Apaka
                         break
                     end
                 end
-
 
                 # Leave files as cache
                 [outfile, errorfile].each do |file|

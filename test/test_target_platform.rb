@@ -116,8 +116,10 @@ class TestTargetPlatform < Minitest::Test
             msg, status = Open3.capture2(cmd)
         end
         Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
+        master = Apaka::Packaging::TargetPlatform.new("master","amd64")
         transterra = Apaka::Packaging::TargetPlatform.new("transterra","amd64")
         ["rock-master-base-cmake"].each do |pkg|
+            assert( master.contains(pkg), "'#{master} contains #{pkg}" )
             assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
         end
     end
