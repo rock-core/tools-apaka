@@ -5,18 +5,18 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-20.04, ubuntu-22.04]
-      runs-on: ubuntu-22.04
-      steps:
-        - name: Checkout
-          uses: actions/checkout@v3
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-        - name: Branch name
-          shell: bash
-          run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
-          id: current_branch
+      - name: Branch name
+        shell: bash
+        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
+        id: current_branch
 
-        - name: Build {{ matrix.os }}
-          run: docker build -t 2maz/apaka -f Dockerfile.{{ matrix.os }} . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
+      - name: Build ${{ matrix.os }}
+        run: docker build -t 2maz/apaka -f Dockerfile.${{ matrix.os }} . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
 
-        - name: Test-on-ubuntu {{ matrix.os }}
-          run: docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"
+      - name: Test-on-ubuntu ${{ matrix.os }}
+        run: docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"
