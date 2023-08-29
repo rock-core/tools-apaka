@@ -19,8 +19,9 @@ elif [ -n ${DIST} ] && [ -z ${DISTRIBUTION} ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
 else
-    # no default distribution, let it fail
+    # no distribution specified, use currently running distribution
     DIST=$(lsb_release -sc)
+    DISTRIBUTION=$DIST
     echo "warning: no distribution set -- using default: ${DIST}"
 fi
 
