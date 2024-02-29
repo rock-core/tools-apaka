@@ -4,6 +4,10 @@ require 'date'
 
 
 class TestGemDependencies < Minitest::Test
+    def setup
+        Apaka::Packaging::GemDependencies.gemfile = File.join(__dir__, "workspace", ".autoproj", "Gemfile")
+    end
+
     def test_release_date
         date = Apaka::Packaging::GemDependencies.get_release_date("backports")
         assert(date)
@@ -19,15 +23,25 @@ class TestGemDependencies < Minitest::Test
     end
 
     def test_resolve_all
-        deps = Apaka::Packaging::GemDependencies.resolve_all(["rgl"])
-        ["stream","generator","lazy_priority_queue"].each do |dep|
-            assert(deps.has_key?(dep))
+        deps = Apaka::Packaging::GemDependencies.resolve_all([["rgl","0.5.10"]])
+        dep_names = deps.collect {|x| x[0]}
+        ["stream", "pairing_heap", "rexml"].each do |dep_name|
+            assert dep_names.include?(dep_name), "Require #{dep_name} in dependencies: #{dep_names.sort}"
+        end
+
+        deps = Apaka::Packaging::GemDependencies.resolve_all([["rgl","0.5.7"]])
+        dep_names = deps.collect {|x| x[0]}
+        ["stream", "lazy_priority_queue"].each do |dep_name|
+            assert dep_names.include?(dep_name), "Require #{dep_name} in dependencies: #{dep_names.sort}"
         end
     end
+
     def test_resolve_by_name
-        deps = Apaka::Packaging::GemDependencies.resolve_by_name("rgl")
-        ["stream","generator","lazy_priority_queue"].each do |dep|
-            assert(deps.has_key?(dep))
+        deps = Apaka::Packaging::GemDependencies.resolve_by_name("rgl", version: "0.5.10")
+        dep_names = deps.collect {|x| x[0]}
+        ["stream", "pairing_heap", "rexml"].each do |dep_name|
+            assert dep_names.include?(dep_name), "Require #{dep_name} in dependencies: #{dep_names.sort}"
         end
     end
+
 end

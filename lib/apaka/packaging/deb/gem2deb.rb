@@ -8,6 +8,12 @@ module Apaka
 
                 def initialize(options = Hash.new)
                     super(options)
+
+                    if not ENV.include?('DEBMAIL')
+                        email = Apaka::Packaging::Config.maintainer_email
+                        Packager.warn "DEBMAIL is not set, using placeholder #{email}"
+                        ENV['DEBEMAIL'] = email
+                   end
                 end
 
                 # Convert with package info
@@ -379,6 +385,14 @@ module Apaka
                             debcontrol.packages.each do |pkg|
                                 if pkg.has_key?("Depends")
                                     depends = pkg["Depends"].split(/,\s*/).map { |e| e.strip }
+                                    # delete ${ruby:Depends} var
+                                    # so debmake does not parse ruby dependencies
+                                    # especially if those ruby dependencies already represented as 
+                                    # rock debian ruby package
+                                    ind = depends.index("${ruby:Depends}")
+                                    if !ind.nil?
+                                        depends.delete_at(ind) 
+                                    end
                                     depends.each do |dep|
                                         if dep =~ /^ruby-(\S+)/
                                             pkg_name = $1
@@ -470,7 +484,7 @@ module Apaka
 
                                 debian_name = debian_ruby_unversioned_name
                                 path = File.join(TEMPLATES,action)
-                                template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                                template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                                 rendered = template.result(binding)
                                 File.open("debian/#{action}", "w") do |io|
                                     io.write(rendered)
@@ -492,7 +506,7 @@ module Apaka
                             # We cannot assume that an existing debian/copyright
                             # file is correct, since gem2deb autogenerates one
                             path = File.join(TEMPLATES,"copyright")
-                            template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                            template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                             rendered = template.result(binding)
                             File.open("debian/copyright", "w") do |io|
                                 io.write(rendered)

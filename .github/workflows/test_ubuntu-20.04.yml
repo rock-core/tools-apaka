@@ -5,7 +5,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Branch name
         shell: bash
@@ -13,7 +13,7 @@ jobs:
         id: current_branch
 
       - name: Build 20.04
-        run: docker build -t 2maz/apaka -f Dockerfile_20.04 . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
+        run: docker build -t apaka/ubuntu-20.04 -f Dockerfile.ubuntu-20.04 . --build-arg PKG_BRANCH=${{ steps.current_branch.outputs.branch }}
 
       - name: Test-on-ubuntu:20.04
-        run: docker run --privileged 2maz/apaka /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"
+        run: docker run --privileged apaka/ubuntu-20.04 /bin/sh -c "cd /home/docker/apaka/; BUNDLE_GEMFILE=/home/docker/apaka/test/workspace/.autoproj/Gemfile rake test"

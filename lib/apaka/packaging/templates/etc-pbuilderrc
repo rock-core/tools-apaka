@@ -2,38 +2,42 @@
 set -e
 
 echo "Reading pbuilder /etc/pbuilderrc"
-echo "DIST: ${DIST}"
-echo "ARCH: ${ARCH}"
-echo "COMPONENTS: ${COMPONENTS}"
 
-UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal"
-DEBIAN_DISTS="sid wheezy jessie stretch buster"
+UBUNTU_DISTS="trusty vivid wily xenial yakkety zesty artful bionic cosmic disco eoan focal jammy naughty"
+DEBIAN_DISTS="sid wheezy jessie stretch buster bullseye bookworm"
 
+# debhelper-compat required with Starting with bulleye and focal
+DIST_REQUIRES_NO_DEBHELPER="trusty vivid wily xenial yakkety zesty artful bionic wheezy jessie stretch buster"
 
-if [ "x${DIST}" = "x" ] && [ "x${DISTRIBUTION}" != "x" ]; then
+if [ -z ${DIST} ] && [ -n ${DISTRIBUTION} ]; then
     echo "warning: DIST is not set, using DISTRIBUTION=${DISTRIBUTION}"
     DIST=$DISTRIBUTION
-elif [ "x${DIST}" != "x" ] && [ "x${DISTRIBUTION}" = "x" ]; then
+elif [ -n ${DIST} ] && [ -n ${DISTRIBUTION} ]; then
+    echo "warning: DIST (${DIST}) and DISTRIBUTION (${DISTRIBUTION}) are both set. The value of DIST will be used."
+    DISTRIBUTION=$DIST
+elif [ -n ${DIST} ] && [ -z ${DISTRIBUTION} ]; then
     echo "warning: DISTRIBUTION is not set, using DIST=${DIST}"
     DISTRIBUTION=$DIST
 else
-    DIST=bionic
+    # no distribution specified, use currently running distribution
+    DIST=$(lsb_release -sc)
+    DISTRIBUTION=$DIST
     echo "warning: no distribution set -- using default: ${DIST}"
 fi
 
 for NAME in $UBUNTU_DISTS; do
-    if [ "$DIST" == "$NAME" ]; then
+    if [[ "$DIST" == "$NAME" ]]; then
         DIST_TYPE=ubuntu
     fi
 done
 
 for NAME in $DEBIAN_DISTS; do
-    if [ "$DIST" == "$NAME" ]; then
+    if [[ "$DIST" == "$NAME" ]]; then
         DIST_TYPE=debian
     fi
 done
 
-if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
+if [[ "$ARCH" == "armel" ]] || [[ "$ARCH" == "armhf" ]] || [[ "$ARCH" == "arm64" ]]; then
     DEBOOTSTRAP="qemu-debootstrap"
 fi
 
@@ -41,12 +45,15 @@ if [ "$DIST_TYPE" == "ubuntu" ]; then
     echo "Identified Ubuntu Distribution"
 
     COMPONENTS="main restricted universe multiverse"
+    # The default mirror site only provides i386 and amd64
     MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
-    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
+
     if [ "$ARCH" == "armel" ] || [ "$ARCH" == "armhf" ] || [ "$ARCH" == "arm64" ]; then
-        # The default mirror site only provides i386 and
+        # The port mirror site provides arm64, armel, armhf
         MIRRORSITE=http://ports.ubuntu.com/ubuntu-ports
     fi
+
+    OTHERMIRROR="deb $MIRRORSITE $DIST-updates $COMPONENTS"
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,restricted,universe,multiverse)
     EXTRA_PACKAGES+="ruby-all-dev,"
 
@@ -55,8 +62,8 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     echo " -- you have to make sure that 'debian-archive-keyring' is installed"
 
     if [ "$DIST" != "wheezy" ]; then
-	# Not available on wheezy
-    	EXTRA_PACKAGES="ruby-all-dev,"
+	    # Not available on wheezy
+    	EXTRA_PACKAGES+="ruby-all-dev,"
     fi
 
     MIRRORSITE=http://ftp.no.debian.org/debian/
@@ -75,6 +82,13 @@ elif [ "$DIST_TYPE" == "debian" ]; then
     COMPONENTS="main contrib non-free"
     DEBOOTSTRAPOPTS=("${DEBOOTSTRAPOPTS[@]}" --components=main,contrib,nonfree)
 fi
+
+if [[ !$(echo $DIST_REQUIRES_NO_DEBHELPER | grep -w -q $DIST) ]]; then
+    # gem2deb requires debhelper-compat
+    # that comes with debhelper package
+    EXTRA_PACKAGES+="debhelper,"
+fi
+
 # Append additional packages here
 # cmake required by quite some package, including qtbindings
 # apt-utils, e.g., for running apt-ftparchive in the hook dir see https://wiki.debian.org/PbuilderTricks
@@ -82,15 +96,19 @@ fi
 # perl-openssl-defaults is needed due to the bug in the debootstrap: https://bugs.launchpad.net/ubuntu/+source/debootstrap/+bug/86536?comments=all
 # the issue arrised by building qtbindings
 
-EXTRA_PACKAGES+="apt,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
+EXTRA_PACKAGES+="apt,apt-utils,cmake,dh-autoreconf,libgl1-mesa-dev,libboost-dev,yard,gem2deb,perl-openssl-defaults"
 DEBOOTSTRAPOPTS+=("--include=$EXTRA_PACKAGES")
+
+echo "DISTRIBUTION: ${DISTRIBUTION} (DIST: ${DIST})"
+echo "ARCH: ${ARCH}"
+echo "COMPONENTS: ${COMPONENTS}"
 echo "DIST_TYPE: ${DIST_TYPE}"
 echo "DEBOOTSTRAPOPTS: ${DEBOOTSTRAPOPTS[@]}"
-echo "COMPONENTS: $COMPONENTS"
+echo "MIRRORSITE: ${MIRRORSITE}"
+echo "OTHERMIRROR: ${OTHERMIRROR}"
 
 # Enable network in pbuilder, otherwise embedded bootstrap scripts will fail
 USENETWORK=yes
-
 
 ###   ORIGINAL VERSION   #####
 
@@ -101,4 +119,3 @@ USENETWORK=yes
 #
 # read pbuilderrc.5 document for notes on specific options.
 #MIRRORSITE=http://de.archive.ubuntu.com/ubuntu/
-

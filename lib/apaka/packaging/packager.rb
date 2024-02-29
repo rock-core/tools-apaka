@@ -107,6 +107,9 @@ module Apaka
 
                 @reprepro = Reprepro::BaseRepo.new(DEB_REPOSITORY, @log_dir)
 
+                # Prevent: dch warning: neither DEBEMAIL nor EMAIL environment variable is set
+                ENV["DEBMAIL"] = options[:maintainer_email]
+
                 prepare
             end
 
@@ -154,7 +157,7 @@ module Apaka
             # Process apaka control file and apply to the current directory
             def process_apaka_control(apaka_control)
                 Packager.info "apaka.control file available: #{apaka_control}"
-                if File.exists?(apaka_control)
+                if File.exist?(apaka_control)
                     File.open(apaka_control,"r").each do |line|
                         if line =~/^\s*#/
                             next
@@ -171,10 +174,10 @@ module Apaka
                         if line =~/RENAME (.*) (.*)/
                             orig_file = $1
                             renamed_file = $2
-                            if File.exists?(orig_file)
+                            if File.exist?(orig_file)
                                 Packager.info "Renaming file: #{orig_file} to #{renamed_file}"
                                 target_dir = File.dirname(renamed_file)
-                                FileUtils.mkdir_p target_dir unless File.exists?(target_dir)
+                                FileUtils.mkdir_p target_dir unless File.exist?(target_dir)
                                 FileUtils.mv orig_file, renamed_file
                             else
                                 raise RuntimeError, "Failed to rename file #{orig_file} for #{package_name} - file does not exist, so please check "\
@@ -191,7 +194,7 @@ module Apaka
                             if File.directory?(path)
                                 Packager.info "Removing dir: #{path}"
                                 FileUtils.rm_rf path
-                            elsif File.exists?(path)
+                            elsif File.exist?(path)
                                 Packager.info "Removing file: #{path}"
                                 FileUtils.rm path
                             else
@@ -342,7 +345,7 @@ module Apaka
                               whitelist: nil,
                               pkg_dir: Dir.pwd,
                               options: {})
-                if global_patch_dir && File.exists?(global_patch_dir)
+                if global_patch_dir && File.exist?(global_patch_dir)
                     if !package_name
                         raise ArgumentError, "DebianPackager::patch_pkg_dir: package name is required, but was nil"
                     end

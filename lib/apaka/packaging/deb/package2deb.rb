@@ -346,7 +346,7 @@ module Apaka
 
                     Find.find(template_dir) do |path|
                         next if File.directory?(path)
-                        template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                        template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                         rendered = template.result(binding)
 
                         target_path = File.join(dir, Pathname.new(path).relative_path_from(Pathname.new(template_dir)).to_s)
@@ -403,7 +403,7 @@ module Apaka
 
                     Find.find(template_dir) do |path|
                         next if File.directory?(path)
-                        template = ERB.new(File.read(path), nil, "%<>", path.gsub(/[^w]/, '_'))
+                        template = ERB.new(File.read(path), trim_mode: "%<>", eoutvar: path.gsub(/[^w]/, '_'))
                         begin
                             rendered = template.result(binding)
                         rescue
@@ -636,7 +636,7 @@ module Apaka
                     envyml = File.join(pkginfo.srcdir, "env.yml")
                     Packager.warn("Preparing env.yml #{envyml}")
                     patch_yml = {}
-                    if File.exists?(envyml)
+                    if File.exist?(envyml)
                         patch_yml = YAML.load_file(envyml)
                     end
 

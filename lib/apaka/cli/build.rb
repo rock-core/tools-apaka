@@ -30,6 +30,7 @@ module Apaka
 
 
             def build(packager, debian_pkg_name, orig_options)
+                puts "\e[32m Building deb package: #{debian_pkg_name} \e[0m"                
                 options = orig_options.dup
 
                 debian_package_dir = packager.packaging_dir(debian_pkg_name)

@@ -4,12 +4,19 @@ require_relative '../lib/apaka'
 class TestTargetPlatform < Minitest::Test
 
     attr_reader :platforms
+    attr_reader :outdated_platforms
 
     def setup
         @platforms = Array.new
-        @platforms << Apaka::Packaging::TargetPlatform.new("jessie","amd64")
         @platforms << Apaka::Packaging::TargetPlatform.new("trusty","amd64")
         @platforms << Apaka::Packaging::TargetPlatform.new("xenial","amd64")
+        @platforms << Apaka::Packaging::TargetPlatform.new("jammy","amd64")
+
+        @platforms << Apaka::Packaging::TargetPlatform.new("buster","amd64")
+        @platforms << Apaka::Packaging::TargetPlatform.new("bookworm","amd64")
+
+        @outdated_platforms = Array.new
+        @outdated_platforms << Apaka::Packaging::TargetPlatform.new("jessie","amd64")
 
         @rock_platforms = Array.new
         @rock_platforms << Apaka::Packaging::TargetPlatform.new("master","amd64")
@@ -23,10 +30,10 @@ class TestTargetPlatform < Minitest::Test
     end
 
     def test_distribution
-        ["jessie","sid"].each do |name|
+        ["jessie", "buster", "bookworm"].each do |name|
             assert(Apaka::Packaging::TargetPlatform::isDebian(name), "'#{name}' is debian distribution")
         end
-        ["trusty","vivid","wily","xenial","yakkety"].each do |name|
+        ["trusty","vivid","wily","xenial","yakkety", "jammy", "naughty",].each do |name|
             assert(Apaka::Packaging::TargetPlatform::isUbuntu(name), "'#{name}' is ubuntu distribution")
         end
     end
@@ -34,7 +41,7 @@ class TestTargetPlatform < Minitest::Test
     def test_package_available
         enforce_build = Apaka::Packaging::Config.packages_enforce_build
         Apaka::Packaging::Config.packages_enforce_build = []
-        ["cucumber","bundler","ruby-facets","cmake"].each do |pkg|
+        ["cucumber","bundler","ruby-thor","cmake"].each do |pkg|
             platforms.each do |platform|
                 assert( platform.contains(pkg), "'#{pkg} is available for #{platform}" )
             end
@@ -88,6 +95,14 @@ class TestTargetPlatform < Minitest::Test
                 assert( !platform.contains(pkg), "'#{pkg}' is not available for #{platform}")
             end
         end
+
+        ["nonsense","concurrent-ruby"].each do |pkg|
+            @outdated_platforms.each do |platform|
+                assert_raises RuntimeError do
+                    platform.contains(pkg)
+                end
+            end
+        end
     end
 
     def test_rock_all_parents
@@ -101,8 +116,10 @@ class TestTargetPlatform < Minitest::Test
             msg, status = Open3.capture2(cmd)
         end
         Apaka::Packaging::Config.rock_releases["transterra"] = { :depends_on => ["master"], :url => "" }
+        master = Apaka::Packaging::TargetPlatform.new("master","amd64")
         transterra = Apaka::Packaging::TargetPlatform.new("transterra","amd64")
         ["rock-master-base-cmake"].each do |pkg|
+            assert( master.contains(pkg), "'#{master} contains #{pkg}" )
             assert( transterra.ancestorContains(pkg), "'#{transterra} ancestor contains #{pkg}" )
         end
     end
@@ -123,10 +140,10 @@ class TestTargetPlatform < Minitest::Test
         invalid_names.each do |name|
             begin
                 d.rock_release_name = name
-	        assert(false, "Invalid release name #{name} is detected")
-	    rescue ArgumentError => e
-	        assert(true, "Invalid release name #{name} is detected - #{e}")
-	    end
+                assert(false, "Invalid release name #{name} is detected")
+            rescue ArgumentError => e
+                assert(true, "Invalid release name #{name} is detected - #{e}")
+            end
         end
     end
 

@@ -44,6 +44,11 @@ module Apaka
                 Autoproj::workspace.setup_all_package_directories
                 Autoproj::workspace.finalize_package_setup
 
+                # Assume that ruby is already installed and avoid dependance on
+                # updating autoproj just for ignoring ruby
+                ruby_version = "ruby#{RbConfig::CONFIG['MAJOR']}#{RbConfig::CONFIG['MINOR']}"
+                Autoproj.osdeps.add_entries({ruby_version => [[{'default' => 'ignore'}]]})
+
                 @cli = Autoproj::CLI::Base.new(Autoproj::workspace)
             end
 
@@ -238,7 +243,9 @@ module Apaka
                             Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: package '#{package_name}' is not present in workspace -- trying to load package"
                             ps = Autoproj::PackageSelection.new
                             ps.select(ps, package_name)
-                            Autoproj.workspace.load_packages(ps)
+
+                            ops = Autoproj::Ops::Import.new(Autoproj.workspace)
+                            ops.import_packages(ps)
                         end
                     rescue Exception => e
                         Packaging.warn "Apaka::Packaging::Autoproj2Adaptor: failed to load package '#{package_name}' -- #{e}"
@@ -258,7 +265,11 @@ module Apaka
             public
 
             def package_by_name(package_name)
-                pkgmanifest_by_name(package_name).package
+                 manifest = pkgmanifest_by_name(package_name)
+                 if not manifest
+                     raise RuntimeError, "No manifest found for #{package_name}"
+                 end
+                 manifest.package
             end
 
             def pkginfo_by_name(package_name)
@@ -550,7 +561,7 @@ module Apaka
                                 version = $1
                             end
 
-                            name = name.gsub(/[<>=]=?.*$/,"")
+                            name = name.gsub(/[ <>=]=?.*$/,"")
 
                             extra_gems << [name, version]
                             non_native_dependencies << [name, version]
@@ -698,7 +709,7 @@ module Apaka
                     @copyright = ""
                     ['manifest.xml','package.xml'].each do |file|
                         xml_file  = File.join(@pkg.srcdir, file)
-                        if File.exists?(xml_file)
+                        if File.exist?(xml_file)
                             data = File.read(xml_file)
                             # check over multilines, then filter out newlines to
                             # get a consistent/unformatted text block

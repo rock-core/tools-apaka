@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-MAINTAINER annaborn "https://github.com/annaborn"
+MAINTAINER 2maz "https://github.com/2maz"
 
 # Optional arguments
 ARG PKG_BRANCH="master"
@@ -16,7 +16,7 @@ ENV PKG_PULL_REQUEST_BRANCH=${PKG_PULL_REQUEST_BRANCH}
 RUN apt update
 RUN apt upgrade -y
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt install -y ruby2.7 ruby2.7-dev git locales tzdata vim wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer curl
+RUN apt install -y ruby ruby-dev git locales tzdata vim wget gem2deb reprepro apache2 cmake automake pbuilder cowdancer curl
 RUN apt-file update
 RUN service apache2 start
 RUN echo "Europe/Berlin" > /etc/timezone; dpkg-reconfigure -f noninteractive tzdata
@@ -43,5 +43,5 @@ RUN git config --global user.email 'apaka@docker'
 RUN gem install bundler
 RUN gem install autoproj
 RUN gem install yard
-RUN gem install minitest
+RUN gem install minitest -v 5.15.0
 RUN gem install flexmock

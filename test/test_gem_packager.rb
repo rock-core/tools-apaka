@@ -22,7 +22,7 @@ class TestGemPackager < Minitest::Test
         pkg = autoprojadaptor.package_by_name("tools/metaruby")
         pkginfo = autoprojadaptor.pkginfo_from_pkg(pkg)
 
-        @package2gem.convert_package(pkginfo, @testdir, { gem_name: "mynewgem" } )
+        @package2gem.convert_package(pkginfo, @testdir, gem_name: "mynewgem")
         assert(!Dir.glob(File.join(@testdir,"mynewgem*.gem")).empty?, "Ruby package #{pkg.name} converted to mynewgem*.gem")
     end
 end

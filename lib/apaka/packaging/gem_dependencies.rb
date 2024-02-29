@@ -11,12 +11,16 @@ module Apaka
             @@known_gems = {}
             @@gemfile_to_specs = {}
             @@gemfile_md5 = {}
-
+            @@gemfile = nil
 
             # Path to autoproj default gemfile
-            #
             def self.gemfile
-                File.join(Autoproj.root_dir,"install","gems","Gemfile")
+                return @@gemfile || File.join(Autoproj.root_dir,"install","gems","Gemfile")
+            end
+
+            # Allow to set the gemfile used as base for the resolution
+            def self.gemfile=(gemfile)
+                @@gemfile = gemfile
             end
 
             # Collect all gem specification that are defined through a given
@@ -45,7 +49,11 @@ module Apaka
                 end
 
                 gems_definitions = Bundler::Definition.build(gemfile, nil,nil)
+                # in bundler 2.3.22 resolve_remotely will resolve all gems except bundler
+                # last working version was in bundler 2.3.18
+                # https://github.com/rubygems/rubygems/issues/5945
                 gem_specs = gems_definitions.resolve_remotely!
+                gem_specs = gems_definitions.specs
 
                 gems = {}
                 gem_specs.each do |spec|
@@ -106,16 +114,17 @@ module Apaka
 
                         name = name.strip
                         if available_specs.has_key?(name)
-                            # skip already available definition
-                            next
+                            if version
+                               # skip already available definition for specific version)
+                               next if available_specs[name].version == ::Gem::Version.new(version)
+                            else
+                               # skip already available definition (arbitrary version)
+                               next
+                            end
                         end
 
                         if version
-                            if version =~ /^[0-9].*/
-                                f.puts "    gem \"#{name}\", \"== #{version}\""
-                            else
-                                f.puts "    gem \"#{name}\", \"#{version}\""
-                            end
+                            f.puts "    gem \"#{name}\", \"#{version}\""
                         else
                             f.puts "    gem \"#{name}\", \">= 0\""
                         end
