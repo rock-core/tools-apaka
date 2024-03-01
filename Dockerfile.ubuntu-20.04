@@ -40,7 +40,7 @@ RUN /bin/bash prepare-package.sh /home/docker/apaka
 RUN sed -i 's#gems_install_path.*#gems_install_path: /home/docker/.gems#' /home/docker/apaka/test/workspace/.autoproj/config.yml
 RUN git config --global user.name 'Apaka4docker'
 RUN git config --global user.email 'apaka@docker'
-RUN gem install bundler
+RUN gem install bundler -v 2.4.22
 RUN gem install autoproj
 RUN gem install yard
 RUN gem install minitest -v 5.15.0
